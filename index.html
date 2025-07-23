@@ -421,6 +421,12 @@
             ctx.lineWidth = 2;
             ctx.stroke();
             
+            // Player health text below the circle
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`HP: ${game.player.health}`, game.player.x, game.player.y + game.player.radius + 20);
+            
             // Aiming line
             ctx.beginPath();
             ctx.moveTo(game.player.x, game.player.y);
@@ -430,8 +436,8 @@
             ctx.stroke();
             
             // Bullets
-            ctx.fillStyle = '#ffff00';
-            ctx.strokeStyle = '#ffaa00';
+            ctx.fillStyle = '#00ffff';
+            ctx.strokeStyle = '#00cccc';
             ctx.lineWidth = 1;
             game.bullets.forEach(b => {
                 ctx.beginPath();
