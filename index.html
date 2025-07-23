@@ -1,4 +1,31 @@
-// Update damage labels
+function draw() {
+            // Clear and draw grid
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const gridSize = 40;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Player (using health system)
+            PlayerHealthSystem.drawPlayer(game.player);
+            
+            // Aiming line
+            ctx.begin            // Update damage labels
             for (let i = game.damageLabels.length - 1; i >= 0; i--) {
                 const label = game.damageLabels[i];
                 label.x += label.dx;
@@ -738,144 +765,112 @@
         }
         
         function draw() {
-            try {
-                // Clear and draw grid
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                const gridSize = 40;
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.lineWidth = 1;
-                
-                for (let x = 0; x <= canvas.width; x += gridSize) {
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, canvas.height);
-                    ctx.stroke();
-                }
-                
-                for (let y = 0; y <= canvas.height; y += gridSize) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(canvas.width, y);
-                    ctx.stroke();
-                }
-                
-                // Test if we can draw a simple circle first
+            // Clear and draw grid
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const gridSize = 40;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
-                ctx.arc(canvas.width / 2, canvas.height / 2, 20, 0, Math.PI * 2);
-                ctx.fillStyle = '#ff0000';
-                ctx.fill();
-                console.log('Test circle drawn at center');
-                
-                // Draw player using health system (if it exists)
-                if (typeof PlayerHealthSystem !== 'undefined' && PlayerHealthSystem.drawPlayer) {
-                    PlayerHealthSystem.drawPlayer(game.player);
-                } else {
-                    // Fallback: draw player manually
-                    console.log('Using fallback player drawing');
-                    ctx.beginPath();
-                    ctx.arc(game.player.x, game.player.y, game.player.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fill();
-                    ctx.strokeStyle = '#cccccc';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
-                
-                // Draw aiming line
-                if (game.mouse.x && game.mouse.y) {
-                    ctx.beginPath();
-                    ctx.moveTo(game.player.x, game.player.y);
-                    ctx.lineTo(game.mouse.x, game.mouse.y);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-                
-                // Draw bullet trails
-                game.bulletTrails.forEach(function(trail) {
-                    ctx.save();
-                    ctx.globalAlpha = trail.opacity;
-                    ctx.fillStyle = '#00ffff';
-                    ctx.beginPath();
-                    ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-                
-                // Draw bullets
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Player (using health system)
+            PlayerHealthSystem.drawPlayer(game.player);
+            
+            // Aiming line
+            ctx.beginPath();
+            ctx.moveTo(game.player.x, game.player.y);
+            ctx.lineTo(game.mouse.x, game.mouse.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Bullet trails
+            game.bulletTrails.forEach(function(trail) {
+                ctx.save();
+                ctx.globalAlpha = trail.opacity;
                 ctx.fillStyle = '#00ffff';
-                ctx.strokeStyle = '#00cccc';
-                ctx.lineWidth = 1;
-                game.bullets.forEach(function(b) {
-                    ctx.beginPath();
-                    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                });
+                ctx.beginPath();
+                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Bullets
+            ctx.fillStyle = '#00ffff';
+            ctx.strokeStyle = '#00cccc';
+            ctx.lineWidth = 1;
+            game.bullets.forEach(function(b) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            
+            // Enemies
+            game.enemies.forEach(function(e) {
+                const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
+                const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
+                drawShape(e.x, e.y, e.type, e.radius, color, stroke);
                 
-                // Draw enemies
-                game.enemies.forEach(function(e) {
-                    const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
-                    const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
-                    drawShape(e.x, e.y, e.type, e.radius, color, stroke);
+                // Health bar for tough enemies
+                if (e.maxHealth > 50) {
+                    const w = e.radius * 2;
+                    const h = 4;
+                    const hp = e.health / e.maxHealth;
                     
-                    // Health bar for tough enemies
-                    if (e.maxHealth > 50) {
-                        const w = e.radius * 2;
-                        const h = 4;
-                        const hp = e.health / e.maxHealth;
-                        
-                        ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
-                        ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
-                        ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-                        ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
-                    }
-                });
-                
-                // Draw hit effects
-                game.hitEffects.forEach(function(effect) {
-                    ctx.save();
-                    ctx.globalAlpha = effect.opacity;
-                    ctx.fillStyle = '#00ffff';
-                    ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-                
-                // Draw damage labels using health system (if available)
-                if (typeof PlayerHealthSystem !== 'undefined' && PlayerHealthSystem.drawDamageLabels) {
-                    PlayerHealthSystem.drawDamageLabels();
+                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
                 }
-                
-                // Draw explosions
-                game.explosions.forEach(function(p) {
-                    ctx.save();
-                    ctx.globalAlpha = p.opacity;
-                    drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
-                    ctx.restore();
-                });
-                
-                // Draw pause overlay
-                if (game.paused) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '48px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
-                    ctx.font = '20px Arial';
-                    ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
-                }
-                
-                console.log('Draw function completed successfully');
-            } catch (error) {
-                console.error('Draw function error:', error);
-                // Fallback: just draw a simple test
-                ctx.fillStyle = '#ff0000';
-                ctx.fillRect(100, 100, 50, 50);
+            });
+            
+            // Hit effects
+            game.hitEffects.forEach(function(effect) {
+                ctx.save();
+                ctx.globalAlpha = effect.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Damage labels (using health system)
+            PlayerHealthSystem.drawDamageLabels();
+            
+            // Explosions
+            game.explosions.forEach(function(p) {
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
+                drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
+                ctx.restore();
+            });
+            
+            // Pause overlay
+            if (game.paused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
             }
         }
         
@@ -971,23 +966,8 @@
             requestAnimationFrame(gameLoop);
         }
         
-        // Start the game immediately with error handling
-        try {
-            console.log('Initializing game...');
-            console.log('Canvas size:', canvas.width, 'x', canvas.height);
-            console.log('Player position:', game.player.x, game.player.y);
-            console.log('Player health:', game.player.health);
-            
-            // Force first draw to test rendering
-            draw();
-            console.log('Initial draw completed');
-            
-            // Start game loop
-            requestAnimationFrame(gameLoop);
-            console.log('Game loop started');
-        } catch (error) {
-            console.error('Game initialization failed:', error);
-        }
+        // Start the game
+        requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>
