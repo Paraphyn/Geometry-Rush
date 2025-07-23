@@ -164,7 +164,7 @@
             }
         }
 
-        // Bullet management
+        // Player bullet management
         class Bullet {
             constructor(x, y, dx, dy) {
                 this.x = x;
@@ -176,7 +176,7 @@
             }
 
             update(canvas, effects) {
-                effects.createBulletTrail(this.x, this.y);
+                effects.createBulletTrail(this.x, this.y, '#00ffff');
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
@@ -189,6 +189,37 @@
                 ctx.fillStyle = '#00ffff';
                 ctx.fill();
                 ctx.strokeStyle = '#00cccc';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // Enemy bullet management
+        class EnemyBullet {
+            constructor(x, y, dx, dy) {
+                this.x = x;
+                this.y = y;
+                this.dx = dx;
+                this.dy = dy;
+                this.radius = 3;
+                this.life = 100;
+                this.damage = 15;
+            }
+
+            update(canvas, effects) {
+                effects.createBulletTrail(this.x, this.y, '#ffaa00');
+                this.x += this.dx;
+                this.y += this.dy;
+                this.life--;
+                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height && this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffaa00';
+                ctx.fill();
+                ctx.strokeStyle = '#ff8800';
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
@@ -207,9 +238,11 @@
                 this.points = config.points;
                 this.damage = config.damage;
                 this.damageFlash = 0;
+                this.lastShot = 0;
+                this.shootDelay = type === 'octagon' ? 6000 : Infinity; // Octagons shoot every 6 seconds
             }
 
-            update(player, canvas) {
+            update(player, canvas, effects, enemyBullets) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
@@ -218,7 +251,28 @@
                     this.x += (dx / dist) * this.speed;
                     this.y += (dy / dist) * this.speed;
                 }
+                if (this.type === 'octagon') {
+                    const now = Date.now();
+                    if (now - this.lastShot >= this.shootDelay) {
+                        this.shoot(player, enemyBullets);
+                        this.lastShot = now;
+                    }
+                }
                 return dist;
+            }
+
+            shoot(player, enemyBullets) {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    enemyBullets.push(new EnemyBullet(
+                        this.x,
+                        this.y,
+                        (dx / dist) * 8,
+                        (dy / dist) * 8
+                    ));
+                }
             }
 
             takeDamage(damage, effects) {
@@ -310,9 +364,10 @@
 
         // Bullet trail effect
         class BulletTrail {
-            constructor(x, y) {
+            constructor(x, y, color) {
                 this.x = x;
                 this.y = y;
+                this.color = color;
                 this.size = 3;
                 this.opacity = 0.25;
                 this.life = 5;
@@ -328,7 +383,7 @@
             draw(ctx) {
                 ctx.save();
                 ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = '#00ffff';
+                ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
@@ -426,8 +481,8 @@
                 this.explosions = [];
             }
 
-            createBulletTrail(x, y) {
-                this.bulletTrails.push(new BulletTrail(x, y));
+            createBulletTrail(x, y, color) {
+                this.bulletTrails.push(new BulletTrail(x, y, color));
             }
 
             createHitEffect(x, y) {
@@ -485,6 +540,7 @@
                 this.input.clear();
                 this.player = new Player(this.canvas);
                 this.bullets = [];
+                this.enemyBullets = [];
                 this.enemies = [];
                 this.effects = new EffectsManager();
                 this.score = 0;
@@ -625,9 +681,11 @@
                 if (this.input.mouse.down) this.shoot();
 
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
+
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
-                    const dist = enemy.update(this.player, this.canvas);
+                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets);
                     if (dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
@@ -646,6 +704,15 @@
                             }
                             break;
                         }
+                    }
+                }
+
+                for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+                    const bullet = this.enemyBullets[i];
+                    const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
+                    if (dist < bullet.radius + this.player.radius) {
+                        this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects);
+                        this.enemyBullets.splice(i, 1);
                     }
                 }
 
@@ -686,6 +753,7 @@
                 this.ctx.stroke();
 
                 this.bullets.forEach(bullet => bullet.draw(this.ctx));
+                this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
                 this.effects.draw(this.ctx);
 
