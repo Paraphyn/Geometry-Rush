@@ -76,6 +76,8 @@
             bullets: [],
             enemies: [],
             explosions: [],
+            bulletTrails: [],
+            hitEffects: [],
             score: 0,
             startTime: Date.now(),
             lastEnemySpawn: 0,
@@ -237,6 +239,8 @@
                 bullets: [],
                 enemies: [],
                 explosions: [],
+                bulletTrails: [],
+                hitEffects: [],
                 score: 0,
                 startTime: Date.now(),
                 lastEnemySpawn: 0,
@@ -315,6 +319,33 @@
             }
         }
         
+        function createHitEffect(x, y) {
+            const particleCount = 8;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (Math.PI * 2 * i) / particleCount;
+                const speed = 1 + Math.random() * 2;
+                game.hitEffects.push({
+                    x: x,
+                    y: y,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
+                    size: 2 + Math.random() * 2,
+                    opacity: 1,
+                    life: 15 + Math.random() * 10
+                });
+            }
+        }
+        
+        function createBulletTrail(x, y) {
+            game.bulletTrails.push({
+                x: x,
+                y: y,
+                size: 3,
+                opacity: 0.6,
+                life: 8
+            });
+        }
+        
         function update() {
             if (game.gameOver || game.paused) return;
             
@@ -342,6 +373,10 @@
             // Update bullets
             for (let i = game.bullets.length - 1; i >= 0; i--) {
                 const b = game.bullets[i];
+                
+                // Create bullet trail
+                createBulletTrail(b.x, b.y);
+                
                 b.x += b.dx;
                 b.y += b.dy;
                 b.life--;
@@ -381,6 +416,7 @@
                     const bulletDist = Math.sqrt((b.x - e.x) ** 2 + (b.y - e.y) ** 2);
                     
                     if (bulletDist < b.radius + e.radius) {
+                        createHitEffect(b.x, b.y);
                         game.bullets.splice(j, 1);
                         e.health -= 50;
                         e.damageFlash = 10;
@@ -406,6 +442,30 @@
                 p.opacity = p.life / 50;
                 
                 if (p.life <= 0) game.explosions.splice(i, 1);
+            }
+            
+            // Update bullet trails
+            for (let i = game.bulletTrails.length - 1; i >= 0; i--) {
+                const trail = game.bulletTrails[i];
+                trail.life--;
+                trail.opacity = trail.life / 8;
+                trail.size *= 0.95;
+                
+                if (trail.life <= 0) game.bulletTrails.splice(i, 1);
+            }
+            
+            // Update hit effects
+            for (let i = game.hitEffects.length - 1; i >= 0; i--) {
+                const effect = game.hitEffects[i];
+                effect.x += effect.dx;
+                effect.y += effect.dy;
+                effect.dx *= 0.9;
+                effect.dy *= 0.9;
+                effect.life--;
+                effect.opacity = effect.life / 25;
+                effect.size *= 0.98;
+                
+                if (effect.life <= 0) game.hitEffects.splice(i, 1);
             }
         }
         
@@ -488,6 +548,17 @@
             ctx.lineWidth = 1;
             ctx.stroke();
             
+            // Bullet trails
+            game.bulletTrails.forEach(function(trail) {
+                ctx.save();
+                ctx.globalAlpha = trail.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
             // Bullets
             ctx.fillStyle = '#00ffff';
             ctx.strokeStyle = '#00cccc';
@@ -518,6 +589,17 @@
                 }
             });
             
+            // Hit effects
+            game.hitEffects.forEach(function(effect) {
+                ctx.save();
+                ctx.globalAlpha = effect.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
             // Explosions
             game.explosions.forEach(function(p) {
                 ctx.save();
@@ -525,16 +607,6 @@
                 drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
                 ctx.restore();
             });
-            
-            // Health bar
-            const healthPercent = Math.max(0, game.player.health / 100);
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-            ctx.fillRect(10, 10, 100, 10);
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
-            ctx.fillRect(10, 10, 100 * healthPercent, 10);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(10, 10, 100, 10);
             
             // Pause overlay
             if (game.paused) {
