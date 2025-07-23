@@ -53,6 +53,21 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         
+        // Input state management
+        const input = {
+            keys: {},
+            mouse: { x: 0, y: 0, down: false },
+            lastKeyTime: {},
+            preventSpam: function(key, delay = 100) {
+                const now = Date.now();
+                if (this.lastKeyTime[key] && now - this.lastKeyTime[key] < delay) {
+                    return false;
+                }
+                this.lastKeyTime[key] = now;
+                return true;
+            }
+        };
+        
         // Game state
         let game = {
             player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100 },
@@ -67,7 +82,7 @@
             enemySpawnRate: 2000,
             mouseDown: false,
             lastShot: 0,
-            shootDelay: 250, // Reduced from 500 to 250 (0.25s)
+            shootDelay: 250,
             gameOver: false,
             paused: false,
             pauseTime: 0
@@ -77,7 +92,6 @@
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // Only update player position if game is not in progress
             if (game.player.health === 100 && game.score === 0) {
                 game.player.x = canvas.width / 2;
                 game.player.y = canvas.height / 2;
@@ -85,41 +99,70 @@
         }
         window.addEventListener('resize', resize);
         
-        // Clear all inputs when window loses focus
-        window.addEventListener('blur', () => {
-            input.keys = {};
-            input.mouse.down = false;
-            game.keys = {};
-            game.mouseDown = false;
-        });
-        
-        window.addEventListener('focus', () => {
-            input.keys = {};
-            input.mouse.down = false;
-            game.keys = {};
-            game.mouseDown = false;
-        });
-        
-        // Prevent problematic browser shortcuts
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Tab' || e.key === 'F11') {
+        // Input handling
+        document.addEventListener('keydown', function(e) {
+            const key = e.key;
+            const code = e.code;
+            
+            // Prevent browser defaults for game keys
+            if (['Escape', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
                 e.preventDefault();
             }
-        });
-        
-        // Input handling
-        document.addEventListener('keydown', e => {
-            if (e.key.toLowerCase() === ' ' || e.key === 'space') {
+            
+            // ESC - Pause/Resume
+            if (key === 'Escape' && input.preventSpam('Escape', 200)) {
+                if (!game.gameOver) {
+                    game.paused = !game.paused;
+                    if (game.paused) {
+                        game.pauseTime = Date.now();
+                        input.keys = {};
+                        input.mouse.down = false;
+                    } else {
+                        game.startTime += Date.now() - game.pauseTime;
+                    }
+                }
+                return;
+            }
+            
+            // SPACE - Restart game
+            if ((key === ' ' || code === 'Space') && input.preventSpam('Space', 200)) {
                 if (game.gameOver) {
                     resetGame();
                     return;
                 }
             }
-            game.keys[e.key.toLowerCase()] = true;
+            
+            // Movement keys
+            if (!game.gameOver && !game.paused) {
+                const moveKeys = {
+                    'KeyW': 'w', 'ArrowUp': 'w',
+                    'KeyS': 's', 'ArrowDown': 's', 
+                    'KeyA': 'a', 'ArrowLeft': 'a',
+                    'KeyD': 'd', 'ArrowRight': 'd'
+                };
+                
+                if (moveKeys[code]) {
+                    input.keys[moveKeys[code]] = true;
+                }
+            }
         });
-        document.addEventListener('keyup', e => game.keys[e.key.toLowerCase()] = false);
         
-        canvas.addEventListener('mousemove', e => {
+        document.addEventListener('keyup', function(e) {
+            const code = e.code;
+            const moveKeys = {
+                'KeyW': 'w', 'ArrowUp': 'w',
+                'KeyS': 's', 'ArrowDown': 's', 
+                'KeyA': 'a', 'ArrowLeft': 'a',
+                'KeyD': 'd', 'ArrowRight': 'd'
+            };
+            
+            if (moveKeys[code]) {
+                e.preventDefault();
+                input.keys[moveKeys[code]] = false;
+            }
+        });
+        
+        canvas.addEventListener('mousemove', function(e) {
             if (game.gameOver) return;
             
             const rect = canvas.getBoundingClientRect();
@@ -129,11 +172,10 @@
             game.mouse.y = input.mouse.y;
         });
         
-        canvas.addEventListener('mousedown', e => {
-            if (e.button !== 0) return; // Only left click
+        canvas.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
             
             if (game.gameOver) {
-                // Check play again button
                 const rect = canvas.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
@@ -156,18 +198,34 @@
             }
         });
         
-        canvas.addEventListener('mouseup', e => {
+        canvas.addEventListener('mouseup', function(e) {
             if (e.button === 0) {
                 input.mouse.down = false;
                 game.mouseDown = false;
             }
         });
         
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
+        canvas.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+        
+        // Clear inputs when window loses focus
+        window.addEventListener('blur', function() {
+            input.keys = {};
+            input.mouse.down = false;
+            game.keys = {};
+            game.mouseDown = false;
+        });
+        
+        window.addEventListener('focus', function() {
+            input.keys = {};
+            input.mouse.down = false;
+            game.keys = {};
+            game.mouseDown = false;
+        });
         
         // Game functions
         function resetGame() {
-            // Clear all input states completely
             input.keys = {};
             input.mouse.down = false;
             input.lastKeyTime = {};
@@ -185,7 +243,7 @@
                 enemySpawnRate: 2000,
                 mouseDown: false,
                 lastShot: 0,
-                shootDelay: 250, // Reduced from 500 to 250 (0.25s)
+                shootDelay: 250,
                 gameOver: false,
                 paused: false,
                 pauseTime: 0
@@ -230,7 +288,7 @@
             const config = ENEMY_TYPES[type];
             
             game.enemies.push({
-                x, y, type,
+                x: x, y: y, type: type,
                 radius: config.size,
                 speed: config.speed,
                 health: config.health,
@@ -246,10 +304,10 @@
                 const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
                 const speed = 2 + Math.random() * 3;
                 game.explosions.push({
-                    x, y,
+                    x: x, y: y,
                     dx: Math.cos(angle) * speed,
                     dy: Math.sin(angle) * speed,
-                    type,
+                    type: type,
                     size: size * (0.3 + Math.random() * 0.2),
                     opacity: 1,
                     life: 30 + Math.random() * 20
@@ -260,23 +318,21 @@
         function update() {
             if (game.gameOver || game.paused) return;
             
-            // Sync input state with game state
-            game.keys = { ...input.keys };
+            // Sync input state
+            game.keys = Object.assign({}, input.keys);
             game.mouseDown = input.mouse.down;
             
-            // Player movement with proper boundary checking
+            // Player movement
             const p = game.player;
             const speed = p.speed;
             let newX = p.x;
             let newY = p.y;
             
-            // Calculate new position based on input
             if (game.keys['w']) newY -= speed;
             if (game.keys['s']) newY += speed;
             if (game.keys['a']) newX -= speed;
             if (game.keys['d']) newX += speed;
             
-            // Apply boundaries and update position
             p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, newX));
             p.y = Math.max(p.radius, Math.min(canvas.height - p.radius, newY));
             
@@ -387,16 +443,14 @@
         }
         
         function draw() {
-            // Clear canvas and draw grid background
+            // Clear and draw grid
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw grid
             const gridSize = 40;
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
             
-            // Vertical lines
             for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -404,7 +458,6 @@
                 ctx.stroke();
             }
             
-            // Horizontal lines
             for (let y = 0; y <= canvas.height; y += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
@@ -421,11 +474,11 @@
             ctx.lineWidth = 2;
             ctx.stroke();
             
-            // Player health text below the circle
+            // Player health text
             ctx.fillStyle = '#ffffff';
             ctx.font = '16px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`HP: ${game.player.health}`, game.player.x, game.player.y + game.player.radius + 20);
+            ctx.fillText('HP: ' + game.player.health, game.player.x, game.player.y + game.player.radius + 20);
             
             // Aiming line
             ctx.beginPath();
@@ -439,7 +492,7 @@
             ctx.fillStyle = '#00ffff';
             ctx.strokeStyle = '#00cccc';
             ctx.lineWidth = 1;
-            game.bullets.forEach(b => {
+            game.bullets.forEach(function(b) {
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
                 ctx.fill();
@@ -447,7 +500,7 @@
             });
             
             // Enemies
-            game.enemies.forEach(e => {
+            game.enemies.forEach(function(e) {
                 const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
                 const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
                 drawShape(e.x, e.y, e.type, e.radius, color, stroke);
@@ -466,7 +519,7 @@
             });
             
             // Explosions
-            game.explosions.forEach(p => {
+            game.explosions.forEach(function(p) {
                 ctx.save();
                 ctx.globalAlpha = p.opacity;
                 drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
@@ -483,7 +536,7 @@
             ctx.lineWidth = 1;
             ctx.strokeRect(10, 10, 100, 10);
             
-            // Draw pause overlay
+            // Pause overlay
             if (game.paused) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -500,15 +553,13 @@
             const seconds = Math.floor(ms / 1000);
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
-            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
         }
         
         function gameLoop(timestamp) {
             const gameTime = Date.now() - game.startTime;
             
-            // Only spawn enemies and update if not paused
             if (!game.paused && !game.gameOver) {
-                // Spawn enemies
                 if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
                     spawnEnemy();
                     game.lastEnemySpawn = timestamp;
@@ -520,15 +571,14 @@
             
             draw();
             
-            // Update UI (always show current values)
+            // Update UI
             document.getElementById('score').textContent = game.score;
             document.getElementById('enemies').textContent = game.enemies.length;
             document.getElementById('timer').textContent = formatTime(gameTime);
             
             // Game over check
-            if (game.player.health <= 0) {
+            if (game.player.health <= 0 && !game.gameOver) {
                 game.gameOver = true;
-                const gameTime = Date.now() - game.startTime;
                 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -538,10 +588,10 @@
                 ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 40);
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '24px Arial';
-                ctx.fillText(`Final Score: ${game.score}`, canvas.width / 2, canvas.height / 2 + 10);
-                ctx.fillText(`Survival Time: ${formatTime(gameTime)}`, canvas.width / 2, canvas.height / 2 + 40);
+                ctx.fillText('Final Score: ' + game.score, canvas.width / 2, canvas.height / 2 + 10);
+                ctx.fillText('Survival Time: ' + formatTime(gameTime), canvas.width / 2, canvas.height / 2 + 40);
                 
-                // Draw play again button
+                // Play again button
                 const buttonX = canvas.width / 2;
                 const buttonY = canvas.height / 2 + 120;
                 const buttonWidth = 200;
@@ -556,7 +606,6 @@
                 ctx.font = '20px Arial';
                 ctx.fillText('PLAY AGAIN', buttonX, buttonY + 7);
                 
-                // Add instruction text
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '16px Arial';
                 ctx.fillText('Press SPACE or click button', buttonX, buttonY + 60);
@@ -566,6 +615,7 @@
             requestAnimationFrame(gameLoop);
         }
         
+        // Start the game
         requestAnimationFrame(gameLoop);
     </script>
 </body>
