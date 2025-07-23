@@ -36,7 +36,7 @@
     <div class="ui enemies">Enemies: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to move | Mouse to aim | Hold left click to shoot</div>
+    <div class="ui controls">WASD to move | Mouse to aim | Hold left click to shoot | ESC to pause</div>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -68,7 +68,9 @@
             mouseDown: false,
             lastShot: 0,
             shootDelay: 500,
-            gameOver: false
+            gameOver: false,
+            paused: false,
+            pauseTime: 0
         };
         
         // Window resize handler
@@ -159,7 +161,9 @@
                 mouseDown: mouseDown,
                 lastShot: 0,
                 shootDelay: 500,
-                gameOver: false
+                gameOver: false,
+                paused: false,
+                pauseTime: 0
             };
         }
         
@@ -229,7 +233,7 @@
         }
         
         function update() {
-            if (game.gameOver) return;
+            if (game.gameOver || game.paused) return;
             
             // Player movement with proper boundary checking
             const p = game.player;
@@ -451,6 +455,18 @@
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
             ctx.strokeRect(10, 10, 100, 10);
+            
+            // Draw pause overlay
+            if (game.paused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
+            }
         }
         
         function formatTime(ms) {
@@ -463,17 +479,21 @@
         function gameLoop(timestamp) {
             const gameTime = Date.now() - game.startTime;
             
-            // Spawn enemies
-            if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
-                spawnEnemy();
-                game.lastEnemySpawn = timestamp;
-                game.enemySpawnRate = Math.max(500, game.enemySpawnRate * 0.99);
+            // Only spawn enemies and update if not paused
+            if (!game.paused && !game.gameOver) {
+                // Spawn enemies
+                if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
+                    spawnEnemy();
+                    game.lastEnemySpawn = timestamp;
+                    game.enemySpawnRate = Math.max(500, game.enemySpawnRate * 0.99);
+                }
+                
+                update();
             }
             
-            update();
             draw();
             
-            // Update UI
+            // Update UI (always show current values)
             document.getElementById('score').textContent = game.score;
             document.getElementById('enemies').textContent = game.enemies.length;
             document.getElementById('timer').textContent = formatTime(gameTime);
