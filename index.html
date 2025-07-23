@@ -744,8 +744,24 @@
                     
                     if (bulletDist < b.radius + e.radius) {
                         createHitEffect(b.x, b.y);
-                        // Create damage label above enemy health indicator
-                        createDamageLabel(e.x, e.y - e.radius - 25, 50, false); // Position above health bar
+                        // Create cyan damage label above enemy
+                        const labelX = e.x;
+                        const labelY = e.y - e.radius - 30; // Further above enemy
+                        
+                        // Create enemy damage label with cyan color
+                        game.enemyDamageLabels.push({
+                            x: labelX,
+                            y: labelY,
+                            damage: 50,
+                            dx: 0,
+                            dy: -0.5,
+                            gravity: 0,
+                            opacity: 1.0,
+                            life: 120,
+                            maxLife: 120,
+                            isPlayerDamage: false
+                        });
+                        
                         game.bullets.splice(j, 1);
                         e.health -= 50;
                         e.damageFlash = 10;
