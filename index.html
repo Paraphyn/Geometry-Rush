@@ -337,25 +337,44 @@
                 // Prevent damage if already at 0 health or game over
                 if (player.health <= 0 || game.gameOver) return;
                 
-                // Ensure damage is a positive number
-                damage = Math.max(0, Math.floor(damage));
+                // Ensure damage is a valid positive number
+                damage = Number(damage);
+                if (isNaN(damage) || damage <= 0) {
+                    console.warn('Invalid damage value:', damage);
+                    return;
+                }
+                
+                damage = Math.floor(damage);
                 
                 // Apply damage with minimum of 0 health
-                const oldHealth = player.health;
-                player.health = Math.max(0, player.health - damage);
+                const oldHealth = Number(player.health);
+                player.health = Math.max(0, oldHealth - damage);
+                
+                // Calculate actual damage dealt
+                const actualDamage = oldHealth - player.health;
                 
                 // Only apply effects if damage was actually dealt
-                if (player.health < oldHealth) {
+                if (actualDamage > 0) {
                     // Start damage flash effect
                     player.damageFlash = 20;
                     
                     // Create floating damage label with actual damage dealt
-                    const actualDamage = oldHealth - player.health;
                     this.createDamageLabel(x || player.x, y || player.y - player.radius - 10, actualDamage);
                 }
             },
             
             createDamageLabel: function(x, y, damage) {
+                // Validate all parameters
+                x = Number(x) || 0;
+                y = Number(y) || 0;
+                damage = Number(damage);
+                
+                // Don't create label if damage is invalid
+                if (isNaN(damage) || damage <= 0) {
+                    console.warn('Invalid damage for label:', damage);
+                    return;
+                }
+                
                 // Remove any existing damage labels to prevent overlap
                 game.damageLabels = game.damageLabels.filter(function(label) {
                     return label.life < 60; // Keep only labels that are mostly faded
@@ -365,7 +384,7 @@
                 game.damageLabels.push({
                     x: x,
                     y: y,
-                    damage: damage,
+                    damage: Math.floor(damage), // Ensure it's a whole number
                     dx: (Math.random() - 0.5) * 3, // Slightly more spread
                     dy: -1.5 - Math.random() * 0.5, // Consistent upward movement
                     opacity: 1,
@@ -406,7 +425,8 @@
             drawPlayer: function() {
                 const player = game.player;
                 
-                // Ensure health is within valid bounds
+                // Ensure health is a valid number within bounds
+                player.health = Number(player.health) || 0;
                 player.health = Math.max(0, Math.min(100, Math.floor(player.health)));
                 
                 // Draw player circle with damage flash effect
@@ -415,7 +435,7 @@
                 
                 // Determine colors based on damage flash
                 if (player.damageFlash > 0) {
-                    // Red flash with intensity based on remaining flash time
+                    // Red flash when taking damage
                     ctx.fillStyle = '#ff0000';
                     ctx.strokeStyle = '#cc0000';
                 } else {
@@ -429,9 +449,10 @@
                 ctx.stroke();
                 
                 // Draw health text below player with color coding
-                if (player.health > 60) {
+                const healthValue = Number(player.health);
+                if (healthValue > 60) {
                     ctx.fillStyle = '#00ff00'; // Green for high health
-                } else if (player.health > 30) {
+                } else if (healthValue > 30) {
                     ctx.fillStyle = '#ffff00'; // Yellow for medium health
                 } else {
                     ctx.fillStyle = '#ff0000'; // Red for low health
@@ -439,14 +460,14 @@
                 
                 ctx.font = '16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('HP: ' + player.health, player.x, player.y + player.radius + 20);
+                ctx.fillText('HP: ' + healthValue, player.x, player.y + player.radius + 20);
             },
             
             drawDamageLabels: function() {
                 game.damageLabels.forEach(function(label) {
-                    if (label.opacity > 0) {
+                    if (label.opacity > 0 && label.damage !== undefined && !isNaN(label.damage)) {
                         ctx.save();
-                        ctx.globalAlpha = label.opacity;
+                        ctx.globalAlpha = Math.max(0, Math.min(1, label.opacity));
                         ctx.fillStyle = '#ff0000';
                         ctx.font = 'bold 24px Arial';
                         ctx.textAlign = 'center';
@@ -457,7 +478,9 @@
                         ctx.shadowOffsetX = 1;
                         ctx.shadowOffsetY = 1;
                         
-                        ctx.fillText('-' + label.damage, label.x, label.y);
+                        // Ensure damage is displayed as whole number
+                        const damageText = '-' + Math.floor(Number(label.damage));
+                        ctx.fillText(damageText, label.x, label.y);
                         ctx.restore();
                     }
                 });
@@ -558,7 +581,9 @@
                 // Check player collision
                 if (dist < e.radius + p.radius) {
                     createExplosion(e.x, e.y, e.type, e.radius);
-                    PlayerDamage.applyDamage(p, e.damage);
+                    // Ensure enemy damage property exists and is valid
+                    const enemyDamage = Number(e.damage) || 25; // Default fallback
+                    PlayerDamage.applyDamage(p, enemyDamage);
                     game.enemies.splice(i, 1);
                     continue;
                 }
@@ -619,17 +644,6 @@
                 effect.size *= 0.98;
                 
                 if (effect.life <= 0) game.hitEffects.splice(i, 1);
-            }
-            
-            // Update damage labels
-            for (let i = game.damageLabels.length - 1; i >= 0; i--) {
-                const label = game.damageLabels[i];
-                label.x += label.dx;
-                label.y += label.dy;
-                label.life--;
-                label.opacity = label.life / 90; // Fade over 1.5 seconds (2x faster)
-                
-                if (label.life <= 0) game.damageLabels.splice(i, 1);
             }
         }
         
