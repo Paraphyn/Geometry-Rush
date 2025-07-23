@@ -427,13 +427,10 @@
                     const h = 4;
                     const hp = e.health / e.maxHealth;
                     
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
                     ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
                     ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(e.x - w/2, e.y - e.radius - 10, w, h);
                 }
             });
             
