@@ -334,17 +334,25 @@
         // Player damage system
         const PlayerDamage = {
             applyDamage: function(player, damage, x, y) {
-                // Prevent damage if already at 0 health
-                if (player.health <= 0) return;
+                // Prevent damage if already at 0 health or game over
+                if (player.health <= 0 || game.gameOver) return;
+                
+                // Ensure damage is a positive number
+                damage = Math.max(0, Math.floor(damage));
                 
                 // Apply damage with minimum of 0 health
+                const oldHealth = player.health;
                 player.health = Math.max(0, player.health - damage);
                 
-                // Start damage flash effect
-                player.damageFlash = 20;
-                
-                // Create floating damage label
-                this.createDamageLabel(x || player.x, y || player.y - player.radius - 10, damage);
+                // Only apply effects if damage was actually dealt
+                if (player.health < oldHealth) {
+                    // Start damage flash effect
+                    player.damageFlash = 20;
+                    
+                    // Create floating damage label with actual damage dealt
+                    const actualDamage = oldHealth - player.health;
+                    this.createDamageLabel(x || player.x, y || player.y - player.radius - 10, actualDamage);
+                }
             },
             
             createDamageLabel: function(x, y, damage) {
@@ -398,6 +406,9 @@
             drawPlayer: function() {
                 const player = game.player;
                 
+                // Ensure health is within valid bounds
+                player.health = Math.max(0, Math.min(100, Math.floor(player.health)));
+                
                 // Draw player circle with damage flash effect
                 ctx.beginPath();
                 ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
@@ -405,7 +416,6 @@
                 // Determine colors based on damage flash
                 if (player.damageFlash > 0) {
                     // Red flash with intensity based on remaining flash time
-                    const intensity = player.damageFlash / 20;
                     ctx.fillStyle = '#ff0000';
                     ctx.strokeStyle = '#cc0000';
                 } else {
@@ -418,8 +428,15 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
-                // Draw health text below player
-                ctx.fillStyle = '#ffffff';
+                // Draw health text below player with color coding
+                if (player.health > 60) {
+                    ctx.fillStyle = '#00ff00'; // Green for high health
+                } else if (player.health > 30) {
+                    ctx.fillStyle = '#ffff00'; // Yellow for medium health
+                } else {
+                    ctx.fillStyle = '#ff0000'; // Red for low health
+                }
+                
                 ctx.font = '16px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('HP: ' + player.health, player.x, player.y + player.radius + 20);
