@@ -656,10 +656,13 @@
             document.getElementById('enemies').textContent = game.enemies.length;
             document.getElementById('timer').textContent = formatTime(gameTime);
             
-            // Game over check
-            if (game.player.health <= 0 && !game.gameOver) {
-                game.gameOver = true;
+            // Game over check and display
+            if (game.player.health <= 0) {
+                if (!game.gameOver) {
+                    game.gameOver = true;
+                }
                 
+                // Draw game over screen
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = '#ff4444';
@@ -689,9 +692,9 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '16px Arial';
                 ctx.fillText('Press SPACE or click button', buttonX, buttonY + 60);
-                return;
             }
             
+            // Continue game loop
             requestAnimationFrame(gameLoop);
         }
         
