@@ -115,21 +115,39 @@ function draw() {
                 ctx.restore();
             });
             
-            // Damage labels
+            // Damage labels with enhanced physics and visuals
             game.damageLabels.forEach(function(label) {
                 if (label.opacity > 0.01 && !isNaN(label.damage)) {
                     ctx.save();
                     ctx.globalAlpha = label.opacity;
                     
-                    ctx.font = 'bold 24px Arial';
+                    // Apply scale and rotation for dynamic effect
+                    ctx.translate(label.x, label.y);
+                    ctx.scale(label.scale, label.scale);
+                    ctx.rotate(label.rotation);
+                    
+                    // Dynamic font size based on damage amount
+                    let fontSize = 20;
+                    if (label.damage >= 50) fontSize = 28; // Larger for high damage
+                    else if (label.damage >= 35) fontSize = 24; // Medium for medium damage
+                    
+                    ctx.font = `bold ${fontSize}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.strokeStyle = '#000000';
+                    
+                    // Enhanced text rendering with glow effect
+                    ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                    
+                    // Outline for better visibility
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
                     ctx.lineWidth = 3;
                     ctx.fillStyle = '#ff0000';
                     
                     const text = '-' + Math.floor(label.damage);
-                    ctx.strokeText(text, label.x, label.y);
-                    ctx.fillText(text, label.x, label.y);
+                    ctx.strokeText(text, 0, 0);
+                    ctx.fillText(text, 0, 0);
                     
                     ctx.restore();
                 }
@@ -154,15 +172,7 @@ function draw() {
                 ctx.font = '20px Arial';
                 ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
             }
-        }            // Update damage labels
-            for (let i = game.damageLabels.length - 1; i >= 0; i--) {
-                const label = game.damageLabels[i];
-                label.x += label.dx;
-                label.y += label.dy;
-                label.life--;
-                label.opacity = label.life / 90; // Fade over 1.5 seconds (2x faster)
-                
-                if (label.life <= 0) game.damageLabels.splice(i, 1);
+        }
             }<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -778,17 +788,28 @@ function draw() {
                 game.player.damageFlash--;
             }
             
-            // Update damage labels
+            // Update damage labels with realistic physics
             for (let i = game.damageLabels.length - 1; i >= 0; i--) {
                 const label = game.damageLabels[i];
+                
+                // Apply physics
                 label.x += label.dx;
                 label.y += label.dy;
-                label.dx *= 0.98;
-                label.dy *= 0.98;
-                label.life--;
-                label.opacity = Math.max(0, label.life / label.maxLife);
                 
-                if (label.life <= 0) {
+                // Apply gravity to vertical movement
+                label.dy += label.gravity;
+                
+                // Air resistance - slow down movement over time
+                label.dx *= 0.985;
+                label.dy *= 0.985;
+                
+                // Update visual properties
+                label.life--;
+                label.opacity = Math.max(0, (label.life / label.maxLife) * 0.75); // Fade from 75% to 0%
+                label.scale *= 0.998; // Slightly shrink over time
+                
+                // Remove expired labels
+                if (label.life <= 0 || label.opacity <= 0.01) {
                     game.damageLabels.splice(i, 1);
                 }
             }
@@ -850,16 +871,27 @@ function draw() {
                     p.health = Math.max(0, p.health - enemyDamage);
                     p.damageFlash = 20;
                     
-                    // Create damage label
+                    // Create damage label at impact point with physics
+                    const impactX = (p.x + e.x) / 2; // Midpoint between player and enemy
+                    const impactY = (p.y + e.y) / 2;
+                    
+                    // Random trajectory with realistic physics
+                    const angle = Math.random() * Math.PI * 2; // Random direction
+                    const speed = 3 + Math.random() * 4; // Random initial speed
+                    const gravity = 0.08; // Gravity effect
+                    
                     game.damageLabels.push({
-                        x: p.x,
-                        y: p.y - p.radius - 15,
+                        x: impactX,
+                        y: impactY,
                         damage: enemyDamage,
-                        dx: (Math.random() - 0.5) * 4,
-                        dy: -2 - Math.random() * 1.5,
-                        opacity: 1.0,
-                        life: 90,
-                        maxLife: 90
+                        dx: Math.cos(angle) * speed, // Horizontal velocity
+                        dy: Math.sin(angle) * speed - 2, // Vertical velocity (upward bias)
+                        gravity: gravity,
+                        opacity: 0.75, // Start at 75% transparency
+                        life: 120, // Longer life for more visible trajectory
+                        maxLife: 120,
+                        scale: 1.0 + Math.random() * 0.3, // Slight size variation
+                        rotation: Math.random() * 0.4 - 0.2 // Slight rotation for dynamics
                     });
                     
                     game.enemies.splice(i, 1);
