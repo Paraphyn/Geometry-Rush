@@ -44,9 +44,9 @@
         
         // Enemy types
         const ENEMY_TYPES = {
-            square: { health: 200, speed: 2, size: 19, points: 5 },
+            square: { health: 200, speed: 2, size: 24, points: 5 }, // 25% bigger: 19 * 1.25 = 23.75 ≈ 24
             triangle: { health: 50, speed: 4, size: 12, points: 10 },
-            octagon: { health: 1000, speed: 0.8, size: 25, points: 50 }
+            octagon: { health: 1000, speed: 0.8, size: 31, points: 50 } // 25% bigger: 25 * 1.25 = 31.25 ≈ 31
         };
         
         // Canvas setup
@@ -341,8 +341,8 @@
                 x: x,
                 y: y,
                 size: 3,
-                opacity: 0.6,
-                life: 8
+                opacity: 0.25, // Reduced from 0.6 to 0.25 (25%)
+                life: 5 // Reduced from 8 to 5 frames
             });
         }
         
@@ -448,7 +448,7 @@
             for (let i = game.bulletTrails.length - 1; i >= 0; i--) {
                 const trail = game.bulletTrails[i];
                 trail.life--;
-                trail.opacity = trail.life / 8;
+                trail.opacity = trail.life / 5; // Updated to match new life span
                 trail.size *= 0.95;
                 
                 if (trail.life <= 0) game.bulletTrails.splice(i, 1);
@@ -629,7 +629,15 @@
         }
         
         function gameLoop(timestamp) {
-            const gameTime = Date.now() - game.startTime;
+            // Calculate game time properly accounting for pause
+            let gameTime;
+            if (game.paused) {
+                // When paused, use the time when pause started
+                gameTime = game.pauseTime - game.startTime;
+            } else {
+                // When not paused, use current time minus total pause duration
+                gameTime = Date.now() - game.startTime;
+            }
             
             if (!game.paused && !game.gameOver) {
                 if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
