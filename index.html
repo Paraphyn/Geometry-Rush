@@ -1,5 +1,169 @@
-
-<!DOCTYPE html>
+function draw() {
+            // Clear and draw grid - full screen
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid that covers entire screen
+            const gridSize = 40;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            // Vertical grid lines
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal grid lines
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Player
+            ctx.beginPath();
+            ctx.arc(game.player.x, game.player.y, game.player.radius, 0, Math.PI * 2);
+            
+            // Change color based on damage flash
+            if (game.player.damageFlash > 0) {
+                ctx.fillStyle = '#ff0000';
+                ctx.strokeStyle = '#cc0000';
+            } else {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#cccccc';
+            }
+            
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Player health text with color coding
+            const healthValue = game.player.health;
+            if (healthValue > 60) {
+                ctx.fillStyle = '#00ff00'; // Green
+            } else if (healthValue > 30) {
+                ctx.fillStyle = '#ffaa00'; // Orange
+            } else {
+                ctx.fillStyle = '#ff0000'; // Red
+            }
+            
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('HP: ' + healthValue, game.player.x, game.player.y + game.player.radius + 22);
+            
+            // Aiming line
+            ctx.beginPath();
+            ctx.moveTo(game.player.x, game.player.y);
+            ctx.lineTo(game.mouse.x, game.mouse.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Bullet trails
+            game.bulletTrails.forEach(function(trail) {
+                ctx.save();
+                ctx.globalAlpha = trail.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Bullets
+            ctx.fillStyle = '#00ffff';
+            ctx.strokeStyle = '#00cccc';
+            ctx.lineWidth = 1;
+            game.bullets.forEach(function(b) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            
+            // Enemies
+            game.enemies.forEach(function(e) {
+                const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
+                const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
+                drawShape(e.x, e.y, e.type, e.radius, color, stroke);
+                
+                // Health bar for tough enemies
+                if (e.maxHealth > 50) {
+                    const w = e.radius * 2;
+                    const h = 4;
+                    const hp = e.health / e.maxHealth;
+                    
+                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
+                }
+            });
+            
+            // Hit effects
+            game.hitEffects.forEach(function(effect) {
+                ctx.save();
+                ctx.globalAlpha = effect.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Damage labels
+            game.damageLabels.forEach(function(label) {
+                if (label.opacity > 0.01 && !isNaN(label.damage)) {
+                    ctx.save();
+                    ctx.globalAlpha = label.opacity;
+                    
+                    ctx.font = 'bold 24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 3;
+                    ctx.fillStyle = '#ff0000';
+                    
+                    const text = '-' + Math.floor(label.damage);
+                    ctx.strokeText(text, label.x, label.y);
+                    ctx.fillText(text, label.x, label.y);
+                    
+                    ctx.restore();
+                }
+            });
+            
+            // Explosions
+            game.explosions.forEach(function(p) {
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
+                drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
+                ctx.restore();
+            });
+            
+            // Pause overlay
+            if (game.paused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
+            }
+        }            // Update damage labels
+            for (let i = game.damageLabels.length - 1; i >= 0; i--) {
+                const label = game.damageLabels[i];
+                label.x += label.dx;
+                label.y += label.dy;
+                label.life--;
+                label.opacity = label.life / 90; // Fade over 1.5 seconds (2x faster)
+                
+                if (label.life <= 0) game.damageLabels.splice(i, 1);
+            }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -33,7 +197,7 @@
         }
         
         /* Hide any potential overlay text */
-        * {
+        body * {
             user-select: none;
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -48,9 +212,19 @@
         }
         
         /* Hide any debugging or overlay elements */
-        .debug, .overlay, .watermark, .info {
+        .debug, .overlay, .watermark, .info, pre, code {
             display: none !important;
             visibility: hidden !important;
+        }
+        
+        /* Hide any text content that might be rendered */
+        body::before, body::after {
+            display: none !important;
+        }
+        
+        /* Force hide any unwanted text nodes */
+        script {
+            display: none !important;
         }
         
         .enemies { top: 20px; left: 20px; font-size: 25px; }
@@ -77,9 +251,14 @@
             octagon: { health: 1000, speed: 0.8, size: 31, points: 50 } // 25% bigger: 25 * 1.25 = 31.25 ≈ 31
         };
         
-        // Canvas setup
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        // Canvas setup - ensure full screen
+        function setupCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            console.log('Canvas size set to:', canvas.width, 'x', canvas.height);
+        }
+        
+        setupCanvas();
         
         // Input state management
         const input = {
@@ -124,6 +303,9 @@
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            console.log('Canvas resized to:', canvas.width, 'x', canvas.height);
+            
+            // Only update player position if game just started
             if (game.player.health === 100 && game.score === 0) {
                 game.player.x = canvas.width / 2;
                 game.player.y = canvas.height / 2;
