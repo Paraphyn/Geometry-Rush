@@ -25,10 +25,10 @@
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
         
-        .enemies { top: 20px; left: 20px; font-size: 18px; }
-        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 20px; }
-        .score { top: 20px; right: 20px; font-size: 24px; }
-        .controls { bottom: 20px; left: 20px; font-size: 14px; opacity: 0.8; }
+        .enemies { top: 20px; left: 20px; font-size: 25px; }
+        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
+        .score { top: 20px; right: 20px; font-size: 25px; }
+        .controls { bottom: 20px; left: 20px; font-size: 25px; opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -67,7 +67,7 @@
             enemySpawnRate: 2000,
             mouseDown: false,
             lastShot: 0,
-            shootDelay: 500,
+            shootDelay: 250, // Reduced from 500 to 250 (0.25s)
             gameOver: false,
             paused: false,
             pauseTime: 0
@@ -85,25 +85,24 @@
         }
         window.addEventListener('resize', resize);
         
-        // Clear keys when window loses focus to prevent stuck keys
+        // Clear all inputs when window loses focus
         window.addEventListener('blur', () => {
+            input.keys = {};
+            input.mouse.down = false;
             game.keys = {};
             game.mouseDown = false;
         });
         
         window.addEventListener('focus', () => {
+            input.keys = {};
+            input.mouse.down = false;
             game.keys = {};
             game.mouseDown = false;
         });
         
-        // Prevent default browser shortcuts that might interfere
+        // Prevent problematic browser shortcuts
         document.addEventListener('keydown', e => {
-            // Prevent browser shortcuts during game
-            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
-                // Still allow refresh
-                return;
-            }
-            if (e.key === 'Tab') {
+            if (e.key === 'Tab' || e.key === 'F11') {
                 e.preventDefault();
             }
         });
@@ -121,48 +120,62 @@
         document.addEventListener('keyup', e => game.keys[e.key.toLowerCase()] = false);
         
         canvas.addEventListener('mousemove', e => {
+            if (game.gameOver) return;
+            
             const rect = canvas.getBoundingClientRect();
-            game.mouse.x = e.clientX - rect.left;
-            game.mouse.y = e.clientY - rect.top;
+            input.mouse.x = e.clientX - rect.left;
+            input.mouse.y = e.clientY - rect.top;
+            game.mouse.x = input.mouse.x;
+            game.mouse.y = input.mouse.y;
         });
         
         canvas.addEventListener('mousedown', e => {
-            if (e.button === 0) {
-                if (game.gameOver) {
-                    // Check if clicking play again button
-                    const buttonX = canvas.width / 2;
-                    const buttonY = canvas.height / 2 + 120;
-                    const buttonWidth = 200;
-                    const buttonHeight = 50;
-                    
-                    if (e.offsetX >= buttonX - buttonWidth/2 && e.offsetX <= buttonX + buttonWidth/2 &&
-                        e.offsetY >= buttonY - buttonHeight/2 && e.offsetY <= buttonY + buttonHeight/2) {
-                        resetGame();
-                        return;
-                    }
-                } else {
-                    game.mouseDown = true;
-                    shoot();
+            if (e.button !== 0) return; // Only left click
+            
+            if (game.gameOver) {
+                // Check play again button
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const buttonX = canvas.width / 2;
+                const buttonY = canvas.height / 2 + 120;
+                const buttonWidth = 200;
+                const buttonHeight = 50;
+                
+                if (mouseX >= buttonX - buttonWidth/2 && mouseX <= buttonX + buttonWidth/2 &&
+                    mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2) {
+                    resetGame();
                 }
+                return;
+            }
+            
+            if (!game.paused) {
+                input.mouse.down = true;
+                game.mouseDown = true;
+                shoot();
             }
         });
         
         canvas.addEventListener('mouseup', e => {
-            if (e.button === 0 && !game.gameOver) game.mouseDown = false;
+            if (e.button === 0) {
+                input.mouse.down = false;
+                game.mouseDown = false;
+            }
         });
         
         canvas.addEventListener('contextmenu', e => e.preventDefault());
         
         // Game functions
         function resetGame() {
-            // Clear all input states before reset
-            const keys = {};
-            const mouseDown = false;
+            // Clear all input states completely
+            input.keys = {};
+            input.mouse.down = false;
+            input.lastKeyTime = {};
             
             game = {
                 player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100 },
-                mouse: { x: 0, y: 0 },
-                keys: keys,
+                mouse: { x: canvas.width / 2, y: canvas.height / 2 },
+                keys: {},
                 bullets: [],
                 enemies: [],
                 explosions: [],
@@ -170,9 +183,9 @@
                 startTime: Date.now(),
                 lastEnemySpawn: 0,
                 enemySpawnRate: 2000,
-                mouseDown: mouseDown,
+                mouseDown: false,
                 lastShot: 0,
-                shootDelay: 500,
+                shootDelay: 250, // Reduced from 500 to 250 (0.25s)
                 gameOver: false,
                 paused: false,
                 pauseTime: 0
@@ -247,6 +260,10 @@
         function update() {
             if (game.gameOver || game.paused) return;
             
+            // Sync input state with game state
+            game.keys = { ...input.keys };
+            game.mouseDown = input.mouse.down;
+            
             // Player movement with proper boundary checking
             const p = game.player;
             const speed = p.speed;
@@ -254,18 +271,10 @@
             let newY = p.y;
             
             // Calculate new position based on input
-            if (game.keys['w'] || game.keys['arrowup']) {
-                newY -= speed;
-            }
-            if (game.keys['s'] || game.keys['arrowdown']) {
-                newY += speed;
-            }
-            if (game.keys['a'] || game.keys['arrowleft']) {
-                newX -= speed;
-            }
-            if (game.keys['d'] || game.keys['arrowright']) {
-                newX += speed;
-            }
+            if (game.keys['w']) newY -= speed;
+            if (game.keys['s']) newY += speed;
+            if (game.keys['a']) newX -= speed;
+            if (game.keys['d']) newX += speed;
             
             // Apply boundaries and update position
             p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, newX));
