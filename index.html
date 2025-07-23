@@ -126,15 +126,15 @@
                 return;
             }
             
-            // SPACE - Restart game
-            if ((key === ' ' || code === 'Space') && input.preventSpam('Space', 200)) {
+            // SPACE - Restart game (works in game over state)
+            if (code === 'Space' && input.preventSpam('Space', 300)) {
                 if (game.gameOver) {
                     resetGame();
                     return;
                 }
             }
             
-            // Movement keys
+            // Movement keys - Only during active gameplay
             if (!game.gameOver && !game.paused) {
                 const moveKeys = {
                     'KeyW': 'w', 'ArrowUp': 'w',
@@ -660,38 +660,47 @@
             if (game.player.health <= 0) {
                 if (!game.gameOver) {
                     game.gameOver = true;
+                    // Clear any lingering input when entering game over
+                    input.keys = {};
+                    input.mouse.down = false;
+                    game.keys = {};
+                    game.mouseDown = false;
                 }
                 
                 // Draw game over screen
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
                 ctx.fillStyle = '#ff4444';
                 ctx.font = '48px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 40);
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
+                
                 ctx.fillStyle = '#ffffff';
-                ctx.font = '24px Arial';
-                ctx.fillText('Final Score: ' + game.score, canvas.width / 2, canvas.height / 2 + 10);
-                ctx.fillText('Survival Time: ' + formatTime(gameTime), canvas.width / 2, canvas.height / 2 + 40);
+                ctx.font = '28px Arial';
+                ctx.fillText('Final Score: ' + game.score, canvas.width / 2, canvas.height / 2 - 10);
+                ctx.fillText('Survival Time: ' + formatTime(gameTime), canvas.width / 2, canvas.height / 2 + 30);
                 
                 // Play again button
                 const buttonX = canvas.width / 2;
-                const buttonY = canvas.height / 2 + 120;
-                const buttonWidth = 200;
-                const buttonHeight = 50;
+                const buttonY = canvas.height / 2 + 100;
+                const buttonWidth = 220;
+                const buttonHeight = 60;
                 
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
                 ctx.strokeStyle = '#cccccc';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.strokeRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
-                ctx.fillStyle = '#ff0000';
-                ctx.font = '20px Arial';
-                ctx.fillText('PLAY AGAIN', buttonX, buttonY + 7);
                 
+                ctx.fillStyle = '#ff0000';
+                ctx.font = '24px Arial';
+                ctx.fillText('PLAY AGAIN', buttonX, buttonY + 8);
+                
+                // Instructions
                 ctx.fillStyle = '#ffffff';
-                ctx.font = '16px Arial';
-                ctx.fillText('Press SPACE or click button', buttonX, buttonY + 60);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press SPACE or click button to restart', buttonX, buttonY + 70);
             }
             
             // Continue game loop
