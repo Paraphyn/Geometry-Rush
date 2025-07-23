@@ -1,1230 +1,317 @@
-function draw() {
-            // Clear and draw grid - full screen
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw grid that covers entire screen
-            const gridSize = 40;
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            
-            // Vertical grid lines
-            for (let x = 0; x <= canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            
-            // Horizontal grid lines
-            for (let y = 0; y <= canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-            
-            // Player
-            ctx.beginPath();
-            ctx.arc(game.player.x, game.player.y, game.player.radius, 0, Math.PI * 2);
-            
-            // Change color based on damage flash
-            if (game.player.damageFlash > 0) {
-                ctx.fillStyle = '#ff0000';
-                ctx.strokeStyle = '#cc0000';
-            } else {
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#cccccc';
-            }
-            
-            ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Player health text with color coding
-            const healthValue = game.player.health;
-            if (healthValue > 60) {
-                ctx.fillStyle = '#00ff00'; // Green
-            } else if (healthValue > 30) {
-                ctx.fillStyle = '#ffaa00'; // Orange
-            } else {
-                ctx.fillStyle = '#ff0000'; // Red
-            }
-            
-            ctx.font = 'bold 16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('HP: ' + healthValue, game.player.x, game.player.y + game.player.radius + 22);
-            
-            // Aiming line
-            ctx.beginPath();
-            ctx.moveTo(game.player.x, game.player.y);
-            ctx.lineTo(game.mouse.x, game.mouse.y);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
-            // Bullet trails
-            game.bulletTrails.forEach(function(trail) {
-                ctx.save();
-                ctx.globalAlpha = trail.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            });
-            
-            // Bullets
-            ctx.fillStyle = '#00ffff';
-            ctx.strokeStyle = '#00cccc';
-            ctx.lineWidth = 1;
-            game.bullets.forEach(function(b) {
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-            });
-            
-            // Enemies
-            game.enemies.forEach(function(e) {
-                const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
-                const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
-                drawShape(e.x, e.y, e.type, e.radius, color, stroke);
-                
-                // Health bar for tough enemies
-                if (e.maxHealth > 50) {
-                    const w = e.radius * 2;
-                    const h = 4;
-                    const hp = e.health / e.maxHealth;
-                    
-                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
-                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
-                }
-            });
-            
-            // Hit effects
-            game.hitEffects.forEach(function(effect) {
-                ctx.save();
-                ctx.globalAlpha = effect.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            });
-            
-            // Unified damage label rendering
-            function drawDamageLabels(labelArray, isPlayerDamage) {
-                labelArray.forEach(function(label) {
-                    if (label.opacity > 0.01 && !isNaN(label.damage)) {
-                        ctx.save();
-                        ctx.globalAlpha = label.opacity;
-                        
-                        // Font size
-                        let fontSize = isPlayerDamage ? 
-                            (label.damage >= 50 ? 28 : label.damage >= 35 ? 24 : 20) : 22;
-                        
-                        ctx.font = `bold ${fontSize}px Arial`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        
-                        // Colors and effects
-                        if (isPlayerDamage) {
-                            ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
-                            ctx.fillStyle = '#ff0000';
-                        } else {
-                            ctx.shadowColor = 'rgba(255, 165, 0, 0.8)';
-                            ctx.fillStyle = '#ffaa00';
-                        }
-                        
-                        ctx.shadowBlur = 6;
-                        ctx.strokeStyle = '#000000';
-                        ctx.lineWidth = 2;
-                        
-                        const text = '-' + Math.floor(label.damage);
-                        ctx.strokeText(text, label.x, label.y);
-                        ctx.fillText(text, label.x, label.y);
-                        
-                        ctx.restore();
-                    }
-                });
-            }
-            
-            // Draw both types of damage labels
-            drawDamageLabels(game.damageLabels, true);        // Player damage (red)
-            drawDamageLabels(game.enemyDamageLabels, false);   // Enemy damage (orange)
-            
-            // Explosions
-            game.explosions.forEach(function(p) {
-                ctx.save();
-                ctx.globalAlpha = p.opacity;
-                drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
-                ctx.restore();
-            });
-            
-            // Pause overlay
-            if (game.paused) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
-                ctx.font = '20px Arial';
-                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
-            }
-        }
-            }<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Circle Shooter</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #1a1a2e;
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-            position: relative;
-            z-index: 1;
-        }
-        
-        canvas {
-            display: block;
-            background: #000000;
-            position: relative;
-            z-index: 10;
-        }
-        
-        .ui {
-            position: absolute;
-            color: white;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-            z-index: 100;
-            pointer-events: none;
-        }
-        
-        /* Hide any potential overlay text */
-        body * {
-            user-select: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-        }
-        
-        /* Ensure game takes full focus */
-        html, body {
-            width: 100%;
-            height: 100%;
-            background: #000000 !important;
-        }
-        
-        /* Hide any debugging or overlay elements */
-        .debug, .overlay, .watermark, .info, pre, code {
-            display: none !important;
-            visibility: hidden !important;
-        }
-        
-        /* Hide any text content that might be rendered */
-        body::before, body::after {
-            display: none !important;
-        }
-        
-        /* Force hide any unwanted text nodes */
-        script {
-            display: none !important;
-        }
-        
-        .enemies { top: 20px; left: 20px; font-size: 25px; }
-        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
-        .score { top: 20px; right: 20px; font-size: 25px; }
-        .controls { bottom: 20px; left: 20px; font-size: 25px; opacity: 0.8; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Shooter (Refactored)</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      background: #000;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background: #000;
+    }
+    .ui {
+      position: absolute;
+      color: white;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+    .enemies { top: 20px; left: 20px; font-size: 25px; }
+    .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
+    .score { top: 20px; right: 20px; font-size: 25px; }
+    .controls { bottom: 20px; left: 20px; font-size: 20px; opacity: 0.8; }
+  </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    <div class="ui enemies">Enemies: <span id="enemies">0</span></div>
-    <div class="ui timer"><span id="timer">00:00</span></div>
-    <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to move | Mouse to aim | Hold left click to shoot | ESC to pause</div>
+  <canvas id="canvas"></canvas>
+  <div class="ui enemies">Enemies: <span id="enemies">0</span></div>
+  <div class="ui timer"><span id="timer">00:00</span></div>
+  <div class="ui score">Score: <span id="score">0</span></div>
+  <div class="ui controls">WASD to move | Mouse to aim | Hold left click to shoot | ESC to pause</div>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Enemy types
-        const ENEMY_TYPES = {
-            square: { health: 200, speed: 2, size: 24, points: 5 }, // 25% bigger: 19 * 1.25 = 23.75 ≈ 24
-            triangle: { health: 50, speed: 4, size: 12, points: 10 },
-            octagon: { health: 1000, speed: 0.8, size: 31, points: 50 } // 25% bigger: 25 * 1.25 = 31.25 ≈ 31
-        };
-        
-        // Canvas setup - ensure full screen
-        function setupCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            console.log('Canvas size set to:', canvas.width, 'x', canvas.height);
+  <script>
+    // === CANVAS SETUP ===
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // === CONSTANTS ===
+    const GRID_SIZE = 40;
+    const ENEMY_TYPES = {
+      square:   { health: 200, speed: 2,   size: 24, points: 5 },
+      triangle: { health: 50,  speed: 4,   size: 12, points: 10 },
+      octagon:  { health: 1000,speed: 0.8, size: 31, points: 50 }
+    };
+
+    // === INPUT ===
+    const input = {
+      keys: {},
+      mouse: { x: 0, y: 0, down: false },
+      lastKeyTime: {},
+      preventSpam(key, delay = 100) {
+        const now = Date.now();
+        if (this.lastKeyTime[key] && now - this.lastKeyTime[key] < delay) return false;
+        this.lastKeyTime[key] = now;
+        return true;
+      }
+    };
+
+    // === GAME STATE ===
+    let game = {};
+    function createGameState() {
+      return {
+        player: {
+          x: canvas.width / 2,
+          y: canvas.height / 2,
+          radius: 15,
+          speed: 5,
+          health: 100,
+          maxHealth: 100,
+          damageFlash: 0
+        },
+        mouse: { x: canvas.width / 2, y: canvas.height / 2 },
+        bullets: [],
+        enemies: [],
+        explosions: [],
+        bulletTrails: [],
+        hitEffects: [],
+        damageLabels: [],
+        enemyDamageLabels: [],
+        score: 0,
+        startTime: Date.now(),
+        lastEnemySpawn: 0,
+        enemySpawnRate: 2000,
+        mouseDown: false,
+        lastShot: 0,
+        shootDelay: 250,
+        gameOver: false,
+        paused: false,
+        pauseTime: 0,
+        gameOverTime: 0
+      };
+    }
+    function resetGame() {
+      game = createGameState();
+    }
+    resetGame();
+
+    // === UTILITY FUNCTIONS ===
+    const dist = (x1,y1,x2,y2)=>Math.hypot(x2-x1, y2-y1);
+    const formatTime = ms => {
+      const sec = Math.floor(ms/1000), m = Math.floor(sec/60), s = sec%60;
+      return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    };
+
+    // === INPUT HANDLERS ===
+    function handleKey(e, isDown) {
+      const moveKeys = {
+        KeyW:'w', ArrowUp:'w',
+        KeyS:'s', ArrowDown:'s',
+        KeyA:'a', ArrowLeft:'a',
+        KeyD:'d', ArrowRight:'d'
+      };
+      if (moveKeys[e.code]) {
+        e.preventDefault();
+        input.keys[moveKeys[e.code]] = isDown;
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (["Escape","Space","KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
+      
+      if (e.key==='Escape' && input.preventSpam('esc',200)) {
+        if (!game.gameOver) {
+          game.paused = !game.paused;
+          if (game.paused) game.pauseTime = Date.now();
+          else game.startTime += Date.now()-game.pauseTime;
         }
-        
-        setupCanvas();
-        
-        // Input state management
-        const input = {
-            keys: {},
-            mouse: { x: 0, y: 0, down: false },
-            lastKeyTime: {},
-            preventSpam: function(key, delay = 100) {
-                const now = Date.now();
-                if (this.lastKeyTime[key] && now - this.lastKeyTime[key] < delay) {
-                    return false;
-                }
-                this.lastKeyTime[key] = now;
-                return true;
-            }
-        };
-        
-        // Game state (without health initialization yet)
-        let game = {
-            player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100, maxHealth: 100, damageFlash: 0 },
-            mouse: { x: 0, y: 0 },
-            keys: {},
-            bullets: [],
-            enemies: [],
-            explosions: [],
-            bulletTrails: [],
-            hitEffects: [],
-            damageLabels: [],
-            enemyDamageLabels: [], // Separate array for enemy damage labels
-            score: 0,
-            startTime: Date.now(),
-            lastEnemySpawn: 0,
-            enemySpawnRate: 2000,
-            mouseDown: false,
-            lastShot: 0,
-            shootDelay: 250,
-            gameOver: false,
-            paused: false,
-            pauseTime: 0,
-            gameOverTime: 0
-        };
-        
-        // Window resize handler
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            console.log('Canvas resized to:', canvas.width, 'x', canvas.height);
-            
-            // Only update player position if game just started
-            if (game.player.health === 100 && game.score === 0) {
-                game.player.x = canvas.width / 2;
-                game.player.y = canvas.height / 2;
-            }
+      }
+      if (e.code==='Space' && game.gameOver && input.preventSpam('space',300)) resetGame();
+      if (!game.gameOver && !game.paused) handleKey(e,true);
+    });
+
+    document.addEventListener('keyup', e => handleKey(e,false));
+
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      game.mouse.x = e.clientX - rect.left;
+      game.mouse.y = e.clientY - rect.top;
+    });
+    canvas.addEventListener('mousedown', e => {
+      if (e.button!==0) return;
+      if (game.gameOver) return; // TODO: restart button click check
+      if (!game.paused) {
+        input.mouse.down = true;
+        game.mouseDown = true;
+        shoot();
+      }
+    });
+    canvas.addEventListener('mouseup', e => { if (e.button===0) {input.mouse.down=false;game.mouseDown=false;} });
+    window.addEventListener('blur', ()=>{input.keys={};input.mouse.down=false;game.mouseDown=false;});
+
+    // === CORE GAME FUNCTIONS (SPAWN, SHOOT, UPDATE, DRAW) ===
+
+    function shoot() {
+      const now = Date.now();
+      if (now - game.lastShot < game.shootDelay) return;
+      const dx = game.mouse.x - game.player.x;
+      const dy = game.mouse.y - game.player.y;
+      const d = Math.hypot(dx,dy);
+      if (d>0) {
+        game.bullets.push({ x:game.player.x, y:game.player.y, dx:(dx/d)*8, dy:(dy/d)*8, radius:3, life:100 });
+        game.lastShot = now;
+      }
+    }
+
+    function spawnEnemy() {
+      const side = Math.floor(Math.random()*4), margin=30;
+      let x,y;
+      if(side===0){x=Math.random()*canvas.width;y=-margin;}
+      if(side===1){x=canvas.width+margin;y=Math.random()*canvas.height;}
+      if(side===2){x=Math.random()*canvas.width;y=canvas.height+margin;}
+      if(side===3){x=-margin;y=Math.random()*canvas.height;}
+      const types=Object.keys(ENEMY_TYPES);
+      const type=types[Math.floor(Math.random()*types.length)];
+      const cfg=ENEMY_TYPES[type];
+      game.enemies.push({ x,y,type, radius:cfg.size, speed:cfg.speed, health:cfg.health, maxHealth:cfg.health, points:cfg.points, damage:cfg.damage||25, damageFlash:0 });
+    }
+
+    function update() {
+      if(game.gameOver||game.paused) return;
+
+      // Movement
+      const p=game.player;
+      let nx=p.x,ny=p.y;
+      if(input.keys.w) ny-=p.speed;
+      if(input.keys.s) ny+=p.speed;
+      if(input.keys.a) nx-=p.speed;
+      if(input.keys.d) nx+=p.speed;
+      p.x=Math.max(p.radius,Math.min(canvas.width-p.radius,nx));
+      p.y=Math.max(p.radius,Math.min(canvas.height-p.radius,ny));
+
+      // Shooting
+      if(game.mouseDown) shoot();
+
+      // Update bullets
+      for(let i=game.bullets.length-1;i>=0;i--){
+        const b=game.bullets[i];
+        b.x+=b.dx;b.y+=b.dy;b.life--;
+        if(b.life<=0||b.x<0||b.y<0||b.x>canvas.width||b.y>canvas.height) game.bullets.splice(i,1);
+      }
+
+      // Update enemies
+      for(let i=game.enemies.length-1;i>=0;i--){
+        const e=game.enemies[i];
+        if(e.damageFlash>0) e.damageFlash--;
+        const d=dist(p.x,p.y,e.x,e.y);
+        if(d>0){e.x+=(p.x-e.x)/d*e.speed; e.y+=(p.y-e.y)/d*e.speed;}
+        if(d<e.radius+p.radius){ // collision player
+          p.health=Math.max(0,p.health-25);
+          e.health=0; // enemy dies on contact
         }
-        window.addEventListener('resize', resize);
-        
-        // Input handling
-        document.addEventListener('keydown', function(e) {
-            const key = e.key;
-            const code = e.code;
-            
-            // Prevent browser defaults for game keys
-            if (['Escape', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
-                e.preventDefault();
-            }
-            
-            // ESC - Pause/Resume
-            if (key === 'Escape' && input.preventSpam('Escape', 200)) {
-                if (!game.gameOver) {
-                    game.paused = !game.paused;
-                    if (game.paused) {
-                        game.pauseTime = Date.now();
-                        input.keys = {};
-                        input.mouse.down = false;
-                    } else {
-                        game.startTime += Date.now() - game.pauseTime;
-                    }
-                }
-                return;
-            }
-            
-            // SPACE - Restart game (works in game over state)
-            if (code === 'Space' && input.preventSpam('Space', 300)) {
-                if (game.gameOver) {
-                    resetGame();
-                    return;
-                }
-            }
-            
-            // Movement keys - Only during active gameplay
-            if (!game.gameOver && !game.paused) {
-                const moveKeys = {
-                    'KeyW': 'w', 'ArrowUp': 'w',
-                    'KeyS': 's', 'ArrowDown': 's', 
-                    'KeyA': 'a', 'ArrowLeft': 'a',
-                    'KeyD': 'd', 'ArrowRight': 'd'
-                };
-                
-                if (moveKeys[code]) {
-                    input.keys[moveKeys[code]] = true;
-                }
-            }
-        });
-        
-        document.addEventListener('keyup', function(e) {
-            const code = e.code;
-            const moveKeys = {
-                'KeyW': 'w', 'ArrowUp': 'w',
-                'KeyS': 's', 'ArrowDown': 's', 
-                'KeyA': 'a', 'ArrowLeft': 'a',
-                'KeyD': 'd', 'ArrowRight': 'd'
-            };
-            
-            if (moveKeys[code]) {
-                e.preventDefault();
-                input.keys[moveKeys[code]] = false;
-            }
-        });
-        
-        canvas.addEventListener('mousemove', function(e) {
-            if (game.gameOver) return;
-            
-            const rect = canvas.getBoundingClientRect();
-            input.mouse.x = e.clientX - rect.left;
-            input.mouse.y = e.clientY - rect.top;
-            game.mouse.x = input.mouse.x;
-            game.mouse.y = input.mouse.y;
-        });
-        
-        canvas.addEventListener('mousedown', function(e) {
-            if (e.button !== 0) return;
-            
-            if (game.gameOver) {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const buttonX = canvas.width / 2;
-                const buttonY = canvas.height / 2 + 120;
-                const buttonWidth = 200;
-                const buttonHeight = 50;
-                
-                if (mouseX >= buttonX - buttonWidth/2 && mouseX <= buttonX + buttonWidth/2 &&
-                    mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2) {
-                    resetGame();
-                }
-                return;
-            }
-            
-            if (!game.paused) {
-                input.mouse.down = true;
-                game.mouseDown = true;
-                shoot();
-            }
-        });
-        
-        canvas.addEventListener('mouseup', function(e) {
-            if (e.button === 0) {
-                input.mouse.down = false;
-                game.mouseDown = false;
-            }
-        });
-        
-        canvas.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-        });
-        
-        // Clear inputs when window loses focus
-        window.addEventListener('blur', function() {
-            input.keys = {};
-            input.mouse.down = false;
-            game.keys = {};
-            game.mouseDown = false;
-        });
-        
-        window.addEventListener('focus', function() {
-            input.keys = {};
-            input.mouse.down = false;
-            game.keys = {};
-            game.mouseDown = false;
-        });
-        
-        // Game functions
-        function resetGame() {
-            input.keys = {};
-            input.mouse.down = false;
-            input.lastKeyTime = {};
-            
-            game = {
-                player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100, maxHealth: 100, damageFlash: 0 },
-                mouse: { x: canvas.width / 2, y: canvas.height / 2 },
-                keys: {},
-                bullets: [],
-                enemies: [],
-                explosions: [],
-                bulletTrails: [],
-                hitEffects: [],
-                damageLabels: [],
-                enemyDamageLabels: [],
-                score: 0,
-                startTime: Date.now(),
-                lastEnemySpawn: 0,
-                enemySpawnRate: 2000,
-                mouseDown: false,
-                lastShot: 0,
-                shootDelay: 250,
-                gameOver: false,
-                paused: false,
-                pauseTime: 0,
-                gameOverTime: 0
-            };
+        // Bullet collision
+        for(let j=game.bullets.length-1;j>=0;j--){
+          const b=game.bullets[j];
+          if(dist(b.x,b.y,e.x,e.y)<b.radius+e.radius){
+            e.health-=50;
+            game.bullets.splice(j,1);
+            if(e.health<=0){game.score+=e.points;}
+            break;
+          }
         }
-        
-        function shoot() {
-            const now = Date.now();
-            if (now - game.lastShot < game.shootDelay) return;
-            
-            const dx = game.mouse.x - game.player.x;
-            const dy = game.mouse.y - game.player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist > 0) {
-                game.bullets.push({
-                    x: game.player.x,
-                    y: game.player.y,
-                    dx: (dx / dist) * 8,
-                    dy: (dy / dist) * 8,
-                    radius: 3,
-                    life: 100
-                });
-                game.lastShot = now;
-            }
-        }
-        
-        function spawnEnemy() {
-            const side = Math.floor(Math.random() * 4);
-            const margin = 30;
-            let x, y;
-            
-            switch(side) {
-                case 0: x = Math.random() * canvas.width; y = -margin; break;
-                case 1: x = canvas.width + margin; y = Math.random() * canvas.height; break;
-                case 2: x = Math.random() * canvas.width; y = canvas.height + margin; break;
-                case 3: x = -margin; y = Math.random() * canvas.height; break;
-            }
-            
-            const types = Object.keys(ENEMY_TYPES);
-            const type = types[Math.floor(Math.random() * types.length)];
-            const config = ENEMY_TYPES[type];
-            
-            game.enemies.push({
-                x: x, y: y, type: type,
-                radius: config.size,
-                speed: config.speed,
-                health: config.health,
-                maxHealth: config.health,
-                points: config.points,
-                damage: config.damage,
-                damageFlash: 0
-            });
-        }
-        
-        function createExplosion(x, y, type, size) {
-            const count = 3 + Math.floor(Math.random() * 3);
-            for (let i = 0; i < count; i++) {
-                const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-                const speed = 2 + Math.random() * 3;
-                game.explosions.push({
-                    x: x, y: y,
-                    dx: Math.cos(angle) * speed,
-                    dy: Math.sin(angle) * speed,
-                    type: type,
-                    size: size * (0.3 + Math.random() * 0.2),
-                    opacity: 1,
-                    life: 30 + Math.random() * 20
-                });
-            }
-        }
-        
-        // Player Health and Damage System
-        const PlayerHealthSystem = {
-            // Initialize player health
-            init: function(player) {
-                player.health = 100;
-                player.maxHealth = 100;
-                player.damageFlash = 0;
-                player.invulnerable = false;
-                player.invulnerabilityTime = 0;
-            },
-            
-            // Apply damage to player
-            takeDamage: function(player, damage, sourceX, sourceY) {
-                // Validate inputs
-                if (!player || typeof damage !== 'number' || damage <= 0) {
-                    return false;
-                }
-                
-                // Check if player can take damage
-                if (this.isDead(player) || player.invulnerable || game.gameOver) {
-                    return false;
-                }
-                
-                // Calculate actual damage (ensure it's a whole number)
-                const actualDamage = Math.min(damage, player.health);
-                const finalDamage = Math.floor(actualDamage);
-                
-                if (finalDamage <= 0) return false;
-                
-                // Apply damage
-                player.health = Math.max(0, player.health - finalDamage);
-                
-                // Trigger visual effects
-                this.triggerDamageEffects(player, finalDamage, sourceX, sourceY);
-                
-                return true;
-            },
-            
-            // Trigger all damage-related visual effects
-            triggerDamageEffects: function(player, damage, sourceX, sourceY) {
-                // Start damage flash
-                player.damageFlash = 20;
-                
-                // Create floating damage label
-                this.createDamageLabel(
-                    sourceX || player.x,
-                    sourceY || player.y - player.radius - 15,
-                    damage
-                );
-                
-                // Brief invulnerability to prevent rapid multiple hits
-                player.invulnerable = true;
-                player.invulnerabilityTime = 5; // 5 frames of invulnerability
-            },
-            
-            // Create floating damage number
-            createDamageLabel: function(x, y, damage) {
-                // Clear old labels to prevent spam
-                game.damageLabels = game.damageLabels.filter(label => label.life > 60);
-                
-                // Create new damage label
-                game.damageLabels.push({
-                    x: Number(x) || 0,
-                    y: Number(y) || 0,
-                    damage: Math.floor(Number(damage)),
-                    dx: (Math.random() - 0.5) * 4, // Random horizontal movement
-                    dy: -2 - Math.random() * 1.5,  // Upward movement with variation
-                    opacity: 1.0,
-                    life: 90,
-                    maxLife: 90,
-                    scale: 1.0
-                });
-            },
-            
-            // Update all health-related effects
-            update: function(player) {
-                // Update damage flash
-                if (player.damageFlash > 0) {
-                    player.damageFlash = Math.max(0, player.damageFlash - 1);
-                }
-                
-                // Update invulnerability
-                if (player.invulnerable && player.invulnerabilityTime > 0) {
-                    player.invulnerabilityTime--;
-                    if (player.invulnerabilityTime <= 0) {
-                        player.invulnerable = false;
-                    }
-                }
-                
-                // Update damage labels
-                this.updateDamageLabels();
-                
-                // Validate health bounds
-                player.health = Math.max(0, Math.min(player.maxHealth, Math.floor(player.health)));
-            },
-            
-            // Update floating damage labels
-            updateDamageLabels: function() {
-                for (let i = game.damageLabels.length - 1; i >= 0; i--) {
-                    const label = game.damageLabels[i];
-                    
-                    // Move label
-                    label.x += label.dx;
-                    label.y += label.dy;
-                    
-                    // Apply physics
-                    label.dx *= 0.98; // Slow down horizontal movement
-                    label.dy *= 0.99; // Slow down vertical movement
-                    
-                    // Update life and effects
-                    label.life--;
-                    label.opacity = Math.max(0, label.life / label.maxLife);
-                    label.scale = 1.0 + (1 - label.opacity) * 0.2; // Slight scale increase as it fades
-                    
-                    // Remove expired labels
-                    if (label.life <= 0) {
-                        game.damageLabels.splice(i, 1);
-                    }
-                }
-            },
-            
-            // Check if player is dead
-            isDead: function(player) {
-                return player.health <= 0;
-            },
-            
-            // Get health percentage
-            getHealthPercentage: function(player) {
-                return Math.max(0, Math.min(1, player.health / player.maxHealth));
-            },
-            
-            // Get health status color
-            getHealthColor: function(player) {
-                const percentage = this.getHealthPercentage(player);
-                if (percentage > 0.6) return '#00ff00';      // Green - healthy
-                if (percentage > 0.3) return '#ffaa00';      // Orange - wounded  
-                return '#ff0000';                            // Red - critical
-            },
-            
-            // Draw player with health effects
-            drawPlayer: function(player) {
-                // Calculate colors
-                let fillColor = '#ffffff';
-                let strokeColor = '#cccccc';
-                
-                if (player.damageFlash > 0) {
-                    // Red flash when damaged
-                    fillColor = '#ff0000';
-                    strokeColor = '#cc0000';
-                } else if (player.invulnerable) {
-                    // Slight blue tint when invulnerable
-                    fillColor = '#f0f0ff';
-                    strokeColor = '#a0a0ff';
-                }
-                
-                // Draw player circle
-                ctx.beginPath();
-                ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-                ctx.fillStyle = fillColor;
-                ctx.fill();
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // Draw health text with dynamic color
-                const healthColor = this.getHealthColor(player);
-                ctx.fillStyle = healthColor;
-                ctx.font = 'bold 16px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(`HP: ${player.health}`, player.x, player.y + player.radius + 22);
-            },
-            
-            // Draw floating damage labels
-            drawDamageLabels: function() {
-                game.damageLabels.forEach(label => {
-                    if (label.opacity > 0.01 && !isNaN(label.damage)) {
-                        ctx.save();
-                        ctx.globalAlpha = label.opacity;
-                        
-                        // Scale font with label scale
-                        const fontSize = Math.floor(24 * label.scale);
-                        ctx.font = `bold ${fontSize}px Arial`;
-                        ctx.textAlign = 'center';
-                        
-                        // Draw text with outline for visibility
-                        ctx.strokeStyle = '#000000';
-                        ctx.lineWidth = 3;
-                        ctx.fillStyle = '#ff0000';
-                        
-                        const text = `-${label.damage}`;
-                        ctx.strokeText(text, label.x, label.y);
-                        ctx.fillText(text, label.x, label.y);
-                        
-                        ctx.restore();
-                    }
-                });
-            },
-            
-            // Reset health system for new game
-            reset: function(player) {
-                this.init(player);
-                game.damageLabels = [];
-            }
-        };
-        
-        // Unified damage label system
-        function createDamageLabel(x, y, damage, isPlayerDamage = true) {
-            // Random trajectory with physics
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1.5 + Math.random() * 1.5;
-            
-            const label = {
-                x: x,
-                y: y,
-                damage: damage,
-                dx: Math.cos(angle) * speed,
-                dy: Math.sin(angle) * speed - 1,
-                gravity: 0.04,
-                opacity: 1.0,
-                life: 80,
-                maxLife: 80,
-                isPlayerDamage: isPlayerDamage
-            };
-            
-            if (isPlayerDamage) {
-                game.damageLabels.push(label);
-            } else {
-                game.enemyDamageLabels.push(label);
-            }
-        }
-        
-        function createHitEffect(x, y) {
-            const particleCount = 8;
-            for (let i = 0; i < particleCount; i++) {
-                const angle = (Math.PI * 2 * i) / particleCount;
-                const speed = 1 + Math.random() * 2;
-                game.hitEffects.push({
-                    x: x,
-                    y: y,
-                    dx: Math.cos(angle) * speed,
-                    dy: Math.sin(angle) * speed,
-                    size: 2 + Math.random() * 2,
-                    opacity: 1,
-                    life: 15 + Math.random() * 10
-                });
-            }
-        }
-        
-        function createBulletTrail(x, y) {
-            game.bulletTrails.push({
-                x: x,
-                y: y,
-                size: 3,
-                opacity: 0.25, // Reduced from 0.6 to 0.25 (25%)
-                life: 5 // Reduced from 8 to 5 frames
-            });
-        }
-        
-        function update() {
-            if (game.gameOver || game.paused) return;
-            
-            // Sync input state
-            game.keys = Object.assign({}, input.keys);
-            game.mouseDown = input.mouse.down;
-            
-            // Update player health system (simple version)
-            if (game.player.damageFlash > 0) {
-                game.player.damageFlash--;
-            }
-            
-            // Update all damage labels with unified physics
-            function updateDamageLabels(labelArray) {
-                for (let i = labelArray.length - 1; i >= 0; i--) {
-                    const label = labelArray[i];
-                    
-                    // Apply physics
-                    label.x += label.dx;
-                    label.y += label.dy;
-                    label.dy += label.gravity;
-                    label.dx *= 0.99;
-                    
-                    // Update life and opacity
-                    label.life--;
-                    label.opacity = Math.max(0, label.life / label.maxLife);
-                    
-                    // Remove expired labels
-                    if (label.life <= 0) {
-                        labelArray.splice(i, 1);
-                    }
-                }
-            }
-            
-            updateDamageLabels(game.damageLabels);
-            updateDamageLabels(game.enemyDamageLabels);
-            
-            // Player movement
-            const p = game.player;
-            const speed = p.speed;
-            let newX = p.x;
-            let newY = p.y;
-            
-            if (game.keys['w']) newY -= speed;
-            if (game.keys['s']) newY += speed;
-            if (game.keys['a']) newX -= speed;
-            if (game.keys['d']) newX += speed;
-            
-            p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, newX));
-            p.y = Math.max(p.radius, Math.min(canvas.height - p.radius, newY));
-            
-            // Shooting
-            if (game.mouseDown) shoot();
-            
-            // Update bullets
-            for (let i = game.bullets.length - 1; i >= 0; i--) {
-                const b = game.bullets[i];
-                
-                // Create bullet trail
-                createBulletTrail(b.x, b.y);
-                
-                b.x += b.dx;
-                b.y += b.dy;
-                b.life--;
-                
-                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height || b.life <= 0) {
-                    game.bullets.splice(i, 1);
-                }
-            }
-            
-            // Update enemies
-            for (let i = game.enemies.length - 1; i >= 0; i--) {
-                const e = game.enemies[i];
-                
-                if (e.damageFlash > 0) e.damageFlash--;
-                
-                // Move toward player
-                const dx = p.x - e.x;
-                const dy = p.y - e.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist > 0) {
-                    e.x += (dx / dist) * e.speed;
-                    e.y += (dy / dist) * e.speed;
-                }
-                
-                // Check player collision
-                if (dist < e.radius + p.radius) {
-                    createExplosion(e.x, e.y, e.type, e.radius);
-                    // Apply damage directly
-                    const enemyDamage = Number(e.damage) || 25;
-                    p.health = Math.max(0, p.health - enemyDamage);
-                    p.damageFlash = 20;
-                    
-                    // Create damage label at impact point with physics
-                    const impactX = (p.x + e.x) / 2;
-                    const impactY = (p.y + e.y) / 2;
-                    
-                    createDamageLabel(impactX, impactY, enemyDamage, true); // Player damage (red)
-                    
-                    game.enemies.splice(i, 1);
-                    continue;
-                }
-                
-                // Check bullet collisions
-                for (let j = game.bullets.length - 1; j >= 0; j--) {
-                    const b = game.bullets[j];
-                    const bulletDist = Math.sqrt((b.x - e.x) ** 2 + (b.y - e.y) ** 2);
-                    
-                    if (bulletDist < b.radius + e.radius) {
-                        createHitEffect(b.x, b.y);
-                        createDamageLabel(b.x, b.y, 50, false); // Enemy damage (orange)
-                        game.bullets.splice(j, 1);
-                        e.health -= 50;
-                        e.damageFlash = 10;
-                        
-                        if (e.health <= 0) {
-                            createExplosion(e.x, e.y, e.type, e.radius);
-                            game.enemies.splice(i, 1);
-                            game.score += e.points;
-                        }
-                        break;
-                    }
-                }
-            }
-            
-            // Update explosions
-            for (let i = game.explosions.length - 1; i >= 0; i--) {
-                const p = game.explosions[i];
-                p.x += p.dx;
-                p.y += p.dy;
-                p.dx *= 0.95;
-                p.dy *= 0.95;
-                p.life--;
-                p.opacity = p.life / 50;
-                
-                if (p.life <= 0) game.explosions.splice(i, 1);
-            }
-            
-            // Update bullet trails
-            for (let i = game.bulletTrails.length - 1; i >= 0; i--) {
-                const trail = game.bulletTrails[i];
-                trail.life--;
-                trail.opacity = trail.life / 5; // Updated to match new life span
-                trail.size *= 0.95;
-                
-                if (trail.life <= 0) game.bulletTrails.splice(i, 1);
-            }
-            
-            // Update hit effects
-            for (let i = game.hitEffects.length - 1; i >= 0; i--) {
-                const effect = game.hitEffects[i];
-                effect.x += effect.dx;
-                effect.y += effect.dy;
-                effect.dx *= 0.9;
-                effect.dy *= 0.9;
-                effect.life--;
-                effect.opacity = effect.life / 25;
-                effect.size *= 0.98;
-                
-                if (effect.life <= 0) game.hitEffects.splice(i, 1);
-            }
-        }
-        
-        function drawShape(x, y, type, size, fillColor, strokeColor) {
-            ctx.fillStyle = fillColor;
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 2;
-            
-            if (type === 'square') {
-                const s = size * 1.4;
-                ctx.fillRect(x - s/2, y - s/2, s, s);
-                ctx.strokeRect(x - s/2, y - s/2, s, s);
-            } else if (type === 'triangle') {
-                ctx.beginPath();
-                const h = size * 1.5;
-                ctx.moveTo(x, y - h);
-                ctx.lineTo(x - h * 0.866, y + h * 0.5);
-                ctx.lineTo(x + h * 0.866, y + h * 0.5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-            } else if (type === 'octagon') {
-                ctx.beginPath();
-                for (let i = 0; i < 8; i++) {
-                    const angle = (Math.PI * 2 * i) / 8;
-                    const px = x + size * Math.cos(angle);
-                    const py = y + size * Math.sin(angle);
-                    if (i === 0) ctx.moveTo(px, py);
-                    else ctx.lineTo(px, py);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-            }
-        }
-        
-        function draw() {
-            // Clear and draw grid
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            const gridSize = 40;
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            
-            for (let x = 0; x <= canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            
-            for (let y = 0; y <= canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-            
-            // Player (using health system)
-            PlayerHealthSystem.drawPlayer(game.player);
-            
-            // Aiming line
-            ctx.beginPath();
-            ctx.moveTo(game.player.x, game.player.y);
-            ctx.lineTo(game.mouse.x, game.mouse.y);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
-            // Bullet trails
-            game.bulletTrails.forEach(function(trail) {
-                ctx.save();
-                ctx.globalAlpha = trail.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            });
-            
-            // Bullets
-            ctx.fillStyle = '#00ffff';
-            ctx.strokeStyle = '#00cccc';
-            ctx.lineWidth = 1;
-            game.bullets.forEach(function(b) {
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-            });
-            
-            // Enemies
-            game.enemies.forEach(function(e) {
-                const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
-                const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
-                drawShape(e.x, e.y, e.type, e.radius, color, stroke);
-                
-                // Health bar for tough enemies
-                if (e.maxHealth > 50) {
-                    const w = e.radius * 2;
-                    const h = 4;
-                    const hp = e.health / e.maxHealth;
-                    
-                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
-                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
-                }
-            });
-            
-            // Hit effects
-            game.hitEffects.forEach(function(effect) {
-                ctx.save();
-                ctx.globalAlpha = effect.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            });
-            
-            // Damage labels
-            game.damageLabels.forEach(function(label) {
-                if (label.opacity > 0.01 && !isNaN(label.damage)) {
-                    ctx.save();
-                    ctx.globalAlpha = label.opacity;
-                    
-                    ctx.font = 'bold 24px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 3;
-                    ctx.fillStyle = '#ff0000';
-                    
-                    const text = '-' + Math.floor(label.damage);
-                    ctx.strokeText(text, label.x, label.y);
-                    ctx.fillText(text, label.x, label.y);
-                    
-                    ctx.restore();
-                }
-            });
-            
-            // Explosions
-            game.explosions.forEach(function(p) {
-                ctx.save();
-                ctx.globalAlpha = p.opacity;
-                drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
-                ctx.restore();
-            });
-            
-            // Pause overlay
-            if (game.paused) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
-                ctx.font = '20px Arial';
-                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
-            }
-        }
-        
-        function formatTime(ms) {
-            const seconds = Math.floor(ms / 1000);
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
-        }
-        
-        function gameLoop(timestamp) {
-            // Calculate game time properly accounting for pause and game over
-            let gameTime;
-            if (game.gameOver) {
-                // When game over, freeze time at the moment of death
-                gameTime = game.gameOverTime - game.startTime;
-            } else if (game.paused) {
-                // When paused, use the time when pause started
-                gameTime = game.pauseTime - game.startTime;
-            } else {
-                // When actively playing, use current time
-                gameTime = Date.now() - game.startTime;
-            }
-            
-            // Only update game logic if not paused and not game over
-            if (!game.paused && !game.gameOver) {
-                if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
-                    spawnEnemy();
-                    game.lastEnemySpawn = timestamp;
-                    game.enemySpawnRate = Math.max(500, game.enemySpawnRate * 0.99);
-                }
-                
-                update();
-            }
-            
-            // Always draw the game
-            draw();
-            
-            // Update UI
-            document.getElementById('score').textContent = game.score;
-            document.getElementById('enemies').textContent = game.enemies.length;
-            document.getElementById('timer').textContent = formatTime(gameTime);
-            
-            // Game over check and display
-            if (game.player.health <= 0) {
-                if (!game.gameOver) {
-                    game.gameOver = true;
-                    game.gameOverTime = Date.now(); // Capture the exact moment of death
-                    // Clear any lingering input when entering game over
-                    input.keys = {};
-                    input.mouse.down = false;
-                    game.keys = {};
-                    game.mouseDown = false;
-                }
-                
-                // Draw game over screen
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                ctx.fillStyle = '#ff4444';
-                ctx.font = '48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '28px Arial';
-                ctx.fillText('Final Score: ' + game.score, canvas.width / 2, canvas.height / 2 - 10);
-                ctx.fillText('Survival Time: ' + formatTime(gameTime), canvas.width / 2, canvas.height / 2 + 30);
-                
-                // Play again button
-                const buttonX = canvas.width / 2;
-                const buttonY = canvas.height / 2 + 100;
-                const buttonWidth = 220;
-                const buttonHeight = 60;
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
-                ctx.strokeStyle = '#cccccc';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
-                
-                ctx.fillStyle = '#ff0000';
-                ctx.font = '24px Arial';
-                ctx.fillText('PLAY AGAIN', buttonX, buttonY + 8);
-                
-                // Instructions
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '20px Arial';
-                ctx.fillText('Press SPACE or click button to restart', buttonX, buttonY + 70);
-            }
-            
-            // Continue game loop
-            requestAnimationFrame(gameLoop);
-        }
-        
-        // Start the game
-        requestAnimationFrame(gameLoop);
-    </script>
+        if(e.health<=0) game.enemies.splice(i,1);
+      }
+
+      // Spawn new enemies
+      const now=performance.now();
+      if(now-game.lastEnemySpawn>game.enemySpawnRate){
+        spawnEnemy();
+        game.lastEnemySpawn=now;
+        game.enemySpawnRate=Math.max(500,game.enemySpawnRate*0.99);
+      }
+
+      if(p.health<=0) game.gameOver=true;
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
+      for(let x=0;x<=canvas.width;x+=GRID_SIZE){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+      for(let y=0;y<=canvas.height;y+=GRID_SIZE){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+    }
+
+    function drawPlayer() {
+      const p=game.player;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);
+      ctx.fillStyle=p.damageFlash>0?'#f00':'#fff';
+      ctx.fill();
+      ctx.strokeStyle='#ccc';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle=p.health>60?'#0f0':p.health>30?'#fa0':'#f00';
+      ctx.font='bold 16px Arial';ctx.textAlign='center';
+      ctx.fillText(`HP:${p.health}`,p.x,p.y+p.radius+20);
+      // aim line
+      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(game.mouse.x,game.mouse.y);
+      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.stroke();
+    }
+
+    function drawEnemies(){
+      game.enemies.forEach(e=>{
+        ctx.fillStyle=e.damageFlash>0?'#fff':'#f00';
+        ctx.beginPath();ctx.arc(e.x,e.y,e.radius,0,Math.PI*2);ctx.fill();
+        if(e.maxHealth>50){ctx.fillStyle='rgba(255,0,0,0.7)';ctx.fillRect(e.x-e.radius,e.y-e.radius-10,(e.health/e.maxHealth)*e.radius*2,4);}
+      });
+    }
+
+    function drawBullets(){
+      ctx.fillStyle='#0ff';
+      game.bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,b.radius,0,Math.PI*2);ctx.fill();});
+    }
+
+    function draw() {
+      ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);
+      drawGrid();
+      drawPlayer();
+      drawEnemies();
+      drawBullets();
+
+      if(game.paused){
+        ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#fff';ctx.font='48px Arial';ctx.textAlign='center';ctx.fillText('PAUSED',canvas.width/2,canvas.height/2);
+      }
+
+      if(game.gameOver){
+        ctx.fillStyle='rgba(0,0,0,0.9)';ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#f44';ctx.font='48px Arial';ctx.textAlign='center';ctx.fillText('GAME OVER',canvas.width/2,canvas.height/2-40);
+        ctx.fillStyle='#fff';ctx.font='28px Arial';ctx.fillText(`Score: ${game.score}`,canvas.width/2,canvas.height/2);
+        ctx.fillText('Press SPACE to restart',canvas.width/2,canvas.height/2+40);
+      }
+    }
+
+    // === GAME LOOP ===
+    function loop(){
+      const t=game.gameOver?game.gameOverTime:game.paused?game.pauseTime:Date.now();
+      const elapsed=t-game.startTime;
+      if(!game.paused && !game.gameOver) update();
+      draw();
+      document.getElementById('score').textContent=game.score;
+      document.getElementById('enemies').textContent=game.enemies.length;
+      document.getElementById('timer').textContent=formatTime(elapsed);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
