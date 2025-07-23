@@ -97,7 +97,8 @@
             shootDelay: 250,
             gameOver: false,
             paused: false,
-            pauseTime: 0
+            pauseTime: 0,
+            gameOverTime: 0
         };
         
         // Initialize player health system
@@ -264,7 +265,8 @@
                 shootDelay: 250,
                 gameOver: false,
                 paused: false,
-                pauseTime: 0
+                pauseTime: 0,
+                gameOverTime: 0
             };
             
             // Reset player health system
@@ -853,16 +855,20 @@
         }
         
         function gameLoop(timestamp) {
-            // Calculate game time properly accounting for pause
+            // Calculate game time properly accounting for pause and game over
             let gameTime;
-            if (game.paused) {
+            if (game.gameOver) {
+                // When game over, freeze time at the moment of death
+                gameTime = game.gameOverTime - game.startTime;
+            } else if (game.paused) {
                 // When paused, use the time when pause started
                 gameTime = game.pauseTime - game.startTime;
             } else {
-                // When not paused, use current time minus total pause duration
+                // When actively playing, use current time
                 gameTime = Date.now() - game.startTime;
             }
             
+            // Only update game logic if not paused and not game over
             if (!game.paused && !game.gameOver) {
                 if (timestamp - game.lastEnemySpawn > game.enemySpawnRate) {
                     spawnEnemy();
@@ -873,6 +879,7 @@
                 update();
             }
             
+            // Always draw the game
             draw();
             
             // Update UI
@@ -884,6 +891,7 @@
             if (PlayerHealthSystem.isDead(game.player)) {
                 if (!game.gameOver) {
                     game.gameOver = true;
+                    game.gameOverTime = Date.now(); // Capture the exact moment of death
                     // Clear any lingering input when entering game over
                     input.keys = {};
                     input.mouse.down = false;
@@ -931,7 +939,10 @@
             requestAnimationFrame(gameLoop);
         }
         
-        // Start the game
+        // Start the game immediately
+        console.log('Starting game...');
+        console.log('Canvas size:', canvas.width, 'x', canvas.height);
+        console.log('Player position:', game.player.x, game.player.y);
         requestAnimationFrame(gameLoop);
     </script>
 </body>
