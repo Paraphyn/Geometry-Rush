@@ -1,4 +1,205 @@
-<!DOCTYPE html>
+function draw() {
+            // Clear and draw grid - full screen
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid that covers entire screen
+            const gridSize = 40;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            // Vertical grid lines
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal grid lines
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Player
+            ctx.beginPath();
+            ctx.arc(game.player.x, game.player.y, game.player.radius, 0, Math.PI * 2);
+            
+            // Change color based on damage flash
+            if (game.player.damageFlash > 0) {
+                ctx.fillStyle = '#ff0000';
+                ctx.strokeStyle = '#cc0000';
+            } else {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#cccccc';
+            }
+            
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Player health text with color coding
+            const healthValue = game.player.health;
+            if (healthValue > 60) {
+                ctx.fillStyle = '#00ff00'; // Green
+            } else if (healthValue > 30) {
+                ctx.fillStyle = '#ffaa00'; // Orange
+            } else {
+                ctx.fillStyle = '#ff0000'; // Red
+            }
+            
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('HP: ' + healthValue, game.player.x, game.player.y + game.player.radius + 22);
+            
+            // Aiming line
+            ctx.beginPath();
+            ctx.moveTo(game.player.x, game.player.y);
+            ctx.lineTo(game.mouse.x, game.mouse.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Bullet trails
+            game.bulletTrails.forEach(function(trail) {
+                ctx.save();
+                ctx.globalAlpha = trail.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Bullets
+            ctx.fillStyle = '#00ffff';
+            ctx.strokeStyle = '#00cccc';
+            ctx.lineWidth = 1;
+            game.bullets.forEach(function(b) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            
+            // Enemies
+            game.enemies.forEach(function(e) {
+                const color = e.damageFlash > 0 ? '#ffffff' : '#ff0000';
+                const stroke = e.damageFlash > 0 ? '#ffffff' : '#cc0000';
+                drawShape(e.x, e.y, e.type, e.radius, color, stroke);
+                
+                // Health bar for tough enemies
+                if (e.maxHealth > 50) {
+                    const w = e.radius * 2;
+                    const h = 4;
+                    const hp = e.health / e.maxHealth;
+                    
+                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillRect(e.x - w/2, e.y - e.radius - 10, w * hp, h);
+                }
+            });
+            
+            // Hit effects
+            game.hitEffects.forEach(function(effect) {
+                ctx.save();
+                ctx.globalAlpha = effect.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            // Player damage labels (red)
+            game.damageLabels.forEach(function(label) {
+                if (label.opacity > 0.01 && !isNaN(label.damage)) {
+                    ctx.save();
+                    ctx.globalAlpha = label.opacity;
+                    
+                    // Dynamic font size based on damage amount
+                    let fontSize = 20;
+                    if (label.damage >= 50) fontSize = 28; // Larger for high damage
+                    else if (label.damage >= 35) fontSize = 24; // Medium for medium damage
+                    
+                    ctx.font = `bold ${fontSize}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Red glow effect for player damage
+                    ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
+                    ctx.shadowBlur = 4;
+                    
+                    // Outline for better visibility
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 2;
+                    ctx.fillStyle = '#ff0000';
+                    
+                    const text = '-' + Math.floor(label.damage);
+                    
+                    // Draw at label position
+                    ctx.strokeText(text, label.x, label.y);
+                    ctx.fillText(text, label.x, label.y);
+                    
+                    ctx.restore();
+                }
+            });
+            
+            // Enemy damage labels (yellow/orange)
+            game.enemyDamageLabels.forEach(function(label) {
+                if (label.opacity > 0.01 && !isNaN(label.damage)) {
+                    ctx.save();
+                    ctx.globalAlpha = label.opacity;
+                    
+                    // Consistent font size for bullet damage
+                    ctx.font = 'bold 22px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Yellow/orange glow effect for enemy damage
+                    ctx.shadowColor = 'rgba(255, 165, 0, 0.8)';
+                    ctx.shadowBlur = 4;
+                    
+                    // Outline for better visibility
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 2;
+                    ctx.fillStyle = '#ffaa00'; // Orange color for enemy damage
+                    
+                    const text = '-' + Math.floor(label.damage);
+                    
+                    // Draw at label position
+                    ctx.strokeText(text, label.x, label.y);
+                    ctx.fillText(text, label.x, label.y);
+                    
+                    ctx.restore();
+                }
+            });
+            
+            // Explosions
+            game.explosions.forEach(function(p) {
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
+                drawShape(p.x, p.y, p.type, p.size, '#ff0000', '#ff0000');
+                ctx.restore();
+            });
+            
+            // Pause overlay
+            if (game.paused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press ESC to continue', canvas.width / 2, canvas.height / 2 + 30);
+            }
+        }
+            }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -121,6 +322,7 @@
             bulletTrails: [],
             hitEffects: [],
             damageLabels: [],
+            enemyDamageLabels: [], // Separate array for enemy damage labels
             score: 0,
             startTime: Date.now(),
             lastEnemySpawn: 0,
@@ -289,6 +491,7 @@
                 bulletTrails: [],
                 hitEffects: [],
                 damageLabels: [],
+                enemyDamageLabels: [],
                 score: 0,
                 startTime: Date.now(),
                 lastEnemySpawn: 0,
@@ -574,6 +777,24 @@
             }
         };
         
+        function createEnemyDamageLabel(x, y, damage) {
+            // Random trajectory with realistic physics
+            const angle = Math.random() * Math.PI * 2; // Random direction
+            const speed = 2 + Math.random() * 2; // Random initial speed
+            
+            game.enemyDamageLabels.push({
+                x: x,
+                y: y,
+                damage: damage,
+                dx: Math.cos(angle) * speed, // Horizontal velocity
+                dy: Math.sin(angle) * speed - 1.5, // Vertical velocity (upward bias)
+                gravity: 0.05, // Gravity effect
+                opacity: 0.95, // High starting opacity
+                life: 90, // Lifetime
+                maxLife: 90
+            });
+        }
+        
         function createHitEffect(x, y) {
             const particleCount = 8;
             for (let i = 0; i < particleCount; i++) {
@@ -625,17 +846,39 @@
                 label.dy += label.gravity;
                 
                 // Air resistance - slow down movement over time
-                label.dx *= 0.985;
-                label.dy *= 0.985;
+                label.dx *= 0.98;
                 
                 // Update visual properties
                 label.life--;
-                label.opacity = Math.max(0, (label.life / label.maxLife) * 0.75); // Fade from 75% to 0%
-                label.scale *= 0.998; // Slightly shrink over time
+                label.opacity = Math.max(0, label.life / label.maxLife);
                 
                 // Remove expired labels
                 if (label.life <= 0 || label.opacity <= 0.01) {
                     game.damageLabels.splice(i, 1);
+                }
+            }
+            
+            // Update enemy damage labels with same physics
+            for (let i = game.enemyDamageLabels.length - 1; i >= 0; i--) {
+                const label = game.enemyDamageLabels[i];
+                
+                // Apply physics
+                label.x += label.dx;
+                label.y += label.dy;
+                
+                // Apply gravity to vertical movement
+                label.dy += label.gravity;
+                
+                // Air resistance - slow down movement over time
+                label.dx *= 0.98;
+                
+                // Update visual properties
+                label.life--;
+                label.opacity = Math.max(0, label.life / label.maxLife);
+                
+                // Remove expired labels
+                if (label.life <= 0 || label.opacity <= 0.01) {
+                    game.enemyDamageLabels.splice(i, 1);
                 }
             }
             
@@ -702,21 +945,18 @@
                     
                     // Random trajectory with realistic physics
                     const angle = Math.random() * Math.PI * 2; // Random direction
-                    const speed = 3 + Math.random() * 4; // Random initial speed
-                    const gravity = 0.08; // Gravity effect
+                    const speed = 2 + Math.random() * 2; // Reduced speed for visibility
                     
                     game.damageLabels.push({
                         x: impactX,
                         y: impactY,
                         damage: enemyDamage,
                         dx: Math.cos(angle) * speed, // Horizontal velocity
-                        dy: Math.sin(angle) * speed - 2, // Vertical velocity (upward bias)
-                        gravity: gravity,
-                        opacity: 0.75, // Start at 75% transparency
-                        life: 120, // Longer life for more visible trajectory
-                        maxLife: 120,
-                        scale: 1.0 + Math.random() * 0.3, // Slight size variation
-                        rotation: Math.random() * 0.4 - 0.2 // Slight rotation for dynamics
+                        dy: Math.sin(angle) * speed - 1.5, // Vertical velocity (upward bias)
+                        gravity: 0.05, // Reduced gravity
+                        opacity: 0.95, // Higher starting opacity
+                        life: 90, // Shorter life for testing
+                        maxLife: 90
                     });
                     
                     game.enemies.splice(i, 1);
@@ -730,6 +970,7 @@
                     
                     if (bulletDist < b.radius + e.radius) {
                         createHitEffect(b.x, b.y);
+                        createEnemyDamageLabel(b.x, b.y, 50); // Show damage at bullet impact point
                         game.bullets.splice(j, 1);
                         e.health -= 50;
                         e.damageFlash = 10;
