@@ -96,6 +96,18 @@
             game.mouseDown = false;
         });
         
+        // Prevent default browser shortcuts that might interfere
+        document.addEventListener('keydown', e => {
+            // Prevent browser shortcuts during game
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                // Still allow refresh
+                return;
+            }
+            if (e.key === 'Tab') {
+                e.preventDefault();
+            }
+        });
+        
         // Input handling
         document.addEventListener('keydown', e => {
             if (e.key.toLowerCase() === ' ' || e.key === 'space') {
