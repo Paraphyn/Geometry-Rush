@@ -70,7 +70,7 @@
         
         // Game state
         let game = {
-            player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100 },
+            player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100, damageFlash: 0 },
             mouse: { x: 0, y: 0 },
             keys: {},
             bullets: [],
@@ -78,6 +78,7 @@
             explosions: [],
             bulletTrails: [],
             hitEffects: [],
+            damageLabels: [],
             score: 0,
             startTime: Date.now(),
             lastEnemySpawn: 0,
@@ -233,7 +234,7 @@
             input.lastKeyTime = {};
             
             game = {
-                player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100 },
+                player: { x: canvas.width / 2, y: canvas.height / 2, radius: 15, speed: 5, health: 100, damageFlash: 0 },
                 mouse: { x: canvas.width / 2, y: canvas.height / 2 },
                 keys: {},
                 bullets: [],
@@ -241,6 +242,7 @@
                 explosions: [],
                 bulletTrails: [],
                 hitEffects: [],
+                damageLabels: [],
                 score: 0,
                 startTime: Date.now(),
                 lastEnemySpawn: 0,
@@ -319,6 +321,17 @@
             }
         }
         
+        function createDamageLabel(x, y, damage) {
+            game.damageLabels.push({
+                x: x,
+                y: y,
+                damage: damage,
+                dy: -1, // Float upward
+                opacity: 1,
+                life: 180 // 3 seconds at 60fps
+            });
+        }
+        
         function createHitEffect(x, y) {
             const particleCount = 8;
             for (let i = 0; i < particleCount; i++) {
@@ -352,6 +365,11 @@
             // Sync input state
             game.keys = Object.assign({}, input.keys);
             game.mouseDown = input.mouse.down;
+            
+            // Update player damage flash
+            if (game.player.damageFlash > 0) {
+                game.player.damageFlash--;
+            }
             
             // Player movement
             const p = game.player;
@@ -405,8 +423,10 @@
                 // Check player collision
                 if (dist < e.radius + p.radius) {
                     createExplosion(e.x, e.y, e.type, e.radius);
+                    createDamageLabel(p.x, p.y - p.radius - 10, 20);
                     game.enemies.splice(i, 1);
                     p.health -= 20;
+                    p.damageFlash = 20; // Flash for 20 frames
                     continue;
                 }
                 
@@ -466,6 +486,16 @@
                 effect.size *= 0.98;
                 
                 if (effect.life <= 0) game.hitEffects.splice(i, 1);
+            }
+            
+            // Update damage labels
+            for (let i = game.damageLabels.length - 1; i >= 0; i--) {
+                const label = game.damageLabels[i];
+                label.y += label.dy;
+                label.life--;
+                label.opacity = label.life / 180; // Fade over 3 seconds
+                
+                if (label.life <= 0) game.damageLabels.splice(i, 1);
             }
         }
         
@@ -528,9 +558,17 @@
             // Player
             ctx.beginPath();
             ctx.arc(game.player.x, game.player.y, game.player.radius, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
+            
+            // Change color based on damage flash
+            if (game.player.damageFlash > 0) {
+                ctx.fillStyle = '#ff0000'; // Red when taking damage
+                ctx.strokeStyle = '#cc0000';
+            } else {
+                ctx.fillStyle = '#ffffff'; // Normal white
+                ctx.strokeStyle = '#cccccc';
+            }
+            
             ctx.fill();
-            ctx.strokeStyle = '#cccccc';
             ctx.lineWidth = 2;
             ctx.stroke();
             
@@ -597,6 +635,20 @@
                 ctx.beginPath();
                 ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.restore();
+            });
+            
+            // Damage labels
+            game.damageLabels.forEach(function(label) {
+                ctx.save();
+                ctx.globalAlpha = label.opacity;
+                ctx.fillStyle = '#ff4444';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeText('-' + label.damage, label.x, label.y);
+                ctx.fillText('-' + label.damage, label.x, label.y);
                 ctx.restore();
             });
             
