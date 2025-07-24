@@ -139,7 +139,7 @@
                 this.invulnerabilityTime = 0;
                 this.railgunCharging = false;
                 this.railgunChargeStart = 0;
-                this.railgunMaxChargeTime = 5000; // 5 seconds
+                this.railgunMaxChargeTime = 3000; // 3 seconds
                 this.railgunParticles = [];
             }
 
@@ -195,7 +195,7 @@
                 if (!this.railgunCharging) return;
                 this.railgunCharging = false;
                 const chargeTime = Date.now() - this.railgunChargeStart;
-                const damage = 1; // Fixed 1 damage per target
+                const damage = 100; // Fixed 1 damage per target
                 effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, damage, canvas);
                 this.railgunParticles = []; // Clear particles on firing
             }
@@ -220,7 +220,7 @@
                 ctx.fillStyle = fillColor;
                 ctx.fill();
                 ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.stroke();
 
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
