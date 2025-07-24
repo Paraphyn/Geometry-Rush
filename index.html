@@ -59,7 +59,7 @@
         
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
-        .score { top: 20px; right: 20px; font-size: 25px; }
+        .score { top: 50px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
     </style>
 </head>
@@ -73,8 +73,8 @@
     <script>
         // Enemy configuration
         const ENEMY_TYPES = {
-            square: { health: 200, speed: 3, size: 25, points: 5, damage: 25 },
-            triangle: { health: 50, speed: 6.5, size: 15, points: 10, damage: 15 },
+            square: { health: 200, speed: 4, size: 30, points: 5, damage: 15 },
+            triangle: { health: 50, speed: 6.5, size: 15, points: 10, damage: 25 },
             octagon: { health: 800, speed: 1, size: 50, points: 50, damage: 50 }
         };
 
