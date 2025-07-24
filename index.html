@@ -60,7 +60,7 @@
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
         .score { top: 20px; right: 20px; font-size: 25px; }
-        .controls { bottom: 20px; left: 20px; font-size: 25px; opacity: 0.8; }
+        .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
     </style>
 </head>
 <body>
@@ -68,14 +68,14 @@
     <div class="ui enemies">Enemies: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to move | Mouse to aim | Hold left click to shoot | ESC to pause</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | ESC to Pause</div>
 
     <script>
         // Enemy configuration
         const ENEMY_TYPES = {
-            square: { health: 200, speed: 2, size: 24, points: 5, damage: 25 },
-            triangle: { health: 50, speed: 4, size: 12, points: 10, damage: 15 },
-            octagon: { health: 1000, speed: 0.8, size: 31, points: 50, damage: 50 }
+            square: { health: 200, speed: 3, size: 24, points: 5, damage: 25 },
+            triangle: { health: 50, speed: 5, size: 12, points: 10, damage: 15 },
+            octagon: { health: 800, speed: 1, size: 41, points: 50, damage: 50 }
         };
 
         // Input management
@@ -105,7 +105,7 @@
             constructor(canvas) {
                 this.x = canvas.width / 2;
                 this.y = canvas.height / 2;
-                this.radius = 15;
+                this.radius = 25;
                 this.speed = 5;
                 this.health = 100;
                 this.maxHealth = 100;
@@ -201,7 +201,7 @@
                 this.y = y;
                 this.dx = dx;
                 this.dy = dy;
-                this.radius = 3;
+                this.radius = 6;
                 this.life = 100;
                 this.damage = 15;
             }
@@ -239,7 +239,7 @@
                 this.damage = config.damage;
                 this.damageFlash = 0;
                 this.lastShot = 0;
-                this.shootDelay = type === 'octagon' ? 6000 : Infinity; // Octagons shoot every 6 seconds
+                this.shootDelay = type === 'octagon' ? 4000 : Infinity; // Octagons shoot every 6 seconds
             }
 
             update(player, canvas, effects, enemyBullets) {
@@ -369,7 +369,7 @@
                 this.y = y;
                 this.color = color;
                 this.size = 3;
-                this.opacity = 0.25;
+                this.opacity = 0.5;
                 this.life = 5;
             }
 
