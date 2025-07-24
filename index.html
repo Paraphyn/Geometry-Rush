@@ -137,10 +137,11 @@
                 this.damageFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
-                this.railgunCharging = false;
-                this.railgunChargeStart = 0;
+                this.railgunCharge = 0; // 0 to 1 over 5 seconds
                 this.railgunMaxChargeTime = 3000; // 3 seconds
                 this.railgunParticles = [];
+                this.blinkState = true; // For charge indicator blinking
+                this.blinkFrame = 0; // Frame counter for blinking
             }
 
             move(keys, canvas) {
@@ -165,7 +166,7 @@
                 return true;
             }
 
-            update(effects, input, canvas) {
+            update(input, effects, canvas) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 if (this.invulnerable && this.invulnerabilityTime > 0) {
                     this.invulnerabilityTime--;
@@ -173,46 +174,35 @@
                 }
                 this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
 
-                if (this.railgunCharging) {
-                    const chargeTime = Date.now() - this.railgunChargeStart;
+                // Railgun charge handling
+                if (input.mouse.rightDown) {
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime)); // Increment per frame (~60 FPS)
+                    if (this.railgunCharge === 1) {
+                        this.blinkFrame = (this.blinkFrame + 1) % 20; // Toggle every 30 frames (0.5s at 60 FPS)
+                        this.blinkState = this.blinkFrame < 15; // On for 0.25s, off for 0.25s
+                    } else {
+                        this.blinkState = true; // Always show when not maxed
+                        this.blinkFrame = 0;
+                    }
                     if (this.railgunParticles.length < 5) {
                         const particleCount = Math.floor(Math.random() * 3) + 3; // 3-5 particles
                         for (let i = this.railgunParticles.length; i < particleCount; i++) {
                             effects.createRailgunParticle(this.x, this.y);
                         }
                     }
-                    this.railgunParticles.forEach(particle => particle.update(this.x, this.y));
+                    this.railgunParticles.forEach(p => p.update(this.x, this.y));
+                } else if (this.railgunCharge > 0) {
+                    // Fire on release
+                    effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
+                    this.railgunCharge = 0;
+                    this.railgunParticles = [];
+                    this.blinkState = true;
+                    this.blinkFrame = 0;
                 }
             }
 
-            startRailgunCharge() {
-                this.railgunCharging = true;
-                this.railgunChargeStart = Date.now();
-                this.railgunParticles = [];
-            }
-
-            fireRailgun(input, effects, canvas) {
-                if (!this.railgunCharging) return;
-                this.railgunCharging = false;
-                const chargeTime = Date.now() - this.railgunChargeStart;
-                const damage = 100; // Fixed 1 damage per target
-                effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, damage, canvas);
-                this.railgunParticles = []; // Clear particles on firing
-            }
-
-            drawChargeIndicator(ctx) {
-                if (!this.railgunCharging) return;
-                const chargeTime = Date.now() - this.railgunChargeStart;
-                const chargePercent = Math.min(chargeTime / this.railgunMaxChargeTime, 1);
-                const w = this.radius * 2;
-                const h = 4;
-                ctx.fillStyle = 'rgba(0, 100, 100, 0.7)'; // Cyan background
-                ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
-                ctx.fillStyle = 'rgba(0, 255, 255, 0.7)'; // Cyan fill
-                ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * chargePercent, h);
-            }
-
             draw(ctx) {
+                // Draw player circle
                 let fillColor = this.damageFlash > 0 ? '#ff0000' : this.invulnerable ? '#f0f0ff' : '#ffffff';
                 let strokeColor = this.damageFlash > 0 ? '#cc0000' : this.invulnerable ? '#a0a0ff' : '#cccccc';
                 ctx.beginPath();
@@ -220,16 +210,25 @@
                 ctx.fillStyle = fillColor;
                 ctx.fill();
                 ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2;
                 ctx.stroke();
 
+                // Draw health label
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
-                ctx.font = 'bold 15px Arial'; // Confirmed 15px
+                ctx.font = 'bold 15px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
 
-                this.drawChargeIndicator(ctx);
+                // Draw charge indicator (blink when maxed)
+                if (this.railgunCharge > 0 && this.blinkState) {
+                    const w = this.radius * 2;
+                    const h = 4;
+                    ctx.fillStyle = 'rgba(0, 100, 100, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * this.railgunCharge, h);
+                }
             }
         }
 
@@ -330,17 +329,17 @@
 
         // Railgun particle effect
         class RailgunParticle {
-            constructor(x, y, playerX, playerY) {
+            constructor(x, y) {
                 const angle = Math.random() * Math.PI * 2;
                 const distance = Math.random() * 150;
-                this.x = playerX + Math.cos(angle) * distance;
-                this.y = playerY + Math.sin(angle) * distance;
+                this.x = x + Math.cos(angle) * distance;
+                this.y = y + Math.sin(angle) * distance;
                 this.size = 2 + Math.random() * 2;
                 this.opacity = 0;
                 this.maxOpacity = 0.7;
                 this.life = 60;
                 this.maxLife = 60;
-                this.speed = 1.3 + Math.random() * 1.3; // 30% faster (1-2 -> 1.3-2.6)
+                this.speed = 1.3 + Math.random() * 1.3; // 1.3-2.6px/frame
             }
 
             update(playerX, playerY) {
@@ -349,7 +348,7 @@
                 const dx = playerX - this.x;
                 const dy = playerY - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
+                if (dist > 0.1) { // Avoid division by near-zero
                     this.x += (dx / dist) * this.speed;
                     this.y += (dy / dist) * this.speed;
                 }
@@ -369,7 +368,7 @@
 
         // Railgun beam effect
         class RailgunBeam {
-            constructor(startX, startY, targetX, targetY, damage, canvas) {
+            constructor(startX, startY, targetX, targetY, canvas, charge) {
                 this.startX = startX;
                 this.startY = startY;
                 const dx = targetX - startX;
@@ -378,11 +377,13 @@
                 const maxDist = Math.max(canvas.width, canvas.height) * 2;
                 this.endX = startX + (dx / dist) * maxDist;
                 this.endY = startY + (dy / dist) * maxDist;
-                this.damage = 1; // Fixed 1 damage
+                // Damage scales from 5 (0-5% charge) to 300 (100% charge)
+                this.damage = charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05);
                 this.life = 60;
                 this.maxLife = 60;
                 this.opacity = 1.0;
-                this.width = 8; // 2x wider
+                this.width = 8;
+                this.hitEnemies = new Set(); // Track hit enemies
             }
 
             update() {
@@ -394,10 +395,11 @@
             draw(ctx) {
                 ctx.save();
                 ctx.globalAlpha = this.opacity;
-                const gradient = ctx.createLinearGradient(this.startX, this.startY, this.startX, this.startY + this.width);
-                gradient.addColorStop(0, 'rgba(0, 255, 255, 0)');
-                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
-                gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                // Gradient along beam direction for visibility
+                const gradient = ctx.createLinearGradient(this.startX, this.startY, this.endX, this.endY);
+                gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)'); // Slightly transparent at start
+                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)'); // Solid cyan in center
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)'); // Slightly transparent at end
                 ctx.strokeStyle = gradient;
                 ctx.lineWidth = this.width;
                 ctx.beginPath();
@@ -408,6 +410,7 @@
             }
 
             intersectsEnemy(enemy) {
+                if (this.hitEnemies.has(enemy)) return false; // Already hit
                 const p1 = { x: this.startX, y: this.startY };
                 const p2 = { x: this.endX, y: this.endY };
                 const p3 = { x: enemy.x, y: enemy.y };
@@ -421,7 +424,11 @@
                 const distX = p3.x - closestX;
                 const distY = p3.y - closestY;
                 const distance = Math.sqrt(distX * distX + distY * distY);
-                return distance <= radius && dot >= 0 && dot <= 1;
+                if (distance <= radius && dot >= 0 && dot <= 1) {
+                    this.hitEnemies.add(enemy); // Mark as hit
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -785,11 +792,11 @@
             }
 
             createRailgunParticle(playerX, playerY) {
-                this.railgunParticles.push(new RailgunParticle(playerX, playerY, playerX, playerY));
+                this.railgunParticles.push(new RailgunParticle(playerX, playerY));
             }
 
-            createRailgunBeam(startX, startY, targetX, targetY, damage, canvas) {
-                this.railgunBeams.push(new RailgunBeam(startX, startY, targetX, targetY, damage, canvas));
+            createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
+                this.railgunBeams.push(new RailgunBeam(startX, startY, targetX, targetY, canvas, charge));
             }
 
             update() {
@@ -919,23 +926,14 @@
                         return;
                     }
                     if (!this.paused) {
-                        if (e.button === 0) {
-                            this.input.mouse.down = true;
-                            this.shoot();
-                        } else if (e.button === 2) {
-                            this.input.mouse.rightDown = true;
-                            this.player.startRailgunCharge();
-                        }
+                        if (e.button === 0) this.input.mouse.down = true;
+                        else if (e.button === 2) this.input.mouse.rightDown = true;
                     }
                 });
 
                 this.canvas.addEventListener('mouseup', e => {
-                    if (e.button === 0) {
-                        this.input.mouse.down = false;
-                    } else if (e.button === 2) {
-                        this.input.mouse.rightDown = false;
-                        this.player.fireRailgun(this.input, this.effects, this.canvas);
-                    }
+                    if (e.button === 0) this.input.mouse.down = false;
+                    else if (e.button === 2) this.input.mouse.rightDown = false;
                 });
 
                 this.canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -984,7 +982,7 @@
                 }
 
                 this.player.move(this.input.keys, this.canvas);
-                this.player.update(this.effects, this.input, this.canvas);
+                this.player.update(this.input, this.effects, this.canvas);
                 if (this.input.mouse.down) this.shoot();
 
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
@@ -998,7 +996,7 @@
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
-                        this.effects.createScoreLabel(enemy.points, enemy.x, this.y, this.score, this.ctx);
+                        this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
                         continue;
                     }
                     for (let j = this.bullets.length - 1; j >= 0; j--) {
