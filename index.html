@@ -65,7 +65,7 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div class="ui enemies">Enemies: <span id="enemies">0</span></div>
+    <div class="ui enemies">Enemies Killed: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | ESC to Pause</div>
@@ -73,9 +73,33 @@
     <script>
         // Enemy configuration
         const ENEMY_TYPES = {
-            square: { health: 200, speed: 4, size: 30, points: 5, damage: 15 },
-            triangle: { health: 50, speed: 6.5, size: 15, points: 10, damage: 25 },
-            octagon: { health: 800, speed: 1, size: 50, points: 50, damage: 50 }
+            square: { 
+                health: 200, 
+                speed: 4, 
+                size: 30, 
+                points: 5, 
+                damage: 15,
+                fillColor: '#ff0000',
+                strokeColor: '#cc0000'
+            },
+            triangle: { 
+                health: 50, 
+                speed: 6.5, 
+                size: 15, 
+                points: 10, 
+                damage: 25,
+                fillColor: '#ff6666',
+                strokeColor: '#cc3333'
+            },
+            octagon: { 
+                health: 800, 
+                speed: 1, 
+                size: 50, 
+                points: 50, 
+                damage: 50,
+                fillColor: '#990000',
+                strokeColor: '#660000'
+            }
         };
 
         // Input management
@@ -225,6 +249,40 @@
             }
         }
 
+        // Triangle trail effect
+        class TriangleTrail {
+            constructor(x, y, size, opacity, fillColor) {
+                this.x = x + (Math.random() - 0.5) * 2; // Slight random offset for smoothness
+                this.y = y + (Math.random() - 0.5) * 2;
+                this.size = size;
+                this.opacity = opacity;
+                this.fillColor = fillColor;
+                this.life = 60; // Longer lifetime for longer trails
+                this.maxLife = 60;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = (this.opacity * (this.life / this.maxLife)); // Fade based on initial opacity
+                this.size *= 0.98; // Slight size reduction per frame
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.fillColor;
+                ctx.beginPath();
+                const h = this.size * 1.5;
+                ctx.moveTo(this.x, this.y - h);
+                ctx.lineTo(this.x - h * 0.866, this.y + h * 0.5);
+                ctx.lineTo(this.x + h * 0.866, this.y + h * 0.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
         // Enemy management
         class Enemy {
             constructor(x, y, type, config) {
@@ -237,9 +295,12 @@
                 this.maxHealth = config.health;
                 this.points = config.points;
                 this.damage = config.damage;
+                this.fillColor = config.fillColor;
+                this.strokeColor = config.strokeColor;
                 this.damageFlash = 0;
                 this.lastShot = 0;
-                this.shootDelay = type === 'octagon' ? 4000 : Infinity; // Octagons shoot every 4 seconds
+                this.shootDelay = type === 'octagon' ? 4000 : Infinity;
+                this.lastTrailTime = 0; // Track last trail creation
             }
 
             update(player, canvas, effects, enemyBullets) {
@@ -256,6 +317,25 @@
                     if (now - this.lastShot >= this.shootDelay) {
                         this.shoot(player, enemyBullets);
                         this.lastShot = now;
+                    }
+                }
+                // Create trails for triangle enemies
+                if (this.type === 'triangle') {
+                    const now = Date.now();
+                    if (now - this.lastTrailTime >= 50) { // Create trails every 50ms for smoothness
+                        const baseSize = this.radius * 0.8; // 80% of original size
+                        for (let i = 0; i < 5; i++) {
+                            const size = baseSize * Math.pow(0.75, i); // Decrease size by 25% each
+                            const opacity = 0.5 - (i * 0.125); // Start at 0.5, decrease by 0.125
+                            effects.createTriangleTrail(
+                                this.x, 
+                                this.y, 
+                                size, 
+                                opacity, 
+                                this.fillColor
+                            );
+                        }
+                        this.lastTrailTime = now;
                     }
                 }
                 return dist;
@@ -284,8 +364,8 @@
             }
 
             draw(ctx) {
-                const color = this.damageFlash > 0 ? '#ffffff' : '#ff0000';
-                const stroke = this.damageFlash > 0 ? '#ffffff' : '#cc0000';
+                const color = this.damageFlash > 0 ? '#ffffff' : this.fillColor;
+                const stroke = this.damageFlash > 0 ? '#ffffff' : this.strokeColor;
                 this.drawShape(ctx, this.x, this.y, this.type, this.radius, color, stroke);
                 if (this.maxHealth > 50) {
                     const w = this.radius * 2, h = 4;
@@ -331,7 +411,7 @@
 
         // Explosion effect
         class Explosion {
-            constructor(x, y, type, size) {
+            constructor(x, y, type, size, fillColor, strokeColor) {
                 this.x = x;
                 this.y = y;
                 const angle = Math.random() * Math.PI * 2;
@@ -340,6 +420,8 @@
                 this.dy = Math.sin(angle) * speed;
                 this.type = type;
                 this.size = size * (0.3 + Math.random() * 0.2);
+                this.fillColor = fillColor;
+                this.strokeColor = strokeColor;
                 this.opacity = 1;
                 this.life = 30 + Math.random() * 20;
             }
@@ -357,7 +439,7 @@
             draw(ctx) {
                 ctx.save();
                 ctx.globalAlpha = this.opacity;
-                Enemy.prototype.drawShape.call(this, ctx, this.x, this.y, this.type, this.size, '#ff0000', '#ff0000');
+                Enemy.prototype.drawShape.call(this, ctx, this.x, this.y, this.type, this.size, this.fillColor, this.strokeColor);
                 ctx.restore();
             }
         }
@@ -479,6 +561,7 @@
                 this.hitEffects = [];
                 this.damageLabels = [];
                 this.explosions = [];
+                this.triangleTrails = [];
             }
 
             createBulletTrail(x, y, color) {
@@ -499,10 +582,15 @@
             }
 
             createExplosion(x, y, type, size) {
+                const config = ENEMY_TYPES[type];
                 const count = 3 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < count; i++) {
-                    this.explosions.push(new Explosion(x, y, type, size));
+                    this.explosions.push(new Explosion(x, y, type, size, config.fillColor, config.strokeColor));
                 }
+            }
+
+            createTriangleTrail(x, y, size, opacity, fillColor) {
+                this.triangleTrails.push(new TriangleTrail(x, y, size, opacity, fillColor));
             }
 
             update() {
@@ -510,6 +598,7 @@
                 this.hitEffects = this.hitEffects.filter(effect => effect.update());
                 this.damageLabels = this.damageLabels.filter(label => label.update());
                 this.explosions = this.explosions.filter(explosion => explosion.update());
+                this.triangleTrails = this.triangleTrails.filter(trail => trail.update());
             }
 
             draw(ctx) {
@@ -517,6 +606,7 @@
                 this.hitEffects.forEach(effect => effect.draw(ctx));
                 this.damageLabels.forEach(label => label.draw(ctx));
                 this.explosions.forEach(explosion => explosion.draw(ctx));
+                this.triangleTrails.forEach(trail => trail.draw(ctx));
             }
         }
 
@@ -544,6 +634,7 @@
                 this.enemies = [];
                 this.effects = new EffectsManager();
                 this.score = 0;
+                this.enemiesKilled = 0;
                 this.startTime = Date.now();
                 this.lastEnemySpawn = 0;
                 this.enemySpawnRate = 2000;
@@ -646,7 +737,7 @@
                 if (dist > 0) {
                     this.bullets.push(new Bullet(
                         this.player.x,
-                        this.player.y,
+                        this.y,
                         (dx / dist) * 8,
                         (dy / dist) * 8
                     ));
@@ -690,6 +781,7 @@
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
+                        this.enemiesKilled++;
                         continue;
                     }
                     for (let j = this.bullets.length - 1; j >= 0; j--) {
@@ -701,6 +793,7 @@
                                 this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                 this.enemies.splice(i, 1);
                                 this.score += enemy.points;
+                                this.enemiesKilled++;
                             }
                             break;
                         }
@@ -754,8 +847,8 @@
 
                 this.bullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.enemies.forEach(enemy => enemy.draw(this.ctx));
-                this.effects.draw(this.ctx);
+                this.effects.draw(this.ctx); // Draw effects (including trails) before enemies
+                this.enemies.forEach(enemy => enemy.draw(this.ctx)); // Enemies drawn after effects
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -821,7 +914,7 @@
 
                 this.draw();
                 document.getElementById('score').textContent = this.score;
-                document.getElementById('enemies').textContent = this.enemies.length;
+                document.getElementById('enemies').textContent = this.enemiesKilled;
                 document.getElementById('timer').textContent = this.formatTime(gameTime);
 
                 requestAnimationFrame(t => this.loop(t));
