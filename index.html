@@ -65,10 +65,10 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div class="ui enemies">Enemies Killed: <span id="enemies">0</span></div>
+    <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | ESC to Pause</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun</div>
 
     <script>
         // Enemy configuration
@@ -106,7 +106,7 @@
         class InputManager {
             constructor() {
                 this.keys = {};
-                this.mouse = { x: 0, y: 0, down: false };
+                this.mouse = { x: 0, y: 0, down: false, rightDown: false };
                 this.lastKeyTime = {};
             }
 
@@ -120,6 +120,7 @@
             clear() {
                 this.keys = {};
                 this.mouse.down = false;
+                this.mouse.rightDown = false;
                 this.lastKeyTime = {};
             }
         }
@@ -136,6 +137,10 @@
                 this.damageFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
+                this.railgunCharging = false;
+                this.railgunChargeStart = 0;
+                this.railgunMaxChargeTime = 5000; // 5 seconds
+                this.railgunParticles = [];
             }
 
             move(keys, canvas) {
@@ -160,13 +165,51 @@
                 return true;
             }
 
-            update() {
+            update(effects, input, canvas) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 if (this.invulnerable && this.invulnerabilityTime > 0) {
                     this.invulnerabilityTime--;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
                 }
                 this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
+
+                if (this.railgunCharging) {
+                    const chargeTime = Date.now() - this.railgunChargeStart;
+                    if (this.railgunParticles.length < 5) {
+                        const particleCount = Math.floor(Math.random() * 3) + 3; // 3-5 particles
+                        for (let i = this.railgunParticles.length; i < particleCount; i++) {
+                            effects.createRailgunParticle(this.x, this.y);
+                        }
+                    }
+                    this.railgunParticles.forEach(particle => particle.update(this.x, this.y));
+                }
+            }
+
+            startRailgunCharge() {
+                this.railgunCharging = true;
+                this.railgunChargeStart = Date.now();
+                this.railgunParticles = [];
+            }
+
+            fireRailgun(input, effects, canvas) {
+                if (!this.railgunCharging) return;
+                this.railgunCharging = false;
+                const chargeTime = Date.now() - this.railgunChargeStart;
+                const damage = 1; // Fixed 1 damage per target
+                effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, damage, canvas);
+                this.railgunParticles = []; // Clear particles on firing
+            }
+
+            drawChargeIndicator(ctx) {
+                if (!this.railgunCharging) return;
+                const chargeTime = Date.now() - this.railgunChargeStart;
+                const chargePercent = Math.min(chargeTime / this.railgunMaxChargeTime, 1);
+                const w = this.radius * 2;
+                const h = 4;
+                ctx.fillStyle = 'rgba(0, 100, 100, 0.7)'; // Cyan background
+                ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.7)'; // Cyan fill
+                ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * chargePercent, h);
             }
 
             draw(ctx) {
@@ -182,9 +225,11 @@
 
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
-                ctx.font = 'bold 15px Arial';
+                ctx.font = 'bold 15px Arial'; // Confirmed 15px
                 ctx.textAlign = 'center';
                 ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
+
+                this.drawChargeIndicator(ctx);
             }
         }
 
@@ -252,19 +297,19 @@
         // Triangle trail effect
         class TriangleTrail {
             constructor(x, y, size, opacity, fillColor) {
-                this.x = x + (Math.random() - 0.5) * 2; // Slight random offset for smoothness
+                this.x = x + (Math.random() - 0.5) * 2;
                 this.y = y + (Math.random() - 0.5) * 2;
                 this.size = size;
                 this.opacity = opacity;
                 this.fillColor = fillColor;
-                this.life = 60; // Longer lifetime for longer trails
+                this.life = 60;
                 this.maxLife = 60;
             }
 
             update() {
                 this.life--;
-                this.opacity = (this.opacity * (this.life / this.maxLife)); // Fade based on initial opacity
-                this.size *= 0.98; // Slight size reduction per frame
+                this.opacity = (this.opacity * (this.life / this.maxLife));
+                this.size *= 0.98;
                 return this.life > 0;
             }
 
@@ -280,6 +325,103 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.restore();
+            }
+        }
+
+        // Railgun particle effect
+        class RailgunParticle {
+            constructor(x, y, playerX, playerY) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 150;
+                this.x = playerX + Math.cos(angle) * distance;
+                this.y = playerY + Math.sin(angle) * distance;
+                this.size = 2 + Math.random() * 2;
+                this.opacity = 0;
+                this.maxOpacity = 0.7;
+                this.life = 60;
+                this.maxLife = 60;
+                this.speed = 1.3 + Math.random() * 1.3; // 30% faster (1-2 -> 1.3-2.6)
+            }
+
+            update(playerX, playerY) {
+                this.life--;
+                this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
+                const dx = playerX - this.x;
+                const dy = playerY - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
+                }
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Railgun beam effect
+        class RailgunBeam {
+            constructor(startX, startY, targetX, targetY, damage, canvas) {
+                this.startX = startX;
+                this.startY = startY;
+                const dx = targetX - startX;
+                const dy = targetY - startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = Math.max(canvas.width, canvas.height) * 2;
+                this.endX = startX + (dx / dist) * maxDist;
+                this.endY = startY + (dy / dist) * maxDist;
+                this.damage = 1; // Fixed 1 damage
+                this.life = 60;
+                this.maxLife = 60;
+                this.opacity = 1.0;
+                this.width = 8; // 2x wider
+            }
+
+            update() {
+                this.life--;
+                this.opacity = this.life / this.maxLife;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                const gradient = ctx.createLinearGradient(this.startX, this.startY, this.startX, this.startY + this.width);
+                gradient.addColorStop(0, 'rgba(0, 255, 255, 0)');
+                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = this.width;
+                ctx.beginPath();
+                ctx.moveTo(this.startX, this.startY);
+                ctx.lineTo(this.endX, this.endY);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            intersectsEnemy(enemy) {
+                const p1 = { x: this.startX, y: this.startY };
+                const p2 = { x: this.endX, y: this.endY };
+                const p3 = { x: enemy.x, y: enemy.y };
+                const radius = enemy.radius;
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
+                const closestX = p1.x + dot * dx;
+                const closestY = p1.y + dot * dy;
+                const distX = p3.x - closestX;
+                const distY = p3.y - closestY;
+                const distance = Math.sqrt(distX * distX + distY * distY);
+                return distance <= radius && dot >= 0 && dot <= 1;
             }
         }
 
@@ -300,7 +442,7 @@
                 this.damageFlash = 0;
                 this.lastShot = 0;
                 this.shootDelay = type === 'octagon' ? 4000 : Infinity;
-                this.lastTrailTime = 0; // Track last trail creation
+                this.lastTrailTime = 0;
             }
 
             update(player, canvas, effects, enemyBullets) {
@@ -319,14 +461,13 @@
                         this.lastShot = now;
                     }
                 }
-                // Create trails for triangle enemies
                 if (this.type === 'triangle') {
                     const now = Date.now();
-                    if (now - this.lastTrailTime >= 50) { // Create trails every 50ms for smoothness
-                        const baseSize = this.radius * 0.8; // 80% of original size
+                    if (now - this.lastTrailTime >= 50) {
+                        const baseSize = this.radius * 0.8;
                         for (let i = 0; i < 5; i++) {
-                            const size = baseSize * Math.pow(0.75, i); // Decrease size by 25% each
-                            const opacity = 0.5 - (i * 0.125); // Start at 0.5, decrease by 0.125
+                            const size = baseSize * Math.pow(0.75, i);
+                            const opacity = 0.5 - (i * 0.125);
                             effects.createTriangleTrail(
                                 this.x, 
                                 this.y, 
@@ -355,11 +496,14 @@
                 }
             }
 
-            takeDamage(damage, effects) {
+            takeDamage(damage, effects, score, ctx) {
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
+                if (this.health <= 0) {
+                    effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
+                }
                 return this.health > 0;
             }
 
@@ -554,6 +698,46 @@
             }
         }
 
+        // Score label effect
+        class ScoreLabel {
+            constructor(points, x, y, score, ctx) {
+                ctx.font = 'bold 25px Arial';
+                const scoreText = `Score: ${score}`;
+                const textWidth = ctx.measureText(scoreText).width;
+                this.x = 20 + textWidth + 5;
+                this.y = 50;
+                this.points = Math.floor(points);
+                this.opacity = 1.0;
+                this.life = 60;
+                this.maxLife = 60;
+                this.scale = 0.8;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = Math.max(0, this.life / this.maxLife);
+                this.scale = 1.0 + (1 - this.opacity) * 0.2;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                if (this.opacity > 0.01 && !isNaN(this.points)) {
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity;
+                    const fontSize = Math.floor(24 * this.scale);
+                    ctx.font = `bold ${fontSize}px Arial`;
+                    ctx.textAlign = 'left';
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 3;
+                    ctx.fillStyle = '#00ff00';
+                    const text = `+${this.points}Pts`;
+                    ctx.strokeText(text, this.x, this.y);
+                    ctx.fillText(text, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+        }
+
         // Effects manager
         class EffectsManager {
             constructor() {
@@ -562,6 +746,9 @@
                 this.damageLabels = [];
                 this.explosions = [];
                 this.triangleTrails = [];
+                this.scoreLabels = [];
+                this.railgunParticles = [];
+                this.railgunBeams = [];
             }
 
             createBulletTrail(x, y, color) {
@@ -593,20 +780,40 @@
                 this.triangleTrails.push(new TriangleTrail(x, y, size, opacity, fillColor));
             }
 
+            createScoreLabel(points, x, y, score, ctx) {
+                this.scoreLabels.push(new ScoreLabel(points, x, y, score, ctx));
+            }
+
+            createRailgunParticle(playerX, playerY) {
+                this.railgunParticles.push(new RailgunParticle(playerX, playerY, playerX, playerY));
+            }
+
+            createRailgunBeam(startX, startY, targetX, targetY, damage, canvas) {
+                this.railgunBeams.push(new RailgunBeam(startX, startY, targetX, targetY, damage, canvas));
+            }
+
             update() {
                 this.bulletTrails = this.bulletTrails.filter(trail => trail.update());
                 this.hitEffects = this.hitEffects.filter(effect => effect.update());
                 this.damageLabels = this.damageLabels.filter(label => label.update());
                 this.explosions = this.explosions.filter(explosion => explosion.update());
                 this.triangleTrails = this.triangleTrails.filter(trail => trail.update());
+                this.scoreLabels = this.scoreLabels.filter(label => label.update());
+                this.railgunParticles = this.railgunParticles.filter(particle => particle.update(this.playerX, this.playerY));
+                this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
             }
 
-            draw(ctx) {
+            draw(ctx, score, playerX, playerY) {
                 this.bulletTrails.forEach(trail => trail.draw(ctx));
                 this.hitEffects.forEach(effect => effect.draw(ctx));
                 this.damageLabels.forEach(label => label.draw(ctx));
                 this.explosions.forEach(explosion => explosion.draw(ctx));
                 this.triangleTrails.forEach(trail => trail.draw(ctx));
+                this.scoreLabels.forEach(label => label.draw(ctx));
+                this.railgunParticles.forEach(particle => particle.draw(ctx));
+                this.railgunBeams.forEach(beam => beam.draw(ctx));
+                this.playerX = playerX;
+                this.playerY = playerY;
             }
         }
 
@@ -697,7 +904,6 @@
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
-                    if (e.button !== 0) return;
                     if (this.gameOver) {
                         const rect = this.canvas.getBoundingClientRect();
                         const mouseX = e.clientX - rect.left;
@@ -713,13 +919,23 @@
                         return;
                     }
                     if (!this.paused) {
-                        this.input.mouse.down = true;
-                        this.shoot();
+                        if (e.button === 0) {
+                            this.input.mouse.down = true;
+                            this.shoot();
+                        } else if (e.button === 2) {
+                            this.input.mouse.rightDown = true;
+                            this.player.startRailgunCharge();
+                        }
                     }
                 });
 
                 this.canvas.addEventListener('mouseup', e => {
-                    if (e.button === 0) this.input.mouse.down = false;
+                    if (e.button === 0) {
+                        this.input.mouse.down = false;
+                    } else if (e.button === 2) {
+                        this.input.mouse.rightDown = false;
+                        this.player.fireRailgun(this.input, this.effects, this.canvas);
+                    }
                 });
 
                 this.canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -737,7 +953,7 @@
                 if (dist > 0) {
                     this.bullets.push(new Bullet(
                         this.player.x,
-                        this.y,
+                        this.player.y,
                         (dx / dist) * 8,
                         (dy / dist) * 8
                     ));
@@ -768,7 +984,7 @@
                 }
 
                 this.player.move(this.input.keys, this.canvas);
-                this.player.update();
+                this.player.update(this.effects, this.input, this.canvas);
                 if (this.input.mouse.down) this.shoot();
 
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
@@ -782,6 +998,7 @@
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
+                        this.effects.createScoreLabel(enemy.points, enemy.x, this.y, this.score, this.ctx);
                         continue;
                     }
                     for (let j = this.bullets.length - 1; j >= 0; j--) {
@@ -789,13 +1006,24 @@
                         const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                         if (bulletDist < bullet.radius + enemy.radius) {
                             this.bullets.splice(j, 1);
-                            if (!enemy.takeDamage(50, this.effects)) {
+                            if (!enemy.takeDamage(50, this.effects, this.score, this.ctx)) {
                                 this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                 this.enemies.splice(i, 1);
                                 this.score += enemy.points;
                                 this.enemiesKilled++;
                             }
                             break;
+                        }
+                    }
+                    for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
+                        const beam = this.effects.railgunBeams[j];
+                        if (beam.intersectsEnemy(enemy)) {
+                            if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx)) {
+                                this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                this.enemies.splice(i, 1);
+                                this.score += enemy.points;
+                                this.enemiesKilled++;
+                            }
                         }
                     }
                 }
@@ -847,8 +1075,8 @@
 
                 this.bullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.effects.draw(this.ctx); // Draw effects (including trails) before enemies
-                this.enemies.forEach(enemy => enemy.draw(this.ctx)); // Enemies drawn after effects
+                this.effects.draw(this.ctx, this.score, this.player.x, this.player.y);
+                this.enemies.forEach(enemy => enemy.draw(this.ctx));
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
