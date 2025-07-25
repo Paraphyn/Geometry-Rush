@@ -71,143 +71,6 @@
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
 
     <script>
-        // Audio Manager for all game sounds using real audio files
-        class AudioManager {
-            constructor() {
-                this.sounds = {};
-                this.backgroundMusic = null;
-                this.musicVolume = 0.3;
-                this.sfxVolume = 0.5;
-                this.initialized = false;
-            }
-
-            async initialize() {
-                if (this.initialized) return;
-                
-                try {
-                    // Load all sound files
-                    await this.loadSounds();
-                    this.initialized = true;
-                    console.log('Audio system initialized successfully');
-                } catch (error) {
-                    console.warn('Audio initialization failed:', error);
-                }
-            }
-
-            async loadSounds() {
-                const soundFiles = {
-                    bulletShoot: 'bullet-shoot.wav',
-                    railgunShoot: 'railgun-shoot.wav',
-                    playerDamage: 'player-damage.wav',
-                    enemyDamage: 'enemy-damage.wav',
-                    dash: 'dash.wav',
-                    backgroundMusic: 'background-music.mp3'
-                };
-
-                const loadPromises = Object.entries(soundFiles).map(async ([key, filename]) => {
-                    try {
-                        const audio = new Audio(filename);
-                        audio.preload = 'auto';
-                        
-                        // Set volumes
-                        if (key === 'backgroundMusic') {
-                            audio.volume = this.musicVolume;
-                            audio.loop = true;
-                            this.backgroundMusic = audio;
-                        } else {
-                            audio.volume = this.sfxVolume;
-                            this.sounds[key] = audio;
-                        }
-
-                        // Wait for audio to be ready
-                        return new Promise((resolve, reject) => {
-                            audio.addEventListener('canplaythrough', resolve);
-                            audio.addEventListener('error', reject);
-                            audio.load();
-                        });
-                    } catch (error) {
-                        console.warn(`Failed to load ${filename}:`, error);
-                        throw error;
-                    }
-                });
-
-                await Promise.all(loadPromises);
-            }
-
-            playSound(soundName) {
-                if (!this.initialized || !this.sounds[soundName]) return;
-                
-                try {
-                    // Reset and play the sound
-                    const audio = this.sounds[soundName];
-                    audio.currentTime = 0;
-                    audio.volume = this.sfxVolume;
-                    audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
-                } catch (error) {
-                    console.warn(`Error playing ${soundName}:`, error);
-                }
-            }
-
-            startBackgroundMusic() {
-                if (!this.initialized || !this.backgroundMusic) return null;
-                
-                try {
-                    this.backgroundMusic.currentTime = 0;
-                    this.backgroundMusic.volume = this.musicVolume;
-                    this.backgroundMusic.play().catch(error => console.warn('Failed to start background music:', error));
-                    return this.backgroundMusic;
-                } catch (error) {
-                    console.warn('Error starting background music:', error);
-                    return null;
-                }
-            }
-
-            stopBackgroundMusic() {
-                if (this.backgroundMusic) {
-                    try {
-                        this.backgroundMusic.pause();
-                        this.backgroundMusic.currentTime = 0;
-                    } catch (error) {
-                        console.warn('Error stopping background music:', error);
-                    }
-                }
-            }
-
-            pauseBackgroundMusic() {
-                if (this.backgroundMusic && !this.backgroundMusic.paused) {
-                    try {
-                        this.backgroundMusic.pause();
-                    } catch (error) {
-                        console.warn('Error pausing background music:', error);
-                    }
-                }
-            }
-
-            resumeBackgroundMusic() {
-                if (this.backgroundMusic && this.backgroundMusic.paused) {
-                    try {
-                        this.backgroundMusic.play().catch(error => console.warn('Failed to resume background music:', error));
-                    } catch (error) {
-                        console.warn('Error resuming background music:', error);
-                    }
-                }
-            }
-
-            setMusicVolume(volume) {
-                this.musicVolume = Math.max(0, Math.min(1, volume));
-                if (this.backgroundMusic) {
-                    this.backgroundMusic.volume = this.musicVolume;
-                }
-            }
-
-            setSfxVolume(volume) {
-                this.sfxVolume = Math.max(0, Math.min(1, volume));
-                Object.values(this.sounds).forEach(sound => {
-                    sound.volume = this.sfxVolume;
-                });
-            }
-        }
-
         // Enemy configuration
         const ENEMY_TYPES = {
             square: { 
@@ -319,7 +182,7 @@
                 this.dashEndY = 0;
             }
 
-            startDash(mouseX, mouseY, effects, audio) {
+            startDash(mouseX, mouseY, effects) {
                 if (this.isDashing) return;
                 this.isDashing = true;
                 this.invulnerable = true;
@@ -338,9 +201,6 @@
                 }
                 this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
                 this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
-                
-                // Play dash sound
-                if (audio) audio.playSound('dash');
             }
 
             move(keys, canvas) {
@@ -355,7 +215,7 @@
                 this.canvas = canvas;
             }
 
-            takeDamage(damage, sourceX, sourceY, effects, audio) {
+            takeDamage(damage, sourceX, sourceY, effects) {
                 if (this.health <= 0 || this.invulnerable) return false;
                 const actualDamage = Math.min(damage, this.health);
                 if (actualDamage <= 0) return false;
@@ -364,14 +224,10 @@
                 this.invulnerable = true;
                 this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
-                
-                // Play player damage sound
-                if (audio) audio.playSound('playerDamage');
-                
                 return true;
             }
 
-            update(input, effects, canvas, audio) {
+            update(input, effects, canvas) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime--;
@@ -407,10 +263,6 @@
                     this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
                     effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
-                    
-                    // Play railgun shoot sound
-                    if (audio) audio.playSound('railgunShoot');
-                    
                     this.railgunCharge = 0;
                     this.railgunParticles = [];
                     this.blinkState = true;
@@ -723,15 +575,11 @@
                 }
             }
 
-            takeDamage(damage, effects, score, ctx, audio) {
+            takeDamage(damage, effects, score, ctx) {
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
-                
-                // Play enemy damage sound
-                if (audio) audio.playSound('enemyDamage');
-                
                 if (this.health <= 0) {
                     effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
                 }
@@ -1099,34 +947,9 @@
                 this.canvas = document.getElementById('canvas');
                 this.ctx = this.canvas.getContext('2d');
                 this.input = new InputManager();
-                this.audio = new AudioManager();
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
-                this.setupAudio();
-            }
-
-            async setupAudio() {
-                // Initialize audio on first user interaction
-                const initAudio = async () => {
-                    await this.audio.initialize();
-                    this.startBackgroundMusic();
-                    document.removeEventListener('click', initAudio);
-                    document.removeEventListener('keydown', initAudio);
-                };
-                
-                document.addEventListener('click', initAudio);
-                document.addEventListener('keydown', initAudio);
-            }
-
-            startBackgroundMusic() {
-                if (!this.gameOver && !this.paused) {
-                    this.currentMusic = this.audio.startBackgroundMusic();
-                }
-            }
-
-            stopBackgroundMusic() {
-                this.audio.stopBackgroundMusic();
             }
 
             setupCanvas() {
@@ -1175,16 +998,13 @@
                             if (this.paused) {
                                 this.pauseTime = Date.now();
                                 this.input.clear();
-                                this.audio.pauseBackgroundMusic(); // Pause music
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
-                                this.audio.resumeBackgroundMusic(); // Resume music
                             }
                         }
                     }
                     if (code === 'Space' && this.input.preventSpam('Space', 300) && this.gameOver) {
                         this.reset();
-                        this.startBackgroundMusic(); // Restart music on new game
                     }
                     if (!this.gameOver && !this.paused) {
                         const moveKeys = { 
@@ -1197,7 +1017,7 @@
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
                             if (this.input.preventSpam('shift', 500)) {
-                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects, this.audio);
+                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects);
                             }
                         }
                     }
@@ -1236,7 +1056,6 @@
                         if (mouseX >= buttonX - buttonWidth/2 && mouseX <= buttonX + buttonWidth/2 &&
                             mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2) {
                             this.reset();
-                            this.startBackgroundMusic(); // Restart music on new game
                         }
                         return;
                     }
@@ -1271,9 +1090,6 @@
                         (dy / dist) * 8
                     ));
                     this.lastShot = now;
-                    
-                    // Play bullet shoot sound
-                    this.audio.playSound('bulletShoot');
                 }
             }
 
@@ -1300,7 +1116,7 @@
                 }
 
                 this.player.move(this.input.keys, this.canvas);
-                this.player.update(this.input, this.effects, this.canvas, this.audio);
+                this.player.update(this.input, this.effects, this.canvas);
                 if (this.input.mouse.down) this.shoot();
 
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
@@ -1311,7 +1127,7 @@
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
                         this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
@@ -1323,7 +1139,7 @@
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                             if (bulletDist < bullet.radius + enemy.radius) {
                                 this.bullets.splice(j, 1);
-                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
+                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
@@ -1335,7 +1151,7 @@
                         for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
                             const beam = this.effects.railgunBeams[j];
                             if (beam.intersectsEnemy(enemy)) {
-                                if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
@@ -1351,20 +1167,8 @@
                         const bullet = this.enemyBullets[i];
                         const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
                         if (dist < bullet.radius + this.player.radius) {
-                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.audio);
+                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects);
                             this.enemyBullets.splice(i, 1);
-                        }
-                    }
-                }
-
-                this.effects.update();
-                if (this.player.health <= 0 && !this.gameOver) {
-                    this.gameOver = true;
-                    this.gameOverTime = Date.now();
-                    this.input.clear();
-                    this.stopBackgroundMusic(); // Stop music on game over
-                }
-            }            this.enemyBullets.splice(i, 1);
                         }
                     }
                 }
