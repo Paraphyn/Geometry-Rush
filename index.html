@@ -180,27 +180,38 @@
                 this.dashStartY = 0;
                 this.dashEndX = 0;
                 this.dashEndY = 0;
+                this.dashCooldown = 0;
+                this.dashMaxCooldown = 500; // 500ms cooldown between dashes
             }
 
             startDash(mouseX, mouseY, effects) {
-                if (this.isDashing) return;
+                if (this.isDashing || this.dashCooldown > 0) return false;
+                
                 this.isDashing = true;
                 this.invulnerable = true;
                 this.dashProgress = 0;
                 this.dashStartX = this.x;
                 this.dashStartY = this.y;
+                this.dashCooldown = this.dashMaxCooldown;
+                
                 const dx = mouseX - this.x;
                 const dy = mouseY - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
+                
                 if (dist > 0) {
                     this.dashEndX = this.x + (dx / dist) * this.dashDistance;
                     this.dashEndY = this.y + (dy / dist) * this.dashDistance;
                 } else {
+                    // If mouse is exactly on player, dash upward
                     this.dashEndX = this.x;
-                    this.dashEndY = this.y;
+                    this.dashEndY = this.y - this.dashDistance;
                 }
+                
+                // Keep dash within canvas bounds
                 this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
                 this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
+                
+                return true;
             }
 
             move(keys, canvas) {
@@ -229,6 +240,9 @@
 
             update(input, effects, canvas) {
                 if (this.damageFlash > 0) this.damageFlash--;
+                if (this.dashCooldown > 0) this.dashCooldown -= 16.67; // Reduce by ~1 frame at 60fps
+                if (this.dashCooldown < 0) this.dashCooldown = 0;
+                
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime--;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
@@ -925,9 +939,7 @@
                         };
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
-                            if (this.input.preventSpam('shift', 500)) {
-                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects);
-                            }
+                            this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects);
                         }
                     }
                 });
