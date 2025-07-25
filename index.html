@@ -216,7 +216,7 @@
                 // Draw health label
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
-                ctx.font = 'bold 15px Arial';
+                ctx.font = 'bold 20px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
 
@@ -248,7 +248,11 @@
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
-                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height && this.life > 0;
+                if (this.life <= 0) {
+                    effects.createBulletExplosion(this.x, this.y, '#00ffff');
+                    return false;
+                }
+                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
             }
 
             draw(ctx) {
@@ -279,7 +283,11 @@
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
-                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height && this.life > 0;
+                if (this.life <= 0) {
+                    effects.createBulletExplosion(this.x, this.y, '#ffaa00');
+                    return false;
+                }
+                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
             }
 
             draw(ctx) {
@@ -624,6 +632,36 @@
             }
         }
 
+        // Bullet explosion effect
+        class BulletExplosion {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = 8;
+                this.opacity = 0.8;
+                this.life = 20;
+                this.maxLife = 20;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = this.life / this.maxLife;
+                this.size += 0.5;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
         // Hit effect
         class HitEffect {
             constructor(x, y) {
@@ -670,7 +708,7 @@
                 this.dy = isPlayerDamage ? -2 - Math.random() * 1.5 : -0.5;
                 this.gravity = isPlayerDamage ? 0 : 0;
                 this.opacity = 1.0;
-                this.life = isPlayerDamage ? 80 : 120;
+                this.life = isPlayerDamage ? 50 : 90; // Reduced by 30 frames (0.5s at ~60 FPS)
                 this.maxLife = this.life;
                 this.scale = 0.8;
                 this.isPlayerDamage = isPlayerDamage;
@@ -711,7 +749,7 @@
                 ctx.font = 'bold 25px Arial';
                 const scoreText = `Score: ${score}`;
                 const textWidth = ctx.measureText(scoreText).width;
-                this.x = 20 + textWidth + 5;
+                this.x = 20 + textWidth + 5; // Position to the right of "Score" UI
                 this.y = 50;
                 this.points = Math.floor(points);
                 this.opacity = 1.0;
@@ -749,6 +787,7 @@
         class EffectsManager {
             constructor() {
                 this.bulletTrails = [];
+                this.bulletExplosions = [];
                 this.hitEffects = [];
                 this.damageLabels = [];
                 this.explosions = [];
@@ -762,6 +801,10 @@
                 this.bulletTrails.push(new BulletTrail(x, y, color));
             }
 
+            createBulletExplosion(x, y, color) {
+                this.bulletExplosions.push(new BulletExplosion(x, y, color));
+            }
+
             createHitEffect(x, y) {
                 for (let i = 0; i < 8; i++) {
                     this.hitEffects.push(new HitEffect(x, y));
@@ -770,7 +813,7 @@
 
             createDamageLabel(x, y, damage, isPlayerDamage) {
                 if (isPlayerDamage) {
-                    this.damageLabels = this.damageLabels.filter(label => label.life > 60);
+                    this.damageLabels = this.damageLabels.filter(label => label.life > 20);
                 }
                 this.damageLabels.push(new DamageLabel(x, y, damage, isPlayerDamage));
             }
@@ -801,6 +844,7 @@
 
             update() {
                 this.bulletTrails = this.bulletTrails.filter(trail => trail.update());
+                this.bulletExplosions = this.bulletExplosions.filter(explosion => explosion.update());
                 this.hitEffects = this.hitEffects.filter(effect => effect.update());
                 this.damageLabels = this.damageLabels.filter(label => label.update());
                 this.explosions = this.explosions.filter(explosion => explosion.update());
@@ -810,15 +854,17 @@
                 this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
             }
 
-            draw(ctx, score, playerX, playerY) {
+            draw(ctx, score, playerX, playerY, bullets) {
                 this.bulletTrails.forEach(trail => trail.draw(ctx));
-                this.hitEffects.forEach(effect => effect.draw(ctx));
-                this.damageLabels.forEach(label => label.draw(ctx));
-                this.explosions.forEach(explosion => explosion.draw(ctx));
-                this.triangleTrails.forEach(trail => trail.draw(ctx));
-                this.scoreLabels.forEach(label => label.draw(ctx));
+                this.bulletExplosions.forEach(explosion => explosion.draw(ctx));
                 this.railgunParticles.forEach(particle => particle.draw(ctx));
+                bullets.forEach(bullet => bullet.draw(ctx));
                 this.railgunBeams.forEach(beam => beam.draw(ctx));
+                this.triangleTrails.forEach(trail => trail.draw(ctx));
+                this.hitEffects.forEach(effect => effect.draw(ctx));
+                this.explosions.forEach(explosion => explosion.draw(ctx));
+                this.damageLabels.forEach(label => label.draw(ctx));
+                this.scoreLabels.forEach(label => label.draw(ctx));
                 this.playerX = playerX;
                 this.playerY = playerY;
             }
@@ -1063,7 +1109,6 @@
                     this.ctx.stroke();
                 }
 
-                this.player.draw(this.ctx);
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
                 this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
@@ -1071,10 +1116,10 @@
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
 
-                this.bullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.effects.draw(this.ctx, this.score, this.player.x, this.player.y);
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
+                this.player.draw(this.ctx);
+                this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
