@@ -71,14 +71,13 @@
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
 
     <script>
-        // Audio Manager for all game sounds
+        // Audio Manager for all game sounds using real audio files
         class AudioManager {
             constructor() {
-                this.audioContext = null;
                 this.sounds = {};
                 this.backgroundMusic = null;
-                this.musicGain = null;
-                this.sfxGain = null;
+                this.musicVolume = 0.3;
+                this.sfxVolume = 0.5;
                 this.initialized = false;
             }
 
@@ -86,155 +85,126 @@
                 if (this.initialized) return;
                 
                 try {
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    
-                    // Create gain nodes for volume control
-                    this.musicGain = this.audioContext.createGain();
-                    this.sfxGain = this.audioContext.createGain();
-                    
-                    this.musicGain.connect(this.audioContext.destination);
-                    this.sfxGain.connect(this.audioContext.destination);
-                    
-                    // Set volumes
-                    this.musicGain.gain.value = 0.3; // Background music at 30%
-                    this.sfxGain.gain.value = 0.5; // Sound effects at 50%
-                    
-                    // Generate all sound effects
-                    this.generateSounds();
-                    this.generateBackgroundMusic();
-                    
+                    // Load all sound files
+                    await this.loadSounds();
                     this.initialized = true;
+                    console.log('Audio system initialized successfully');
                 } catch (error) {
                     console.warn('Audio initialization failed:', error);
                 }
             }
 
-            generateSounds() {
-                // Bullet shoot sound - quick pop
-                this.sounds.bulletShoot = this.createTone(800, 0.1, 'triangle', [
-                    {time: 0, gain: 0.3},
-                    {time: 0.02, gain: 0.3},
-                    {time: 0.1, gain: 0}
-                ]);
-
-                // Railgun shoot sound - powerful beam
-                this.sounds.railgunShoot = this.createTone(400, 0.3, 'sawtooth', [
-                    {time: 0, gain: 0.4},
-                    {time: 0.05, gain: 0.6},
-                    {time: 0.15, gain: 0.4},
-                    {time: 0.3, gain: 0}
-                ]);
-
-                // Player damage sound - painful hit
-                this.sounds.playerDamage = this.createTone(200, 0.2, 'triangle', [
-                    {time: 0, gain: 0.4},
-                    {time: 0.05, gain: 0.4},
-                    {time: 0.2, gain: 0}
-                ]);
-
-                // Enemy damage sound - impact hit
-                this.sounds.enemyDamage = this.createTone(600, 0.15, 'square', [
-                    {time: 0, gain: 0.2},
-                    {time: 0.03, gain: 0.2},
-                    {time: 0.15, gain: 0}
-                ]);
-
-                // Dash sound - whoosh effect
-                this.sounds.dash = this.createTone(1000, 0.2, 'sine', [
-                    {time: 0, gain: 0.3},
-                    {time: 0.05, gain: 0.5},
-                    {time: 0.2, gain: 0}
-                ]);
-            }
-
-            createTone(frequency, duration, waveType = 'sine', envelope = [{time: 0, gain: 0.3}, {time: duration, gain: 0}]) {
-                return () => {
-                    if (!this.audioContext || !this.initialized) return;
-                    
-                    const oscillator = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    
-                    oscillator.type = waveType;
-                    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(this.sfxGain);
-                    
-                    // Apply envelope
-                    envelope.forEach(point => {
-                        gainNode.gain.linearRampToValueAtTime(point.gain, this.audioContext.currentTime + point.time);
-                    });
-                    
-                    oscillator.start(this.audioContext.currentTime);
-                    oscillator.stop(this.audioContext.currentTime + duration);
+            async loadSounds() {
+                const soundFiles = {
+                    bulletShoot: 'bullet-shoot.wav',
+                    railgunShoot: 'railgun-shoot.wav',
+                    playerDamage: 'player-damage.wav',
+                    enemyDamage: 'enemy-damage.wav',
+                    dash: 'dash.wav',
+                    backgroundMusic: 'background-music.mp3'
                 };
-            }
 
-            generateBackgroundMusic() {
-                // Create a simple ambient background track
-                this.backgroundMusic = () => {
-                    if (!this.audioContext || !this.initialized) return null;
-                    
-                    const oscillator1 = this.audioContext.createOscillator();
-                    const oscillator2 = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    
-                    oscillator1.type = 'sine';
-                    oscillator2.type = 'sine';
-                    oscillator1.frequency.setValueAtTime(220, this.audioContext.currentTime); // A3
-                    oscillator2.frequency.setValueAtTime(330, this.audioContext.currentTime); // E4
-                    
-                    oscillator1.connect(gainNode);
-                    oscillator2.connect(gainNode);
-                    gainNode.connect(this.musicGain);
-                    
-                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 1);
-                    
-                    oscillator1.start(this.audioContext.currentTime);
-                    oscillator2.start(this.audioContext.currentTime);
-                    
-                    return {
-                        stop: () => {
-                            gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.5);
-                            oscillator1.stop(this.audioContext.currentTime + 0.5);
-                            oscillator2.stop(this.audioContext.currentTime + 0.5);
+                const loadPromises = Object.entries(soundFiles).map(async ([key, filename]) => {
+                    try {
+                        const audio = new Audio(filename);
+                        audio.preload = 'auto';
+                        
+                        // Set volumes
+                        if (key === 'backgroundMusic') {
+                            audio.volume = this.musicVolume;
+                            audio.loop = true;
+                            this.backgroundMusic = audio;
+                        } else {
+                            audio.volume = this.sfxVolume;
+                            this.sounds[key] = audio;
                         }
-                    };
-                };
+
+                        // Wait for audio to be ready
+                        return new Promise((resolve, reject) => {
+                            audio.addEventListener('canplaythrough', resolve);
+                            audio.addEventListener('error', reject);
+                            audio.load();
+                        });
+                    } catch (error) {
+                        console.warn(`Failed to load ${filename}:`, error);
+                        throw error;
+                    }
+                });
+
+                await Promise.all(loadPromises);
             }
 
             playSound(soundName) {
-                if (this.sounds[soundName] && this.initialized) {
-                    this.sounds[soundName]();
+                if (!this.initialized || !this.sounds[soundName]) return;
+                
+                try {
+                    // Clone the audio to allow overlapping sounds
+                    const audio = this.sounds[soundName].cloneNode();
+                    audio.volume = this.sfxVolume;
+                    audio.currentTime = 0;
+                    audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                } catch (error) {
+                    console.warn(`Error playing ${soundName}:`, error);
                 }
             }
 
             startBackgroundMusic() {
-                if (this.backgroundMusic && this.initialized) {
-                    this.currentMusic = this.backgroundMusic();
-                    return this.currentMusic;
+                if (!this.initialized || !this.backgroundMusic) return null;
+                
+                try {
+                    this.backgroundMusic.currentTime = 0;
+                    this.backgroundMusic.volume = this.musicVolume;
+                    this.backgroundMusic.play().catch(error => console.warn('Failed to start background music:', error));
+                    return this.backgroundMusic;
+                } catch (error) {
+                    console.warn('Error starting background music:', error);
+                    return null;
                 }
-                return null;
             }
 
             stopBackgroundMusic() {
-                if (this.currentMusic) {
-                    this.currentMusic.stop();
-                    this.currentMusic = null;
+                if (this.backgroundMusic) {
+                    try {
+                        this.backgroundMusic.pause();
+                        this.backgroundMusic.currentTime = 0;
+                    } catch (error) {
+                        console.warn('Error stopping background music:', error);
+                    }
                 }
             }
 
-            pauseAudio() {
-                if (this.audioContext && this.audioContext.state === 'running') {
-                    this.audioContext.suspend();
+            pauseBackgroundMusic() {
+                if (this.backgroundMusic && !this.backgroundMusic.paused) {
+                    try {
+                        this.backgroundMusic.pause();
+                    } catch (error) {
+                        console.warn('Error pausing background music:', error);
+                    }
                 }
             }
 
-            resumeAudio() {
-                if (this.audioContext && this.audioContext.state === 'suspended') {
-                    this.audioContext.resume();
+            resumeBackgroundMusic() {
+                if (this.backgroundMusic && this.backgroundMusic.paused) {
+                    try {
+                        this.backgroundMusic.play().catch(error => console.warn('Failed to resume background music:', error));
+                    } catch (error) {
+                        console.warn('Error resuming background music:', error);
+                    }
                 }
+            }
+
+            setMusicVolume(volume) {
+                this.musicVolume = Math.max(0, Math.min(1, volume));
+                if (this.backgroundMusic) {
+                    this.backgroundMusic.volume = this.musicVolume;
+                }
+            }
+
+            setSfxVolume(volume) {
+                this.sfxVolume = Math.max(0, Math.min(1, volume));
+                Object.values(this.sounds).forEach(sound => {
+                    sound.volume = this.sfxVolume;
+                });
             }
         }
 
@@ -1205,10 +1175,10 @@
                             if (this.paused) {
                                 this.pauseTime = Date.now();
                                 this.input.clear();
-                                this.audio.pauseAudio(); // Pause audio
+                                this.audio.pauseBackgroundMusic(); // Pause music
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
-                                this.audio.resumeAudio(); // Resume audio
+                                this.audio.resumeBackgroundMusic(); // Resume music
                             }
                         }
                     }
