@@ -20,7 +20,6 @@
             background: #000000;
             position: relative;
             z-index: 10;
-            cursor: none; /* Hide mouse cursor */
         }
         
         .ui {
@@ -107,7 +106,7 @@
         class InputManager {
             constructor() {
                 this.keys = {};
-                this.mouse = { x: 400, y: 300, down: false, rightDown: false }; // Initialize with default coordinates
+                this.mouse = { x: 0, y: 0, down: false, rightDown: false };
                 this.lastKeyTime = {};
             }
 
@@ -1007,22 +1006,17 @@
             shoot() {
                 const now = Date.now();
                 if (now - this.lastShot < this.shootDelay) return;
-                
-                try {
-                    const dx = this.input.mouse.x - this.player.x;
-                    const dy = this.input.mouse.y - this.player.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 0) {
-                        this.bullets.push(new Bullet(
-                            this.player.x,
-                            this.player.y,
-                            (dx / dist) * 8,
-                            (dy / dist) * 8
-                        ));
-                        this.lastShot = now;
-                    }
-                } catch (error) {
-                    console.error('Error in shoot function:', error);
+                const dx = this.input.mouse.x - this.player.x;
+                const dy = this.input.mouse.y - this.player.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    this.bullets.push(new Bullet(
+                        this.player.x,
+                        this.player.y,
+                        (dx / dist) * 8,
+                        (dy / dist) * 8
+                    ));
+                    this.lastShot = now;
                 }
             }
 
@@ -1134,7 +1128,6 @@
                     this.ctx.stroke();
                 }
 
-                // Draw aim line from player to mouse
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
                 this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
@@ -1146,12 +1139,6 @@
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
-
-                // Draw crosshair at mouse position (only if mouse coordinates are valid)
-                if (this.input.mouse.x >= 0 && this.input.mouse.y >= 0 && 
-                    this.input.mouse.x <= this.canvas.width && this.input.mouse.y <= this.canvas.height) {
-                    this.drawCrosshair(this.input.mouse.x, this.input.mouse.y);
-                }
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1192,42 +1179,6 @@
                     this.ctx.font = '20px Arial';
                     this.ctx.fillText('Press SPACE or click button to restart', buttonX, buttonY + 70);
                 }
-            }
-
-            drawCrosshair(x, y) {
-                const size = 15;
-                const gap = 5;
-                const thickness = 2;
-                
-                this.ctx.save(); // Save current context state
-                
-                this.ctx.strokeStyle = '#00ffff';
-                this.ctx.lineWidth = thickness;
-                this.ctx.lineCap = 'round';
-                
-                // Draw crosshair lines
-                this.ctx.beginPath();
-                // Top line
-                this.ctx.moveTo(x, y - gap);
-                this.ctx.lineTo(x, y - gap - size);
-                // Bottom line
-                this.ctx.moveTo(x, y + gap);
-                this.ctx.lineTo(x, y + gap + size);
-                // Left line
-                this.ctx.moveTo(x - gap, y);
-                this.ctx.lineTo(x - gap - size, y);
-                // Right line
-                this.ctx.moveTo(x + gap, y);
-                this.ctx.lineTo(x + gap + size, y);
-                this.ctx.stroke();
-                
-                // Draw center dot
-                this.ctx.fillStyle = '#00ffff';
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-                this.ctx.fill();
-                
-                this.ctx.restore(); // Restore previous context state
             }
 
             formatTime(ms) {
