@@ -1,4 +1,4 @@
-<!DOCTYPE html>d
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -168,57 +168,43 @@
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
-                this.railgunMaxChargeTime = 3000;
+                this.railgunMaxChargeTime = 3000; // 3 seconds
                 this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
-                
-                // Simplified dash system
-                this.dashCooldown = 0;
-                this.dashCooldownMax = 30; // 30 frames = 0.5 seconds at 60fps
+                this.isDashing = false;
+                this.dashProgress = 0;
+                this.dashDuration = 10;
+                this.dashDistance = 300; // 300px dash distance
+                this.dashStartX = 0;
+                this.dashStartY = 0;
+                this.dashEndX = 0;
+                this.dashEndY = 0;
             }
 
-            dash(mouseX, mouseY, effects, canvas) {
-                // Check if dash is on cooldown
-                if (this.dashCooldown > 0) return;
-                
-                // Calculate dash direction
+            startDash(mouseX, mouseY, effects) {
+                if (this.isDashing) return;
+                this.isDashing = true;
+                this.invulnerable = true;
+                this.dashProgress = 0;
+                this.dashStartX = this.x;
+                this.dashStartY = this.y;
                 const dx = mouseX - this.x;
                 const dy = mouseY - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // If mouse is too close, dash in a default direction (up)
-                const dashDirection = distance > 10 ? { x: dx / distance, y: dy / distance } : { x: 0, y: -1 };
-                
-                // Instant teleport 300px in direction
-                const dashDistance = 300;
-                let newX = this.x + dashDirection.x * dashDistance;
-                let newY = this.y + dashDirection.y * dashDistance;
-                
-                // Keep within bounds
-                newX = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
-                newY = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
-                
-                // Create trail effect from old position to new position
-                const steps = 15;
-                for (let i = 0; i < steps; i++) {
-                    const t = i / steps;
-                    const trailX = this.x + (newX - this.x) * t;
-                    const trailY = this.y + (newY - this.y) * t;
-                    effects.createDashTrail(trailX, trailY);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    this.dashEndX = this.x + (dx / dist) * this.dashDistance;
+                    this.dashEndY = this.y + (dy / dist) * this.dashDistance;
+                } else {
+                    this.dashEndX = this.x;
+                    this.dashEndY = this.y;
                 }
-                
-                // Update position instantly
-                this.x = newX;
-                this.y = newY;
-                
-                // Set cooldown and brief invulnerability
-                this.dashCooldown = this.dashCooldownMax;
-                this.invulnerable = true;
-                this.invulnerabilityTime = 10; // 10 frames of invulnerability
+                this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
+                this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
             }
 
             move(keys, canvas) {
+                if (this.isDashing) return;
                 let newX = this.x, newY = this.y;
                 if (keys.w) newY -= this.speed;
                 if (keys.s) newY += this.speed;
@@ -236,23 +222,30 @@
                 this.health = Math.max(0, this.health - actualDamage);
                 this.damageFlash = 20;
                 this.invulnerable = true;
-                this.invulnerabilityTime = 30; // Longer invulnerability from damage
+                this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
                 return true;
             }
 
             update(input, effects, canvas) {
-                // Update timers
                 if (this.damageFlash > 0) this.damageFlash--;
-                if (this.dashCooldown > 0) this.dashCooldown--;
-                if (this.invulnerable && this.invulnerabilityTime > 0) {
+                if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime--;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
                 }
                 this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
 
-                // Handle railgun charging
-                if (input.mouse.rightDown) {
+                if (this.isDashing) {
+                    this.dashProgress++;
+                    const t = this.dashProgress / this.dashDuration;
+                    this.x = this.dashStartX + (this.dashEndX - this.dashStartX) * t;
+                    this.y = this.dashStartY + (this.dashEndY - this.dashStartY) * t;
+                    effects.createDashTrail(this.x, this.y);
+                    if (this.dashProgress >= this.dashDuration) {
+                        this.isDashing = false;
+                        this.invulnerable = false;
+                    }
+                } else if (input.mouse.rightDown) {
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
@@ -293,19 +286,6 @@
                 ctx.font = 'bold 20px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
-
-                // Draw dash cooldown indicator
-                if (this.dashCooldown > 0) {
-                    const cooldownPercent = this.dashCooldown / this.dashCooldownMax;
-                    const barWidth = this.radius * 2;
-                    const barHeight = 3;
-                    const barY = this.y + this.radius + 35;
-                    
-                    ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
-                    ctx.fillRect(this.x - barWidth/2, barY, barWidth, barHeight);
-                    ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-                    ctx.fillRect(this.x - barWidth/2, barY, barWidth * (1 - cooldownPercent), barHeight);
-                }
 
                 if (this.railgunCharge > 0 && this.blinkState) {
                     const w = this.radius * 2;
@@ -672,6 +652,97 @@
             update() {
                 this.x += this.dx;
                 this.y += this.dy;
+                this.dx *= 0.95;
+                this.dy *= 0.95;
+                this.life--;
+                this.opacity = this.life / 50;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                Enemy.prototype.drawShape.call(this, ctx, this.x, this.y, this.type, this.size, this.fillColor, this.strokeColor);
+                ctx.restore();
+            }
+        }
+
+        // Bullet trail effect
+        class BulletTrail {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = 5;
+                this.opacity = 0.5;
+                this.life = 6;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = this.life / 6;
+                this.size *= 0.95;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Bullet explosion effect
+        class BulletExplosion {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = 8;
+                this.opacity = 0.8;
+                this.life = 20;
+                this.maxLife = 20;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = this.life / this.maxLife;
+                this.size += 0.5;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Hit effect
+        class HitEffect {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 2;
+                this.dx = Math.cos(angle) * speed;
+                this.dy = Math.sin(angle) * speed;
+                this.size = 2 + Math.random() * 2;
+                this.opacity = 1;
+                this.life = 15 + Math.random() * 10;
+            }
+
+            update() {
+                this.x += this.dx;
+                this.y += this.dy;
                 this.dx *= 0.9;
                 this.dy *= 0.9;
                 this.life--;
@@ -945,7 +1016,9 @@
                         };
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
-                            this.player.dash(this.input.mouse.x, this.input.mouse.y, this.effects, this.canvas);
+                            if (this.input.preventSpam('shift', 500)) {
+                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects);
+                            }
                         }
                     }
                 });
@@ -1052,7 +1125,7 @@
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets);
-                    if (!this.player.invulnerable && dist < enemy.radius + this.player.radius) {
+                    if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
@@ -1060,7 +1133,7 @@
                         this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
                         continue;
                     }
-                    if (!this.player.invulnerable) {
+                    if (!this.player.isDashing) {
                         for (let j = this.bullets.length - 1; j >= 0; j--) {
                             const bullet = this.bullets[j];
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
@@ -1089,7 +1162,7 @@
                     }
                 }
 
-                if (!this.player.invulnerable) {
+                if (!this.player.isDashing) {
                     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
                         const bullet = this.enemyBullets[i];
                         const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
