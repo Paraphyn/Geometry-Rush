@@ -1042,7 +1042,7 @@
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
-                        this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
+                        this.effects.createScoreLabel(enemy.points, enemy.x, this.y, this.score, this.ctx);
                         continue;
                     }
                     for (let j = this.bullets.length - 1; j >= 0; j--) {
@@ -1118,8 +1118,8 @@
 
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
-                this.player.draw(this.ctx);
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
+                this.player.draw(this.ctx);
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
