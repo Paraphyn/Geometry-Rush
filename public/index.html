@@ -1,24 +1,5 @@
-if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
-                        // Manual audio test with M key
-                        console.log('Manual audio test triggered');
-                        this.music.test();
-                        if (this.music.initialized) {
-                            this.music.play();
-                        } else {
-                            console.log('Music not initialized, attempting to initialize...');
-                            this.music.initialize().then(() => {
-                                this.music.play();
-                            });
-                        }
-                    }
-                    if (code === 'KeyN' && this.input.preventSpam('KeyN', 1000)) {
-                        // Test sound effects with N key
-                        console.log('Testing sound effects...');
-                        this.sounds.playSound('bulletShoot');
-                        setTimeout(() => {
-                            this.sounds.playSound('railgunShoot');
-                        }, 500);
-                    }<!DOCTYPE html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -88,7 +69,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash | +/- Music Vol | [/] SFX Vol</div>
 
     <script>
         // Sound Effects Manager
@@ -96,7 +77,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
             constructor() {
                 this.sounds = {};
                 this.initialized = false;
-                this.volume = 0.4;
+                this.volume = 0.7; // Default 70% for sound effects
             }
 
             async initialize() {
@@ -105,15 +86,31 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 try {
                     console.log('Loading sound effects...');
                     
-                    // Load bullet shoot sound
+                    // Player sounds
                     this.sounds.bulletShoot = new Audio('bullet-shoot.wav');
                     this.sounds.bulletShoot.volume = this.volume;
                     this.sounds.bulletShoot.preload = 'auto';
                     
-                    // Load railgun shoot sound
                     this.sounds.railgunShoot = new Audio('railgun-shoot.wav');
                     this.sounds.railgunShoot.volume = this.volume;
                     this.sounds.railgunShoot.preload = 'auto';
+                    
+                    this.sounds.dash = new Audio('dash.wav');
+                    this.sounds.dash.volume = this.volume;
+                    this.sounds.dash.preload = 'auto';
+                    
+                    // Enemy sounds
+                    this.sounds.enemyHit = new Audio('enemy-hit.wav');
+                    this.sounds.enemyHit.volume = this.volume;
+                    this.sounds.enemyHit.preload = 'auto';
+                    
+                    this.sounds.enemyDeath = new Audio('enemy-death.wav');
+                    this.sounds.enemyDeath.volume = this.volume;
+                    this.sounds.enemyDeath.preload = 'auto';
+                    
+                    this.sounds.enemyShoot = new Audio('enemy-shoot.wav');
+                    this.sounds.enemyShoot.volume = this.volume;
+                    this.sounds.enemyShoot.preload = 'auto';
                     
                     // Wait for sounds to load
                     const loadPromises = Object.entries(this.sounds).map(([name, audio]) => {
@@ -129,7 +126,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                     
                     await Promise.all(loadPromises);
                     this.initialized = true;
-                    console.log('Sound effects loaded successfully');
+                    console.log(`Sound effects loaded successfully at ${Math.round(this.volume * 100)}% volume`);
                 } catch (error) {
                     console.warn('Failed to load sound effects:', error);
                 }
@@ -154,6 +151,11 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 Object.values(this.sounds).forEach(audio => {
                     audio.volume = this.volume;
                 });
+                console.log(`Sound effects volume set to ${Math.round(this.volume * 100)}%`);
+            }
+
+            getVolume() {
+                return this.volume;
             }
         }
 
@@ -162,7 +164,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
             constructor() {
                 this.audio = null;
                 this.initialized = false;
-                this.volume = 0.5; // Increased volume to 50%
+                this.volume = 0.5; // Default 50% for music
                 this.userInteracted = false;
             }
 
@@ -187,7 +189,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                     // Wait for the audio to be ready
                     await new Promise((resolve, reject) => {
                         const onReady = () => {
-                            console.log('Music ready to play');
+                            console.log(`Music ready to play at ${Math.round(this.volume * 100)}% volume`);
                             this.audio.removeEventListener('canplaythrough', onReady);
                             this.audio.removeEventListener('error', onError);
                             resolve();
@@ -270,8 +272,12 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 this.volume = Math.max(0, Math.min(1, volume));
                 if (this.audio) {
                     this.audio.volume = this.volume;
-                    console.log('Music volume set to:', this.volume);
+                    console.log(`Music volume set to ${Math.round(this.volume * 100)}%`);
                 }
+            }
+
+            getVolume() {
+                return this.volume;
             }
 
             // Method to test if music is working
@@ -398,7 +404,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 this.dashEndY = 0;
             }
 
-            startDash(mouseX, mouseY, effects) {
+            startDash(mouseX, mouseY, effects, sounds) {
                 if (this.isDashing) return;
                 this.isDashing = true;
                 this.invulnerable = true;
@@ -417,6 +423,9 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 }
                 this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
                 this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
+                
+                // Play dash sound
+                if (sounds) sounds.playSound('dash');
             }
 
             move(keys, canvas) {
@@ -744,7 +753,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 this.lastTrailTime = 0;
             }
 
-            update(player, canvas, effects, enemyBullets) {
+            update(player, canvas, effects, enemyBullets, sounds) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
@@ -756,7 +765,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 if (this.type === 'octagon') {
                     const now = Date.now();
                     if (now - this.lastShot >= this.shootDelay) {
-                        this.shoot(player, enemyBullets);
+                        this.shoot(player, enemyBullets, sounds);
                         this.lastShot = now;
                     }
                 }
@@ -781,7 +790,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                 return dist;
             }
 
-            shoot(player, enemyBullets) {
+            shoot(player, enemyBullets, sounds) {
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -792,18 +801,28 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                         (dx / dist) * 8,
                         (dy / dist) * 8
                     ));
+                    
+                    // Play enemy shoot sound
+                    if (sounds) sounds.playSound('enemyShoot');
                 }
             }
 
-            takeDamage(damage, effects, score, ctx) {
+            takeDamage(damage, effects, score, ctx, sounds) {
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
+                
                 if (this.health <= 0) {
+                    // Enemy death
                     effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
+                    if (sounds) sounds.playSound('enemyDeath');
+                    return false;
+                } else {
+                    // Enemy hit but still alive
+                    if (sounds) sounds.playSound('enemyHit');
+                    return true;
                 }
-                return this.health > 0;
             }
 
             draw(ctx) {
@@ -1274,7 +1293,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
                             if (this.input.preventSpam('shift', 500)) {
-                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects);
+                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects, this.sounds);
                             }
                         }
                     }
@@ -1385,7 +1404,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
 
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
-                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets);
+                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.sounds);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
@@ -1400,7 +1419,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                             if (bulletDist < bullet.radius + enemy.radius) {
                                 this.bullets.splice(j, 1);
-                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx)) {
+                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.sounds)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
@@ -1412,7 +1431,7 @@ if (code === 'KeyM' && this.input.preventSpam('KeyM', 1000)) {
                         for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
                             const beam = this.effects.railgunBeams[j];
                             if (beam.intersectsEnemy(enemy)) {
-                                if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx)) {
+                                if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx, this.sounds)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
