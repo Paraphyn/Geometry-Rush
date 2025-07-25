@@ -57,16 +57,16 @@
             display: none !important;
         }
         
-        .enemies { top: 20px; left: 20px; font-size: 25px; }
-        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
-        .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
+        .stats { top: 20px; left: 20px; font-size: 25px; }
+        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 40px; }
+        .controls { bottom: 20px; left: 20px; font-size: 14px; opacity: 0.7; }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div class="ui enemies">Kills: <span id="enemies">0</span></div>
-    <div class="ui timer"><span id="timer">00:00</span></div>
-    <div class="ui controls">WASD or Touch Joystick to Move | Mouse or Touch to Aim & Shoot | Hold R.Mouse for Railgun</div>
+    <div class="ui stats" id="stats">Kills: 0 | Score: 0</div>
+    <div class="ui timer" id="timer">00:00</div>
+    <div class="ui controls">WASD or Touch Joystick to Move | Mouse/Touch to Aim & Shoot | Hold Right Mouse for Railgun</div>
 
     <script>
         // Game configuration
@@ -341,7 +341,7 @@
                 ctx.fillStyle = healthColor;
                 ctx.font = 'bold 18.75px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(`HP: ${this.health} Score: ${this.score}`, this.x, this.y + this.radius + 22);
+                ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
             }
         }
 
@@ -754,43 +754,6 @@
             }
         }
 
-        // Score label effect
-        class ScoreLabel {
-            constructor(points, x, y) {
-                this.x = x;
-                this.y = y;
-                this.points = Math.floor(points);
-                this.opacity = 1.0;
-                this.life = 60;
-                this.maxLife = 60;
-                this.scale = 0.8;
-            }
-
-            update() {
-                this.life--;
-                this.opacity = Math.max(0, this.life / this.maxLife);
-                this.scale = 1.0 + (1 - this.opacity) * 0.2;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                if (this.opacity > 0.01 && !isNaN(this.points)) {
-                    ctx.save();
-                    ctx.globalAlpha = this.opacity;
-                    const fontSize = Math.floor(24 * this.scale);
-                    ctx.font = `bold ${fontSize}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 3;
-                    ctx.fillStyle = '#00ff00';
-                    const text = `+${this.points}Pts`;
-                    ctx.strokeText(text, this.x, this.y);
-                    ctx.fillText(text, this.x, this.y);
-                    ctx.restore();
-                }
-            }
-        }
-
         // Effects manager
         class EffectsManager {
             constructor() {
@@ -799,7 +762,6 @@
                 this.damageLabels = [];
                 this.explosions = [];
                 this.triangleTrails = [];
-                this.scoreLabels = [];
                 this.railgunParticles = [];
                 this.railgunBeams = [];
                 this.bullets = [];
@@ -843,10 +805,6 @@
                 this.triangleTrails.push(new TriangleTrail(x, y, size, opacity, fillColor));
             }
 
-            createScoreLabel(points, x, y) {
-                this.scoreLabels.push(new ScoreLabel(points, x, y));
-            }
-
             createRailgunParticle(playerX, playerY) {
                 this.railgunParticles.push(new RailgunParticle(playerX, playerY));
             }
@@ -868,7 +826,6 @@
                 this.damageLabels = this.damageLabels.filter(label => label.update());
                 this.explosions = this.explosions.filter(explosion => explosion.update());
                 this.triangleTrails = this.triangleTrails.filter(trail => trail.update());
-                this.scoreLabels = this.scoreLabels.filter(label => label.update());
                 this.railgunParticles = this.railgunParticles.filter(p => p.update(player.x, player.y));
                 this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
                 this.bullets = this.bullets.filter(bullet => bullet.update(canvas, this));
@@ -881,7 +838,6 @@
                 this.damageLabels.forEach(label => label.draw(ctx));
                 this.explosions.forEach(explosion => explosion.draw(ctx));
                 this.triangleTrails.forEach(trail => trail.draw(ctx));
-                this.scoreLabels.forEach(label => label.draw(ctx));
                 this.railgunParticles.forEach(particle => particle.draw(ctx));
                 this.railgunBeams.forEach(beam => beam.draw(ctx));
                 this.bullets.forEach(bullet => bullet.draw(ctx));
@@ -917,14 +873,15 @@
                 this.gameOver = false;
                 this.paused = false;
                 this.pauseTime = 0;
-                this.gameOverTime = 0;
+                this.gameOverTime = null;
+                this.lastSpawn = 0;
             }
 
             setupEventListeners() {
                 window.addEventListener('resize', () => {
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
-                    if (this.player.health === 100 && this.player.score === 0) {
+                    if (this.player && this.player.health === 100 && this.player.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
                     }
@@ -1102,8 +1059,15 @@
                         this.player.health -= ENEMY_TYPES[enemy.type].damage;
                         this.player.damageFlash = 20;
                         this.player.invulnerable = true;
-                        this.player.invulnerabilityTime = 60;
+                        this.invulnerabilityTime = 60;
                         this.effects.createDamageLabel(this.player.x, this.player.y - this.player.radius - 15, ENEMY_TYPES[enemy.type].damage, true);
+                        enemy.health -= 1000; // Ensure enemy dies on contact
+                        if (enemy.health <= 0) {
+                            this.enemiesKilled += 1;
+                            this.player.score += ENEMY_TYPES[enemy.type].points;
+                            this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                            return false;
+                        }
                     }
                     for (const bullet of this.effects.bullets) {
                         const bdx = bullet.x - enemy.x;
@@ -1133,7 +1097,6 @@
                         this.enemiesKilled += 1;
                         this.player.score += ENEMY_TYPES[enemy.type].points;
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        this.effects.createScoreLabel(ENEMY_TYPES[enemy.type].points, enemy.x, enemy.y - enemy.radius - 15);
                         return false;
                     }
                     return true;
@@ -1255,7 +1218,7 @@
                     this.ctx.fillText('Press SPACE or tap button to restart', buttonX, buttonY + 70);
                 }
 
-                document.getElementById('enemies').textContent = this.enemiesKilled;
+                document.getElementById('stats').textContent = `Kills: ${this.enemiesKilled} | Score: ${this.player.score}`;
                 document.getElementById('timer').textContent = this.formatTime(this.gameOver ? this.gameOverTime - this.startTime : this.paused ? this.pauseTime - this.startTime : Date.now() - this.startTime);
             }
 
