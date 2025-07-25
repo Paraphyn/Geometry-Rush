@@ -138,10 +138,10 @@
                 if (!this.initialized || !this.sounds[soundName]) return;
                 
                 try {
-                    // Clone the audio to allow overlapping sounds
-                    const audio = this.sounds[soundName].cloneNode(false);
-                    audio.volume = this.sfxVolume;
+                    // Reset and play the sound
+                    const audio = this.sounds[soundName];
                     audio.currentTime = 0;
+                    audio.volume = this.sfxVolume;
                     audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
                 } catch (error) {
                     console.warn(`Error playing ${soundName}:`, error);
