@@ -139,7 +139,7 @@
                 
                 try {
                     // Clone the audio to allow overlapping sounds
-                    const audio = this.sounds[soundName].cloneNode();
+                    const audio = this.sounds[soundName].cloneNode(false);
                     audio.volume = this.sfxVolume;
                     audio.currentTime = 0;
                     audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
