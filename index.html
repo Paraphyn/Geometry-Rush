@@ -59,7 +59,6 @@
         
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
-        .score { top: 50px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
     </style>
 </head>
@@ -67,10 +66,20 @@
     <canvas id="canvas"></canvas>
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
-    <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun</div>
+    <div class="ui controls">WASD or Touch Joystick to Move | Mouse or Touch to Aim & Shoot | Hold R.Mouse for Railgun</div>
 
     <script>
+        // Game configuration
+        const CONFIG = {
+            aimSprite: {
+                type: 'crosshair',
+                size: 20,
+                color: '#00ffff',
+                imageUrl: '',
+                lineWidth: 2
+            }
+        };
+
         // Enemy configuration
         const ENEMY_TYPES = {
             square: { 
@@ -102,12 +111,84 @@
             }
         };
 
+        // Joystick for touch movement
+        class Joystick {
+            constructor() {
+                this.active = false;
+                this.baseX = 0;
+                this.baseY = 0;
+                this.stickX = 0;
+                this.stickY = 0;
+                this.maxRadius = 50;
+                this.touchId = null;
+            }
+
+            start(x, y, touchId) {
+                this.active = true;
+                this.baseX = x;
+                this.baseY = y;
+                this.stickX = x;
+                this.stickY = y;
+                this.touchId = touchId;
+            }
+
+            update(x, y) {
+                const dx = x - this.baseX;
+                const dy = y - this.baseY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const max = this.maxRadius;
+                if (dist > max) {
+                    const scale = max / dist;
+                    this.stickX = this.baseX + dx * scale;
+                    this.stickY = this.baseY + dy * scale;
+                } else {
+                    this.stickX = x;
+                    this.stickY = y;
+                }
+            }
+
+            end() {
+                this.active = false;
+                this.touchId = null;
+            }
+
+            getDirection() {
+                if (!this.active) return { x: 0, y: 0 };
+                const dx = this.stickX - this.baseX;
+                const dy = this.stickY - this.baseY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 10) return { x: 0, y: 0 };
+                return { x: dx / this.maxRadius, y: dy / this.maxRadius };
+            }
+
+            draw(ctx) {
+                if (!this.active) return;
+                ctx.beginPath();
+                ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(this.stickX, this.stickY, this.maxRadius / 2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
         // Input management
         class InputManager {
             constructor() {
                 this.keys = {};
                 this.mouse = { x: 0, y: 0, down: false, rightDown: false };
                 this.lastKeyTime = {};
+                this.joystick = new Joystick();
+                this.shootTouchId = null;
+                this.lastShot = 0;
             }
 
             preventSpam(key, delay = 100) {
@@ -122,48 +203,83 @@
                 this.mouse.down = false;
                 this.mouse.rightDown = false;
                 this.lastKeyTime = {};
+                this.joystick.end();
+                this.shootTouchId = null;
+                this.lastShot = 0;
+            }
+        }
+
+        // Aim sprite
+        class Aim {
+            constructor(config) {
+                this.x = 0;
+                this.y = 0;
+                this.config = config;
+                this.image = null;
+                if (config.type === 'image' && config.imageUrl) {
+                    this.image = new Image();
+                    this.image.src = config.imageUrl;
+                }
+            }
+
+            update(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            draw(ctx) {
+                if (this.config.type === 'image' && this.image && this.image.complete) {
+                    ctx.drawImage(this.image, this.x - this.config.size / 2, this.y - this.config.size / 2, this.config.size, this.config.size);
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x - this.config.size / 2, this.y);
+                    ctx.lineTo(this.x + this.config.size / 2, this.y);
+                    ctx.moveTo(this.x, this.y - this.config.size / 2);
+                    ctx.lineTo(this.x, this.y + this.config.size / 2);
+                    ctx.strokeStyle = this.config.color;
+                    ctx.lineWidth = this.config.lineWidth;
+                    ctx.stroke();
+                }
             }
         }
 
         // Player management
         class Player {
-            constructor(canvas) {
-                this.x = canvas.width / 2;
-                this.y = canvas.height / 2;
+            constructor(id, x, y) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
                 this.radius = 20;
-                this.speed = 5;
                 this.health = 100;
                 this.maxHealth = 100;
+                this.score = 0;
                 this.damageFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
-                this.railgunCharge = 0; // 0 to 1 over 5 seconds
-                this.railgunMaxChargeTime = 3000; // 3 seconds
+                this.railgunCharge = 0;
+                this.railgunMaxChargeTime = 5000;
                 this.railgunParticles = [];
-                this.blinkState = true; // For charge indicator blinking
-                this.blinkFrame = 0; // Frame counter for blinking
+                this.blinkState = true;
+                this.blinkFrame = 0;
+                this.speed = 5;
             }
 
-            move(keys, canvas) {
-                let newX = this.x, newY = this.y;
-                if (keys.w) newY -= this.speed;
-                if (keys.s) newY += this.speed;
-                if (keys.a) newX -= this.speed;
-                if (keys.d) newX += this.speed;
-                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
-                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
-            }
-
-            takeDamage(damage, sourceX, sourceY, effects) {
-                if (this.health <= 0 || this.invulnerable) return false;
-                const actualDamage = Math.min(damage, this.health);
-                if (actualDamage <= 0) return false;
-                this.health = Math.max(0, this.health - actualDamage);
-                this.damageFlash = 20;
-                this.invulnerable = true;
-                this.invulnerabilityTime = 5;
-                effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
-                return true;
+            move(keys, joystick, canvas) {
+                let dx = 0, dy = 0;
+                if (keys.w || keys.ArrowUp) dy -= 1;
+                if (keys.s || keys.ArrowDown) dy += 1;
+                if (keys.a || keys.ArrowLeft) dx -= 1;
+                if (keys.d || keys.ArrowRight) dx += 1;
+                const joystickDir = joystick.getDirection();
+                dx += joystickDir.x;
+                dy += joystickDir.y;
+                const mag = Math.sqrt(dx * dx + dy * dy);
+                if (mag > 0) {
+                    dx = (dx / mag) * this.speed;
+                    dy = (dy / mag) * this.speed;
+                    this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x + dx));
+                    this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y + dy));
+                }
             }
 
             update(input, effects, canvas) {
@@ -174,25 +290,34 @@
                 }
                 this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
 
-                // Railgun charge handling
+                if (input.mouse.down && input.preventSpam('shoot', 100)) {
+                    const dx = input.mouse.x - this.x;
+                    const dy = input.mouse.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 0) {
+                        const speed = 10;
+                        effects.createBullet(this.id, this.x, this.y, (dx / dist) * speed, (dy / dist) * speed);
+                        input.lastShot = Date.now();
+                    }
+                }
+
                 if (input.mouse.rightDown) {
-                    this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime)); // Increment per frame (~60 FPS)
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
-                        this.blinkFrame = (this.blinkFrame + 1) % 20; // Toggle every 30 frames (0.5s at 60 FPS)
-                        this.blinkState = this.blinkFrame < 15; // On for 0.25s, off for 0.25s
+                        this.blinkFrame = (this.blinkFrame + 1) % 30;
+                        this.blinkState = this.blinkFrame < 15;
                     } else {
-                        this.blinkState = true; // Always show when not maxed
+                        this.blinkState = true;
                         this.blinkFrame = 0;
                     }
-                    if (this.railgunParticles.length < 5) {
-                        const particleCount = Math.floor(Math.random() * 3) + 3; // 3-5 particles
+                    if (this.railgunParticles.length < 2) {
+                        const particleCount = Math.floor(Math.random() * 2) + 1;
                         for (let i = this.railgunParticles.length; i < particleCount; i++) {
                             effects.createRailgunParticle(this.x, this.y);
                         }
                     }
                     this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
-                    // Fire on release
                     effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
                     this.railgunCharge = 0;
                     this.railgunParticles = [];
@@ -202,7 +327,6 @@
             }
 
             draw(ctx) {
-                // Draw player circle
                 let fillColor = this.damageFlash > 0 ? '#ff0000' : this.invulnerable ? '#f0f0ff' : '#ffffff';
                 let strokeColor = this.damageFlash > 0 ? '#cc0000' : this.invulnerable ? '#a0a0ff' : '#cccccc';
                 ctx.beginPath();
@@ -213,28 +337,18 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Draw health label
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
-                ctx.font = 'bold 15px Arial';
+                ctx.font = 'bold 18.75px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
-
-                // Draw charge indicator (blink when maxed)
-                if (this.railgunCharge > 0 && this.blinkState) {
-                    const w = this.radius * 2;
-                    const h = 4;
-                    ctx.fillStyle = 'rgba(0, 100, 100, 0.7)';
-                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
-                    ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
-                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * this.railgunCharge, h);
-                }
+                ctx.fillText(`HP: ${this.health} Score: ${this.score}`, this.x, this.y + this.radius + 22);
             }
         }
 
         // Player bullet management
         class Bullet {
-            constructor(x, y, dx, dy) {
+            constructor(id, x, y, dx, dy) {
+                this.id = id;
                 this.x = x;
                 this.y = y;
                 this.dx = dx;
@@ -248,7 +362,7 @@
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
-                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height && this.life > 0;
+                return this.life > 0 && this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
             }
 
             draw(ctx) {
@@ -264,14 +378,14 @@
 
         // Enemy bullet management
         class EnemyBullet {
-            constructor(x, y, dx, dy) {
+            constructor(id, x, y, dx, dy) {
+                this.id = id;
                 this.x = x;
                 this.y = y;
                 this.dx = dx;
                 this.dy = dy;
                 this.radius = 6;
                 this.life = 100;
-                this.damage = 15;
             }
 
             update(canvas, effects) {
@@ -279,7 +393,7 @@
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
-                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height && this.life > 0;
+                return this.life > 0 && this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
             }
 
             draw(ctx) {
@@ -339,7 +453,7 @@
                 this.maxOpacity = 0.7;
                 this.life = 60;
                 this.maxLife = 60;
-                this.speed = 1.3 + Math.random() * 1.3; // 1.3-2.6px/frame
+                this.speed = 1.3 + Math.random() * 1.3;
             }
 
             update(playerX, playerY) {
@@ -348,7 +462,7 @@
                 const dx = playerX - this.x;
                 const dy = playerY - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0.1) { // Avoid division by near-zero
+                if (dist > 0.1) {
                     this.x += (dx / dist) * this.speed;
                     this.y += (dy / dist) * this.speed;
                 }
@@ -368,22 +482,17 @@
 
         // Railgun beam effect
         class RailgunBeam {
-            constructor(startX, startY, targetX, targetY, canvas, charge) {
+            constructor(id, startX, startY, endX, endY, damage) {
+                this.id = id;
                 this.startX = startX;
                 this.startY = startY;
-                const dx = targetX - startX;
-                const dy = targetY - startY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const maxDist = Math.max(canvas.width, canvas.height) * 2;
-                this.endX = startX + (dx / dist) * maxDist;
-                this.endY = startY + (dy / dist) * maxDist;
-                // Damage scales from 5 (0-5% charge) to 300 (100% charge)
-                this.damage = charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05);
+                this.endX = endX;
+                this.endY = endY;
+                this.damage = damage;
                 this.life = 60;
                 this.maxLife = 60;
                 this.opacity = 1.0;
                 this.width = 8;
-                this.hitEnemies = new Set(); // Track hit enemies
             }
 
             update() {
@@ -395,11 +504,10 @@
             draw(ctx) {
                 ctx.save();
                 ctx.globalAlpha = this.opacity;
-                // Gradient along beam direction for visibility
                 const gradient = ctx.createLinearGradient(this.startX, this.startY, this.endX, this.endY);
-                gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)'); // Slightly transparent at start
-                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)'); // Solid cyan in center
-                gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)'); // Slightly transparent at end
+                gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
                 ctx.strokeStyle = gradient;
                 ctx.lineWidth = this.width;
                 ctx.beginPath();
@@ -408,52 +516,27 @@
                 ctx.stroke();
                 ctx.restore();
             }
-
-            intersectsEnemy(enemy) {
-                if (this.hitEnemies.has(enemy)) return false; // Already hit
-                const p1 = { x: this.startX, y: this.startY };
-                const p2 = { x: this.endX, y: this.endY };
-                const p3 = { x: enemy.x, y: enemy.y };
-                const radius = enemy.radius;
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const len = Math.sqrt(dx * dx + dy * dy);
-                const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
-                const closestX = p1.x + dot * dx;
-                const closestY = p1.y + dot * dy;
-                const distX = p3.x - closestX;
-                const distY = p3.y - closestY;
-                const distance = Math.sqrt(distX * distX + distY * distY);
-                if (distance <= radius && dot >= 0 && dot <= 1) {
-                    this.hitEnemies.add(enemy); // Mark as hit
-                    return true;
-                }
-                return false;
-            }
         }
 
         // Enemy management
         class Enemy {
-            constructor(x, y, type, config) {
+            constructor(id, x, y, type, config) {
+                this.id = id;
                 this.x = x;
                 this.y = y;
                 this.type = type;
                 this.radius = config.size;
-                this.speed = config.speed;
                 this.health = config.health;
                 this.maxHealth = config.health;
-                this.points = config.points;
-                this.damage = config.damage;
                 this.fillColor = config.fillColor;
                 this.strokeColor = config.strokeColor;
                 this.damageFlash = 0;
-                this.lastShot = 0;
-                this.shootDelay = type === 'octagon' ? 4000 : Infinity;
+                this.speed = config.speed;
                 this.lastTrailTime = 0;
+                this.lastShot = 0;
             }
 
-            update(player, canvas, effects, enemyBullets) {
-                if (this.damageFlash > 0) this.damageFlash--;
+            update(player, canvas, effects) {
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -461,57 +544,23 @@
                     this.x += (dx / dist) * this.speed;
                     this.y += (dy / dist) * this.speed;
                 }
-                if (this.type === 'octagon') {
-                    const now = Date.now();
-                    if (now - this.lastShot >= this.shootDelay) {
-                        this.shoot(player, enemyBullets);
-                        this.lastShot = now;
-                    }
-                }
                 if (this.type === 'triangle') {
                     const now = Date.now();
-                    if (now - this.lastTrailTime >= 50) {
-                        const baseSize = this.radius * 0.8;
+                    if (!this.lastTrailTime || now - this.lastTrailTime >= 50) {
+                        const baseSize = ENEMY_TYPES[this.type].size * 0.8;
                         for (let i = 0; i < 5; i++) {
                             const size = baseSize * Math.pow(0.75, i);
                             const opacity = 0.5 - (i * 0.125);
-                            effects.createTriangleTrail(
-                                this.x, 
-                                this.y, 
-                                size, 
-                                opacity, 
-                                this.fillColor
-                            );
+                            effects.createTriangleTrail(this.x, this.y, size, opacity, ENEMY_TYPES[this.type].fillColor);
                         }
                         this.lastTrailTime = now;
                     }
                 }
-                return dist;
-            }
-
-            shoot(player, enemyBullets) {
-                const dx = player.x - this.x;
-                const dy = player.y - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    enemyBullets.push(new EnemyBullet(
-                        this.x,
-                        this.y,
-                        (dx / dist) * 8,
-                        (dy / dist) * 8
-                    ));
+                if (Math.random() < 0.02 && Date.now() - this.lastShot > 1000) {
+                    const speed = 5;
+                    effects.createEnemyBullet(this.id, this.x, this.y, (dx / dist) * speed, (dy / dist) * speed);
+                    this.lastShot = Date.now();
                 }
-            }
-
-            takeDamage(damage, effects, score, ctx) {
-                this.health -= damage;
-                this.damageFlash = 10;
-                effects.createHitEffect(this.x, this.y);
-                effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
-                if (this.health <= 0) {
-                    effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
-                }
-                return this.health > 0;
             }
 
             draw(ctx) {
@@ -707,12 +756,9 @@
 
         // Score label effect
         class ScoreLabel {
-            constructor(points, x, y, score, ctx) {
-                ctx.font = 'bold 25px Arial';
-                const scoreText = `Score: ${score}`;
-                const textWidth = ctx.measureText(scoreText).width;
-                this.x = 20 + textWidth + 5;
-                this.y = 50;
+            constructor(points, x, y) {
+                this.x = x;
+                this.y = y;
                 this.points = Math.floor(points);
                 this.opacity = 1.0;
                 this.life = 60;
@@ -733,7 +779,7 @@
                     ctx.globalAlpha = this.opacity;
                     const fontSize = Math.floor(24 * this.scale);
                     ctx.font = `bold ${fontSize}px Arial`;
-                    ctx.textAlign = 'left';
+                    ctx.textAlign = 'center';
                     ctx.strokeStyle = '#000000';
                     ctx.lineWidth = 3;
                     ctx.fillStyle = '#00ff00';
@@ -756,6 +802,16 @@
                 this.scoreLabels = [];
                 this.railgunParticles = [];
                 this.railgunBeams = [];
+                this.bullets = [];
+                this.enemyBullets = [];
+            }
+
+            createBullet(id, x, y, dx, dy) {
+                this.bullets.push(new Bullet(id, x, y, dx, dy));
+            }
+
+            createEnemyBullet(id, x, y, dx, dy) {
+                this.enemyBullets.push(new EnemyBullet(id, x, y, dx, dy));
             }
 
             createBulletTrail(x, y, color) {
@@ -787,8 +843,8 @@
                 this.triangleTrails.push(new TriangleTrail(x, y, size, opacity, fillColor));
             }
 
-            createScoreLabel(points, x, y, score, ctx) {
-                this.scoreLabels.push(new ScoreLabel(points, x, y, score, ctx));
+            createScoreLabel(points, x, y) {
+                this.scoreLabels.push(new ScoreLabel(points, x, y));
             }
 
             createRailgunParticle(playerX, playerY) {
@@ -796,21 +852,30 @@
             }
 
             createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
-                this.railgunBeams.push(new RailgunBeam(startX, startY, targetX, targetY, canvas, charge));
+                const dx = targetX - startX;
+                const dy = targetY - startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = Math.max(canvas.width, canvas.height) * 2;
+                const endX = startX + (dx / dist) * maxDist;
+                const endY = startY + (dy / dist) * maxDist;
+                const damage = charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05);
+                this.railgunBeams.push(new RailgunBeam(`beam-${Date.now()}`, startX, startY, endX, endY, damage));
             }
 
-            update() {
+            update(player, canvas) {
                 this.bulletTrails = this.bulletTrails.filter(trail => trail.update());
                 this.hitEffects = this.hitEffects.filter(effect => effect.update());
                 this.damageLabels = this.damageLabels.filter(label => label.update());
                 this.explosions = this.explosions.filter(explosion => explosion.update());
                 this.triangleTrails = this.triangleTrails.filter(trail => trail.update());
                 this.scoreLabels = this.scoreLabels.filter(label => label.update());
-                this.railgunParticles = this.railgunParticles.filter(particle => particle.update(this.playerX, this.playerY));
+                this.railgunParticles = this.railgunParticles.filter(p => p.update(player.x, player.y));
                 this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
+                this.bullets = this.bullets.filter(bullet => bullet.update(canvas, this));
+                this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(canvas, this));
             }
 
-            draw(ctx, score, playerX, playerY) {
+            draw(ctx, playerX, playerY) {
                 this.bulletTrails.forEach(trail => trail.draw(ctx));
                 this.hitEffects.forEach(effect => effect.draw(ctx));
                 this.damageLabels.forEach(label => label.draw(ctx));
@@ -819,8 +884,8 @@
                 this.scoreLabels.forEach(label => label.draw(ctx));
                 this.railgunParticles.forEach(particle => particle.draw(ctx));
                 this.railgunBeams.forEach(beam => beam.draw(ctx));
-                this.playerX = playerX;
-                this.playerY = playerY;
+                this.bullets.forEach(bullet => bullet.draw(ctx));
+                this.enemyBullets.forEach(bullet => bullet.draw(ctx));
             }
         }
 
@@ -830,9 +895,11 @@
                 this.canvas = document.getElementById('canvas');
                 this.ctx = this.canvas.getContext('2d');
                 this.input = new InputManager();
+                this.aim = new Aim(CONFIG.aimSprite);
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
+                this.lastSpawn = 0;
             }
 
             setupCanvas() {
@@ -842,18 +909,11 @@
 
             reset() {
                 this.input.clear();
-                this.player = new Player(this.canvas);
-                this.bullets = [];
-                this.enemyBullets = [];
+                this.player = new Player('local', this.canvas.width / 2, this.canvas.height / 2);
                 this.enemies = [];
                 this.effects = new EffectsManager();
-                this.score = 0;
                 this.enemiesKilled = 0;
                 this.startTime = Date.now();
-                this.lastEnemySpawn = 0;
-                this.enemySpawnRate = 2000;
-                this.lastShot = 0;
-                this.shootDelay = 250;
                 this.gameOver = false;
                 this.paused = false;
                 this.pauseTime = 0;
@@ -864,7 +924,7 @@
                 window.addEventListener('resize', () => {
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
-                    if (this.player.health === 100 && this.score === 0) {
+                    if (this.player.health === 100 && this.player.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
                     }
@@ -938,109 +998,177 @@
 
                 this.canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+                this.canvas.addEventListener('touchstart', e => {
+                    e.preventDefault();
+                    if (this.gameOver) {
+                        const rect = this.canvas.getBoundingClientRect();
+                        const buttonX = this.canvas.width / 2;
+                        const buttonY = this.canvas.height / 2 + 100;
+                        const buttonWidth = 220;
+                        const buttonHeight = 60;
+                        for (const touch of e.changedTouches) {
+                            const touchX = touch.clientX - rect.left;
+                            const touchY = touch.clientY - rect.top;
+                            if (touchX >= buttonX - buttonWidth/2 && touchX <= buttonX + buttonWidth/2 &&
+                                touchY >= buttonY - buttonHeight/2 && touchY <= buttonY + buttonHeight/2) {
+                                this.reset();
+                            }
+                        }
+                        return;
+                    }
+                    if (this.paused) {
+                        this.paused = false;
+                        this.startTime += Date.now() - this.pauseTime;
+                        return;
+                    }
+                    for (const touch of e.changedTouches) {
+                        const rect = this.canvas.getBoundingClientRect();
+                        const touchX = touch.clientX - rect.left;
+                        const touchY = touch.clientY - rect.top;
+                        if (touchX < this.canvas.width / 2 && !this.input.joystick.active) {
+                            this.input.joystick.start(touchX, touchY, touch.identifier);
+                        } else if (touchX >= this.canvas.width / 2 && !this.input.shootTouchId) {
+                            this.input.mouse.x = touchX;
+                            this.input.mouse.y = touchY;
+                            this.input.mouse.down = true;
+                            this.input.shootTouchId = touch.identifier;
+                        }
+                    }
+                });
+
+                this.canvas.addEventListener('touchmove', e => {
+                    e.preventDefault();
+                    if (this.gameOver || this.paused) return;
+                    for (const touch of e.changedTouches) {
+                        const rect = this.canvas.getBoundingClientRect();
+                        const touchX = touch.clientX - rect.left;
+                        const touchY = touch.clientY - rect.top;
+                        if (touch.identifier === this.input.joystick.touchId) {
+                            this.input.joystick.update(touchX, touchY);
+                        } else if (touch.identifier === this.input.shootTouchId) {
+                            this.input.mouse.x = touchX;
+                            this.input.mouse.y = touchY;
+                        }
+                    }
+                });
+
+                this.canvas.addEventListener('touchend', e => {
+                    e.preventDefault();
+                    for (const touch of e.changedTouches) {
+                        if (touch.identifier === this.input.joystick.touchId) {
+                            this.input.joystick.end();
+                        } else if (touch.identifier === this.input.shootTouchId) {
+                            this.input.mouse.down = false;
+                            this.input.shootTouchId = null;
+                        }
+                    }
+                });
+
                 window.addEventListener('blur', () => this.input.clear());
                 window.addEventListener('focus', () => this.input.clear());
             }
 
-            shoot() {
-                const now = Date.now();
-                if (now - this.lastShot < this.shootDelay) return;
-                const dx = this.input.mouse.x - this.player.x;
-                const dy = this.input.mouse.y - this.player.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    this.bullets.push(new Bullet(
-                        this.player.x,
-                        this.player.y,
-                        (dx / dist) * 8,
-                        (dy / dist) * 8
-                    ));
-                    this.lastShot = now;
-                }
-            }
-
-            spawnEnemy() {
-                const side = Math.floor(Math.random() * 4);
-                const margin = 30;
-                let x, y;
-                switch (side) {
-                    case 0: x = Math.random() * this.canvas.width; y = -margin; break;
-                    case 1: x = this.canvas.width + margin; y = Math.random() * this.canvas.height; break;
-                    case 2: x = Math.random() * this.canvas.width; y = this.canvas.height + margin; break;
-                    case 3: x = -margin; y = Math.random() * this.canvas.height; break;
-                }
-                const type = Object.keys(ENEMY_TYPES)[Math.floor(Math.random() * 3)];
-                this.enemies.push(new Enemy(x, y, type, ENEMY_TYPES[type]));
-            }
-
-            update(timestamp) {
+            update() {
                 if (this.gameOver || this.paused) return;
-                if (timestamp - this.lastEnemySpawn > this.enemySpawnRate) {
-                    this.spawnEnemy();
-                    this.lastEnemySpawn = timestamp;
-                    this.enemySpawnRate = Math.max(500, this.enemySpawnRate * 0.99);
-                }
-
-                this.player.move(this.input.keys, this.canvas);
+                this.player.move(this.input.keys, this.input.joystick, this.canvas);
                 this.player.update(this.input, this.effects, this.canvas);
-                if (this.input.mouse.down) this.shoot();
+                this.aim.update(this.input.mouse.x, this.input.mouse.y);
 
-                this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
-                this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                // Spawn enemies
+                if (Date.now() - this.lastSpawn > 2000) {
+                    const types = ['square', 'triangle', 'octagon'];
+                    const type = types[Math.floor(Math.random() * types.length)];
+                    const config = ENEMY_TYPES[type];
+                    const side = Math.floor(Math.random() * 4);
+                    let x, y;
+                    if (side === 0) { x = Math.random() * this.canvas.width; y = -config.size; }
+                    else if (side === 1) { x = Math.random() * this.canvas.width; y = this.canvas.height + config.size; }
+                    else if (side === 2) { x = -config.size; y = Math.random() * this.canvas.height; }
+                    else { x = this.canvas.width + config.size; y = Math.random() * this.canvas.height; }
+                    this.enemies.push(new Enemy(`enemy-${Date.now()}-${Math.random()}`, x, y, type, config));
+                    this.lastSpawn = Date.now();
+                }
 
-                for (let i = this.enemies.length - 1; i >= 0; i--) {
-                    const enemy = this.enemies[i];
-                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets);
-                    if (dist < enemy.radius + this.player.radius) {
+                // Update enemies
+                this.enemies.forEach(enemy => enemy.update(this.player, this.canvas, this.effects));
+                
+                // Collision detection
+                this.enemies = this.enemies.filter(enemy => {
+                    if (enemy.damageFlash > 0) enemy.damageFlash--;
+                    const dx = this.player.x - enemy.x;
+                    const dy = this.player.y - enemy.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (!this.player.invulnerable && dist < this.player.radius + enemy.radius) {
+                        this.player.health -= ENEMY_TYPES[enemy.type].damage;
+                        this.player.damageFlash = 20;
+                        this.player.invulnerable = true;
+                        this.player.invulnerabilityTime = 60;
+                        this.effects.createDamageLabel(this.player.x, this.player.y - this.player.radius - 15, ENEMY_TYPES[enemy.type].damage, true);
+                    }
+                    for (const bullet of this.effects.bullets) {
+                        const bdx = bullet.x - enemy.x;
+                        const bdy = bullet.y - enemy.y;
+                        const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+                        if (bdist < bullet.radius + enemy.radius) {
+                            enemy.health -= 10;
+                            enemy.damageFlash = 10;
+                            bullet.life = 0;
+                            this.effects.createHitEffect(bullet.x, bullet.y);
+                            this.effects.createDamageLabel(enemy.x, enemy.y - enemy.radius - 15, 10, false);
+                        }
+                    }
+                    for (const beam of this.effects.railgunBeams) {
+                        const closestPoint = this.closestPointOnLine(beam.startX, beam.startY, beam.endX, beam.endY, enemy.x, enemy.y);
+                        const bdx = closestPoint.x - enemy.x;
+                        const bdy = closestPoint.y - enemy.y;
+                        const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+                        if (bdist < enemy.radius) {
+                            enemy.health -= beam.damage;
+                            enemy.damageFlash = 10;
+                            this.effects.createHitEffect(closestPoint.x, closestPoint.y);
+                            this.effects.createDamageLabel(enemy.x, enemy.y - enemy.radius - 15, beam.damage, false);
+                        }
+                    }
+                    if (enemy.health <= 0) {
+                        this.enemiesKilled += 1;
+                        this.player.score += ENEMY_TYPES[enemy.type].points;
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
-                        this.enemies.splice(i, 1);
-                        this.enemiesKilled++;
-                        this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
-                        continue;
+                        this.effects.createScoreLabel(ENEMY_TYPES[enemy.type].points, enemy.x, enemy.y - enemy.radius - 15);
+                        return false;
                     }
-                    for (let j = this.bullets.length - 1; j >= 0; j--) {
-                        const bullet = this.bullets[j];
-                        const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
-                        if (bulletDist < bullet.radius + enemy.radius) {
-                            this.bullets.splice(j, 1);
-                            if (!enemy.takeDamage(50, this.effects, this.score, this.ctx)) {
-                                this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                this.enemies.splice(i, 1);
-                                this.score += enemy.points;
-                                this.enemiesKilled++;
-                            }
-                            break;
-                        }
-                    }
-                    for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
-                        const beam = this.effects.railgunBeams[j];
-                        if (beam.intersectsEnemy(enemy)) {
-                            if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx)) {
-                                this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                this.enemies.splice(i, 1);
-                                this.score += enemy.points;
-                                this.enemiesKilled++;
-                            }
-                        }
-                    }
-                }
+                    return true;
+                });
 
-                for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-                    const bullet = this.enemyBullets[i];
-                    const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
-                    if (dist < bullet.radius + this.player.radius) {
-                        this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects);
-                        this.enemyBullets.splice(i, 1);
+                this.effects.enemyBullets.forEach(bullet => {
+                    const dx = bullet.x - this.player.x;
+                    const dy = bullet.y - this.player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (!this.player.invulnerable && dist < bullet.radius + this.player.radius) {
+                        this.player.health -= 10;
+                        this.player.damageFlash = 20;
+                        this.player.invulnerable = true;
+                        this.player.invulnerabilityTime = 60;
+                        bullet.life = 0;
+                        this.effects.createDamageLabel(this.player.x, this.player.y - this.player.radius - 15, 10, true);
                     }
-                }
+                });
 
-                this.effects.update();
+                this.effects.update(this.player, this.canvas);
+
                 if (this.player.health <= 0 && !this.gameOver) {
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
                     this.input.clear();
                 }
+            }
+
+            closestPointOnLine(x1, y1, x2, y2, px, py) {
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const lenSquared = dx * dx + dy * dy;
+                if (lenSquared === 0) return { x: x1, y: y1 };
+                const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSquared));
+                return { x: x1 + t * dx, y: y1 + t * dy };
             }
 
             draw() {
@@ -1063,18 +1191,29 @@
                     this.ctx.stroke();
                 }
 
+                this.input.joystick.draw(this.ctx);
+
+                this.effects.draw(this.ctx, this.player.x, this.player.y);
+
+                if (this.player.railgunCharge > 0 && this.player.blinkState) {
+                    const w = this.player.radius * 2;
+                    const h = 4;
+                    this.ctx.fillStyle = 'rgba(0, 100, 100, 0.7)';
+                    this.ctx.fillRect(this.player.x - w/2, this.player.y - this.player.radius - 10, w, h);
+                    this.ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                    this.ctx.fillRect(this.player.x - w/2, this.player.y - this.player.radius - 10, w * this.player.railgunCharge, h);
+                }
+
                 this.player.draw(this.ctx);
+                this.enemies.forEach(enemy => enemy.draw(this.ctx));
+
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
                 this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-
-                this.bullets.forEach(bullet => bullet.draw(this.ctx));
-                this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.effects.draw(this.ctx, this.score, this.player.x, this.player.y);
-                this.enemies.forEach(enemy => enemy.draw(this.ctx));
+                this.aim.draw(this.ctx);
 
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1084,7 +1223,7 @@
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2 - 20);
                     this.ctx.font = '20px Arial';
-                    this.ctx.fillText('Press ESC to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.fillText('Press ESC or tap to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
                 }
 
                 if (this.gameOver) {
@@ -1096,7 +1235,7 @@
                     this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '28px Arial';
-                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
+                    this.ctx.fillText(`Final Score: ${this.player.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
 
                     const buttonX = this.canvas.width / 2;
@@ -1113,8 +1252,11 @@
                     this.ctx.fillText('PLAY AGAIN', buttonX, buttonY + 8);
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
-                    this.ctx.fillText('Press SPACE or click button to restart', buttonX, buttonY + 70);
+                    this.ctx.fillText('Press SPACE or tap button to restart', buttonX, buttonY + 70);
                 }
+
+                document.getElementById('enemies').textContent = this.enemiesKilled;
+                document.getElementById('timer').textContent = this.formatTime(this.gameOver ? this.gameOverTime - this.startTime : this.paused ? this.pauseTime - this.startTime : Date.now() - this.startTime);
             }
 
             formatTime(ms) {
@@ -1125,24 +1267,10 @@
             }
 
             loop(timestamp) {
-                let gameTime;
-                if (this.gameOver) {
-                    gameTime = this.gameOverTime - this.startTime;
-                } else if (this.paused) {
-                    gameTime = this.pauseTime - this.startTime;
-                } else {
-                    gameTime = Date.now() - this.startTime;
-                }
-
                 if (!this.paused && !this.gameOver) {
-                    this.update(timestamp);
+                    this.update();
                 }
-
                 this.draw();
-                document.getElementById('score').textContent = this.score;
-                document.getElementById('enemies').textContent = this.enemiesKilled;
-                document.getElementById('timer').textContent = this.formatTime(gameTime);
-
                 requestAnimationFrame(t => this.loop(t));
             }
 
