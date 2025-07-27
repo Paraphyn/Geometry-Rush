@@ -68,7 +68,7 @@
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
-    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash | +/- Music Vol | [/] SFX Vol</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
 
     <script>
         // Sound Effects Manager
@@ -93,6 +93,11 @@
                     this.sounds.railgunShoot = new Audio('railgun-shoot.wav');
                     this.sounds.railgunShoot.volume = this.volume;
                     this.sounds.railgunShoot.preload = 'auto';
+                    
+                    this.sounds.railgunCharge = new Audio('railgun-charge.wav');
+                    this.sounds.railgunCharge.volume = this.volume;
+                    this.sounds.railgunCharge.loop = true; // Loop while charging
+                    this.sounds.railgunCharge.preload = 'auto';
                     
                     this.sounds.dash = new Audio('dash.wav');
                     this.sounds.dash.volume = this.volume;
@@ -142,6 +147,31 @@
                     audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
                 } catch (error) {
                     console.warn(`Error playing ${soundName}:`, error);
+                }
+            }
+
+            startLoopingSound(soundName) {
+                if (!this.initialized || !this.sounds[soundName]) return;
+                
+                try {
+                    const audio = this.sounds[soundName];
+                    audio.currentTime = 0;
+                    audio.volume = this.volume;
+                    audio.play().catch(error => console.warn(`Failed to start looping ${soundName}:`, error));
+                } catch (error) {
+                    console.warn(`Error starting looping ${soundName}:`, error);
+                }
+            }
+
+            stopLoopingSound(soundName) {
+                if (!this.initialized || !this.sounds[soundName]) return;
+                
+                try {
+                    const audio = this.sounds[soundName];
+                    audio.pause();
+                    audio.currentTime = 0;
+                } catch (error) {
+                    console.warn(`Error stopping looping ${soundName}:`, error);
                 }
             }
 
@@ -401,6 +431,7 @@
                 this.dashStartY = 0;
                 this.dashEndX = 0;
                 this.dashEndY = 0;
+                this.railgunCharging = false; // Track if railgun charge sound is playing
             }
 
             startDash(mouseX, mouseY, effects, sounds) {
@@ -470,6 +501,12 @@
                         this.invulnerable = false;
                     }
                 } else if (input.mouse.rightDown) {
+                    // Start railgun charge sound if not already playing
+                    if (!this.railgunCharging && sounds) {
+                        sounds.startLoopingSound('railgunCharge');
+                        this.railgunCharging = true;
+                    }
+                    
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
@@ -486,6 +523,12 @@
                     }
                     this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
+                    // Stop railgun charge sound when firing
+                    if (this.railgunCharging && sounds) {
+                        sounds.stopLoopingSound('railgunCharge');
+                        this.railgunCharging = false;
+                    }
+                    
                     effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
                     
                     // Play railgun shoot sound
@@ -495,6 +538,12 @@
                     this.railgunParticles = [];
                     this.blinkState = true;
                     this.blinkFrame = 0;
+                } else {
+                    // Stop railgun charge sound if right mouse is released without charge
+                    if (this.railgunCharging && sounds) {
+                        sounds.stopLoopingSound('railgunCharge');
+                        this.railgunCharging = false;
+                    }
                 }
             }
 
