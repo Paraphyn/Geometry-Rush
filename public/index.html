@@ -195,7 +195,7 @@
             constructor() {
                 this.audio = null;
                 this.initialized = false;
-                this.volume = 0.5; // Default 50% for music
+                this.volume = 0.4; // Default 50% for music
                 this.userInteracted = false;
             }
 
@@ -394,14 +394,14 @@
                 this.y = y;
                 this.color = '#ffffff';
                 this.size = 20; // Match player radius
-                this.opacity = 0.7; // Start at 70% transparency
+                this.opacity = 0.9; // Start at 70% transparency
                 this.life = 20;
                 this.maxLife = 20;
             }
 
             update() {
                 this.life--;
-                this.opacity = 0.3 * (this.life / this.maxLife); // Fade from 0.3 to 0
+                this.opacity = 0.5 * (this.life / this.maxLife); // Fade from 0.3 to 0
                 return this.life > 0;
             }
 
