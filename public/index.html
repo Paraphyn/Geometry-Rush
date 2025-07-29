@@ -73,338 +73,104 @@
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
 
     <script>
-        // Sound Effects Manager
-        class SoundManager {
+        // Audio Manager
+        class AudioManager {
             constructor() {
-                this.sounds = {};
+                this.audios = {};
                 this.initialized = false;
                 this.volume = 0.7;
+                this.musicVolume = 0.4;
                 this.loadingPromises = [];
             }
 
             async initialize() {
                 if (this.initialized) return;
-                
-                try {
-                    console.log('Loading sound effects...');
-                    
-                    // Define all audio files with preload settings
-                    const audioFiles = {
-                        bulletShoot: 'bullet-shoot.wav',
-                        railgunShoot: 'railgun-shoot.wav',
-                        railgunCharge: 'railgun-charge.wav',
-                        railgunChargeStart: 'railgun-charge-start.wav',
-                        railgunChargeMax: 'railgun-charge-max.wav',
-                        dash: 'dash.wav',
-                        playerDamage: 'player-damage.wav',
-                        pauseActivate: 'pause-activate.wav',
-                        pauseDeactivate: 'pause-deactivate.wav',
-                        gameOver: 'game-over.wav',
-                        enemyHit: 'enemy-hit.wav',
-                        enemyDeath: 'enemy-death.wav',
-                        enemyShoot: 'enemy-shoot.wav'
-                    };
-                    
-                    // Create and configure all audio objects
-                    Object.entries(audioFiles).forEach(([key, filename]) => {
-                        const audio = new Audio(filename);
-                        audio.volume = this.volume;
-                        audio.preload = 'auto';
-                        
-                        // Special configuration for looping sounds
-                        if (key === 'railgunCharge') {
-                            audio.loop = true;
-                        }
-                        
-                        this.sounds[key] = audio;
-                        
-                        // Create loading promise for each audio file
-                        const loadPromise = new Promise((resolve) => {
-                            const onLoad = () => {
-                                console.log(`✓ Loaded: ${filename}`);
-                                audio.removeEventListener('canplaythrough', onLoad);
-                                audio.removeEventListener('error', onError);
-                                resolve();
-                            };
-                            
-                            const onError = (e) => {
-                                console.warn(`✗ Failed to load ${filename}:`, e);
-                                audio.removeEventListener('canplaythrough', onLoad);
-                                audio.removeEventListener('error', onError);
-                                resolve(); // Continue even if sound fails
-                            };
-                            
-                            audio.addEventListener('canplaythrough', onLoad);
-                            audio.addEventListener('error', onError);
-                            
-                            // Force load
-                            audio.load();
-                        });
-                        
-                        this.loadingPromises.push(loadPromise);
-                    });
-                    
-                    // Wait for ALL audio files to load
-                    await Promise.all(this.loadingPromises);
-                    this.initialized = true;
-                    console.log(`🎵 All sound effects loaded successfully at ${Math.round(this.volume * 100)}% volume`);
-                    
-                } catch (error) {
-                    console.warn('Failed to load sound effects:', error);
-                }
-            }
+                const audioFiles = {
+                    bulletShoot: { file: 'bullet-shoot.wav', loop: false },
+                    railgunShoot: { file: 'railgun-shoot.wav', loop: false },
+                    railgunCharge: { file: 'railgun-charge.wav', loop: true },
+                    dash: { file: 'dash.wav', loop: false },
+                    playerDamage: { file: 'player-damage.wav', loop: false },
+                    pauseActivate: { file: 'pause-activate.wav', loop: false },
+                    pauseDeactivate: { file: 'pause-deactivate.wav', loop: false },
+                    gameOver: { file: 'game-over.wav', loop: false },
+                    enemyHit: { file: 'enemy-hit.wav', loop: false },
+                    enemyDeath: { file: 'enemy-death.wav', loop: false },
+                    enemyShoot: { file: 'enemy-shoot.wav', loop: false },
+                    backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
+                };
 
-            // Add method to check if all sounds are ready
-            isReady() {
-                return this.initialized && Object.values(this.sounds).every(audio => 
-                    audio.readyState >= 3 // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
-                );
+                Object.entries(audioFiles).forEach(([key, config]) => {
+                    const audio = new Audio(config.file);
+                    audio.volume = config.isMusic ? this.musicVolume : this.volume;
+                    audio.loop = config.loop;
+                    audio.preload = 'auto';
+                    this.audios[key] = audio;
+
+                    const loadPromise = new Promise((resolve) => {
+                        const onLoad = () => {
+                            console.log(`✓ Loaded: ${config.file}`);
+                            audio.removeEventListener('canplaythrough', onLoad);
+                            audio.removeEventListener('error', onError);
+                            resolve();
+                        };
+                        const onError = (e) => {
+                            console.warn(`✗ Failed to load ${config.file}:`, e);
+                            resolve();
+                        };
+                        audio.addEventListener('canplaythrough', onLoad);
+                        audio.addEventListener('error', onError);
+                        audio.load();
+                    });
+                    this.loadingPromises.push(loadPromise);
+                });
+
+                await Promise.all(this.loadingPromises);
+                this.initialized = true;
+                console.log('🎵 Audio initialized');
             }
 
             playSound(soundName) {
-                if (!this.initialized || !this.sounds[soundName]) return;
-                
+                if (!this.initialized || !this.audios[soundName]) return;
                 try {
-                    const audio = this.sounds[soundName];
+                    const audio = this.audios[soundName];
                     audio.currentTime = 0;
-                    audio.volume = this.volume;
-                    
-                    // Use cloneNode for overlapping sounds
+                    audio.volume = audio === this.audios.backgroundMusic ? this.musicVolume : this.volume;
                     if (soundName === 'bulletShoot' || soundName === 'enemyHit') {
                         const clone = audio.cloneNode();
-                        clone.volume = this.volume;
-                        clone.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                        clone.volume = audio.volume;
+                        clone.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
                     } else {
-                        audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                        audio.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
                     }
-                } catch (error) {
-                    console.warn(`Error playing ${soundName}:`, error);
+                } catch (e) {
+                    console.warn(`Error playing ${soundName}:`, e);
                 }
             }
 
             startLoopingSound(soundName) {
-                if (!this.initialized || !this.sounds[soundName]) return;
-                
-                try {
-                    const audio = this.sounds[soundName];
-                    audio.currentTime = 0;
-                    audio.volume = this.volume;
-                    audio.play().catch(error => console.warn(`Failed to start looping ${soundName}:`, error));
-                } catch (error) {
-                    console.warn(`Error starting looping ${soundName}:`, error);
-                }
+                if (!this.initialized || !this.audios[soundName]) return;
+                this.audios[soundName].play().catch(e => console.warn(`Failed to start looping ${soundName}:`, e));
             }
 
             stopLoopingSound(soundName) {
-                if (!this.initialized || !this.sounds[soundName]) return;
-                
-                try {
-                    const audio = this.sounds[soundName];
-                    audio.pause();
-                    audio.currentTime = 0;
-                } catch (error) {
-                    console.warn(`Error stopping looping ${soundName}:`, error);
+                if (!this.initialized || !this.audios[soundName]) return;
+                this.audios[soundName].pause();
+                this.audios[soundName].currentTime = 0;
+            }
+
+            pauseMusic() {
+                if (this.initialized && this.audios.backgroundMusic) {
+                    this.audios.backgroundMusic.pause();
                 }
             }
 
-            setVolume(volume) {
-                this.volume = Math.max(0, Math.min(1, volume));
-                Object.values(this.sounds).forEach(audio => {
-                    audio.volume = this.volume;
-                });
-                console.log(`Sound effects volume set to ${Math.round(this.volume * 100)}%`);
-            }
-
-            getVolume() {
-                return this.volume;
+            resumeMusic() {
+                if (this.initialized && this.audios.backgroundMusic) {
+                    this.audios.backgroundMusic.play().catch(e => console.warn('Failed to resume music:', e));
+                }
             }
         }
-
-        // Background Music Manager
-        class MusicManager {
-            constructor() {
-                this.audio = null;
-                this.initialized = false;
-                this.volume = 0.4;
-                this.userInteracted = false;
-            }
-
-            async initialize() {
-                if (this.initialized) return;
-                
-                try {
-                    console.log('Loading background music...');
-                    this.audio = new Audio('background-music.mp3');
-                    this.audio.loop = true;
-                    this.audio.volume = this.volume;
-                    this.audio.preload = 'auto';
-                    
-                    // Add event listeners for debugging
-                    this.audio.addEventListener('loadstart', () => console.log('Music: Load started'));
-                    this.audio.addEventListener('canplay', () => console.log('Music: Can play'));
-                    this.audio.addEventListener('canplaythrough', () => console.log('Music: Can play through'));
-                    this.audio.addEventListener('play', () => console.log('Music: Started playing'));
-                    this.audio.addEventListener('pause', () => console.log('Music: Paused'));
-                    this.audio.addEventListener('error', (e) => console.error('Music error:', e));
-                    
-                    // Wait for the audio to be ready with timeout
-                    await new Promise((resolve, reject) => {
-                        const onReady = () => {
-                            console.log(`🎵 Music ready to play at ${Math.round(this.volume * 100)}% volume`);
-                            this.audio.removeEventListener('canplaythrough', onReady);
-                            this.audio.removeEventListener('error', onError);
-                            resolve();
-                        };
-                        
-                        const onError = (e) => {
-                            console.error('Failed to load music:', e);
-                            this.audio.removeEventListener('canplaythrough', onReady);
-                            this.audio.removeEventListener('error', onError);
-                            reject(e);
-                        };
-                        
-                        this.audio.addEventListener('canplaythrough', onReady);
-                        this.audio.addEventListener('error', onError);
-                        
-                        // Force load
-                        this.audio.load();
-                        
-                        // Timeout after 10 seconds
-                        setTimeout(() => {
-                            if (!this.initialized) {
-                                console.warn('Music loading timeout - continuing anyway');
-                                onReady();
-                            }
-                        }, 10000);
-                    });
-                    
-                    this.initialized = true;
-                    console.log('Background music loaded successfully');
-                } catch (error) {
-                    console.warn('Failed to load background music:', error);
-                    this.initialized = false;
-                }
-            }
-
-            isReady() {
-                return this.initialized && this.audio && this.audio.readyState >= 3;
-            }
-
-            async play() {
-                if (!this.audio || !this.initialized) {
-                    console.warn('Music not initialized');
-                    return;
-                }
-                
-                try {
-                    console.log('Attempting to play music...');
-                    this.audio.currentTime = 0;
-                    this.audio.volume = this.volume;
-                    const playPromise = this.audio.play();
-                    
-                    if (playPromise !== undefined) {
-                        await playPromise;
-                        console.log('Music playing successfully');
-                    }
-                } catch (error) {
-                    console.warn('Failed to play background music:', error);
-                }
-            }
-
-            pause() {
-                if (this.audio && !this.audio.paused) {
-                    console.log('Pausing music');
-                    this.audio.pause();
-                }
-            }
-
-            resume() {
-                if (this.audio && this.audio.paused) {
-                    console.log('Resuming music');
-                    this.audio.play().catch(error => console.warn('Failed to resume background music:', error));
-                }
-            }
-
-            stop() {
-                if (this.audio) {
-                    console.log('Stopping music');
-                    this.audio.pause();
-                    this.audio.currentTime = 0;
-                }
-            }
-
-            setVolume(volume) {
-                this.volume = Math.max(0, Math.min(1, volume));
-                if (this.audio) {
-                    this.audio.volume = this.volume;
-                    console.log(`Music volume set to ${Math.round(this.volume * 100)}%`);
-                }
-            }
-
-            getVolume() {
-                return this.volume;
-            }
-
-            test() {
-                console.log('Music test:');
-                console.log('- Initialized:', this.initialized);
-                console.log('- Audio object:', !!this.audio);
-                console.log('- Ready state:', this.audio?.readyState);
-                console.log('- Paused:', this.audio?.paused);
-                console.log('- Volume:', this.audio?.volume);
-                console.log('- Current time:', this.audio?.currentTime);
-                console.log('- Duration:', this.audio?.duration);
-            }
-        }
-
-        // Enemy configuration
-        const ENEMY_TYPES = {
-            square: { 
-                health: 200, 
-                speed: 4, 
-                size: 30, 
-                points: 5, 
-                damage: 15,
-                fillColor: '#ff0000',
-                strokeColor: '#cc0000'
-            },
-            triangle: { 
-                health: 50, 
-                speed: 6.5, 
-                size: 15, 
-                points: 10, 
-                damage: 25,
-                fillColor: '#ff6666',
-                strokeColor: '#cc3333'
-            },
-            octagon: { 
-                health: 800, 
-                speed: 1, 
-                size: 50, 
-                points: 50, 
-                damage: 50,
-                fillColor: '#990000',
-                strokeColor: '#660000'
-            },
-            rhombus: {
-                health: 500,
-                speed: 5,
-                size: 45,
-                points: 30,
-                damage: 50,
-                fillColor: '#ff9999',
-                strokeColor: '#ff6666'
-            }
-        };
-
-        // Wave configuration
-        const WAVE_CONFIG = [
-            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10, rhombuses: 3 }, spawnTime: 10000 }
-        ];
 
         // Background binary effect
         class BackgroundBinary {
@@ -414,30 +180,23 @@
                 this.digit = Math.random() < 0.5 ? '0' : '1';
                 this.opacity = 0;
                 this.maxOpacity = 0.3;
-                this.life = 180 + Math.random() * 120; // 3-5 seconds at 60fps
+                this.life = 180 + Math.random() * 120;
                 this.maxLife = this.life;
-                this.fadeInDuration = 30; // 0.5 seconds
-                this.fadeOutDuration = 60; // 1 second
-                this.size = 12 + Math.random() * 8; // 12-20px
+                this.fadeInDuration = 30;
+                this.fadeOutDuration = 60;
+                this.size = 12 + Math.random() * 8;
             }
 
             update() {
                 this.life--;
-                
-                // Fade in phase
                 if (this.life > this.maxLife - this.fadeInDuration) {
                     const fadeProgress = (this.maxLife - this.life) / this.fadeInDuration;
                     this.opacity = this.maxOpacity * fadeProgress;
-                }
-                // Fade out phase
-                else if (this.life < this.fadeOutDuration) {
+                } else if (this.life < this.fadeOutDuration) {
                     this.opacity = this.maxOpacity * (this.life / this.fadeOutDuration);
-                }
-                // Full opacity phase
-                else {
+                } else {
                     this.opacity = this.maxOpacity;
                 }
-                
                 return this.life > 0;
             }
 
@@ -460,16 +219,12 @@
                 this.canvas = canvas;
                 this.binaries = [];
                 this.spawnTimer = 0;
-                this.spawnDelay = 8; // Spawn every 8 frames for optimal performance (7.5 per second)
-                this.gridSize = 80; // Minimum distance between binaries
-                this.maxBinaries = 50; // Performance limit
+                this.spawnDelay = 8;
+                this.maxBinaries = 50;
             }
 
             update() {
-                // Update existing binaries
                 this.binaries = this.binaries.filter(binary => binary.update());
-                
-                // Spawn new binaries
                 this.spawnTimer++;
                 if (this.spawnTimer >= this.spawnDelay && this.binaries.length < this.maxBinaries) {
                     this.spawnBinary();
@@ -478,49 +233,28 @@
             }
 
             spawnBinary() {
-                // Try to find a good spawn position
-                let attempts = 0;
-                let x, y;
-                
-                do {
-                    x = Math.random() * this.canvas.width;
-                    y = Math.random() * this.canvas.height;
-                    attempts++;
-                } while (attempts < 10 && this.tooCloseToExisting(x, y));
-                
-                // Only spawn if we found a good position or tried too many times
-                if (attempts < 10 || this.binaries.length < this.maxBinaries * 0.5) {
-                    this.binaries.push(new BackgroundBinary(x, y));
-                }
-            }
-
-            tooCloseToExisting(x, y) {
-                return this.binaries.some(binary => {
-                    const dx = binary.x - x;
-                    const dy = binary.y - y;
-                    return Math.sqrt(dx * dx + dy * dy) < this.gridSize;
-                });
+                const x = Math.random() * this.canvas.width;
+                const y = Math.random() * this.canvas.height;
+                this.binaries.push(new BackgroundBinary(x, y));
             }
 
             draw(ctx) {
                 this.binaries.forEach(binary => binary.draw(ctx));
             }
-
-            resize(canvas) {
-                this.canvas = canvas;
-            }
         }
+
+        // Input manager
         class InputManager {
             constructor() {
                 this.keys = {};
                 this.mouse = { x: 0, y: 0, down: false, rightDown: false };
-                this.lastKeyTime = {};
+                this.lastActionTime = {};
             }
 
-            preventSpam(key, delay = 100) {
+            preventSpam(action, delay = 100) {
                 const now = Date.now();
-                if (this.lastKeyTime[key] && now - this.lastKeyTime[key] < delay) return false;
-                this.lastKeyTime[key] = now;
+                if (this.lastActionTime[action] && now - this.lastActionTime[action] < delay) return false;
+                this.lastActionTime[action] = now;
                 return true;
             }
 
@@ -528,7 +262,7 @@
                 this.keys = {};
                 this.mouse.down = false;
                 this.mouse.rightDown = false;
-                this.lastKeyTime = {};
+                this.lastActionTime = {};
             }
         }
 
@@ -538,15 +272,15 @@
                 this.x = x;
                 this.y = y;
                 this.color = '#ffffff';
-                this.size = 20; // Match player radius
-                this.opacity = 0.9; // Start at 70% transparency
+                this.size = 20;
+                this.opacity = 0.9;
                 this.life = 20;
                 this.maxLife = 20;
             }
 
             update() {
                 this.life--;
-                this.opacity = 0.5 * (this.life / this.maxLife); // Fade from 0.3 to 0
+                this.opacity = 0.5 * (this.life / this.maxLife);
                 return this.life > 0;
             }
 
@@ -564,6 +298,7 @@
         // Player management
         class Player {
             constructor(canvas) {
+                this.canvas = canvas;
                 this.x = canvas.width / 2;
                 this.y = canvas.height / 2;
                 this.radius = 20;
@@ -574,41 +309,32 @@
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
-                this.railgunMaxChargeTime = 3000; // 3 seconds
+                this.railgunMaxChargeTime = 3000;
                 this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
                 this.isDashing = false;
                 this.dashProgress = 0;
                 this.dashDuration = 10;
-                this.dashDistance = 300; // 300px dash distance
+                this.dashDistance = 300;
                 this.dashStartX = 0;
                 this.dashStartY = 0;
                 this.dashEndX = 0;
                 this.dashEndY = 0;
-                this.railgunCharging = false; // Track if railgun charge sound is playing
-                this.railgunChargeStartPlayed = false; // Track if charge start sound was played
-                this.railgunChargeMaxPlayed = false; // Track if charge max sound was played
+                this.railgunCharging = false;
             }
 
-            startDash(keys, effects, sounds) {
+            startDash(keys, effects, audio) {
                 if (this.isDashing) return;
-
-                // Calculate movement direction from WASD keys
                 let dx = 0, dy = 0;
                 if (keys.w) dy -= 1;
                 if (keys.s) dy += 1;
                 if (keys.a) dx -= 1;
                 if (keys.d) dx += 1;
-
-                // If no movement keys are pressed, do nothing
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist === 0) return;
-
-                // Normalize direction and set dash distance
                 dx = (dx / dist) * this.dashDistance;
                 dy = (dy / dist) * this.dashDistance;
-
                 this.isDashing = true;
                 this.invulnerable = true;
                 this.dashProgress = 0;
@@ -616,13 +342,9 @@
                 this.dashStartY = this.y;
                 this.dashEndX = this.x + dx;
                 this.dashEndY = this.y + dy;
-
-                // Clamp to canvas bounds
                 this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
                 this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
-                
-                // Play dash sound
-                if (sounds) sounds.playSound('dash');
+                if (audio) audio.playSound('dash');
             }
 
             move(keys, canvas) {
@@ -637,7 +359,7 @@
                 this.canvas = canvas;
             }
 
-            takeDamage(damage, sourceX, sourceY, effects, sounds) {
+            takeDamage(damage, sourceX, sourceY, effects, audio) {
                 if (this.health <= 0 || this.invulnerable) return false;
                 const actualDamage = Math.min(damage, this.health);
                 if (actualDamage <= 0) return false;
@@ -646,29 +368,22 @@
                 this.invulnerable = true;
                 this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
-                
-                // Play player damage sound
-                if (sounds) sounds.playSound('playerDamage');
-                
+                if (audio) audio.playSound('playerDamage');
                 return true;
             }
 
-            // NEW: Method to stop railgun charging (for pause/game over)
-            stopRailgunCharge(sounds) {
-                if (this.railgunCharging && sounds) {
-                    sounds.stopLoopingSound('railgunCharge');
+            stopRailgunCharge(audio) {
+                if (this.railgunCharging && audio) {
+                    audio.stopLoopingSound('railgunCharge');
                     this.railgunCharging = false;
                 }
                 this.railgunCharge = 0;
                 this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
-                // Reset audio event flags
-                this.railgunChargeStartPlayed = false;
-                this.railgunChargeMaxPlayed = false;
             }
 
-            update(input, effects, canvas, sounds) {
+            update(input, effects, canvas, audio) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime--;
@@ -687,35 +402,17 @@
                         this.invulnerable = false;
                     }
                 } else if (input.mouse.rightDown) {
-                    // Start railgun charge sound if not already playing
-                    if (!this.railgunCharging && sounds) {
-                        sounds.startLoopingSound('railgunCharge');
+                    if (!this.railgunCharging && audio) {
+                        audio.startLoopingSound('railgunCharge');
                         this.railgunCharging = true;
                     }
-                    
-                    // Play charge start sound once when charging begins
-                    if (!this.railgunChargeStartPlayed && sounds) {
-                        sounds.playSound('railgunChargeStart');
-                        this.railgunChargeStartPlayed = true;
-                    }
-                    
-                    const previousCharge = this.railgunCharge;
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
-                    
-                    // Play charge max sound once when reaching full charge
-                    if (this.railgunCharge === 1 && previousCharge < 1 && !this.railgunChargeMaxPlayed && sounds) {
-                        sounds.playSound('railgunChargeMax');
-                        this.railgunChargeMaxPlayed = true;
-                    }
-                    
                     if (this.railgunCharge === 1) {
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
                         this.blinkState = this.blinkFrame < 15;
                     } else {
                         this.blinkState = true;
                         this.blinkFrame = 0;
-                        
-                        // Only show charge particles when not at maximum charge
                         if (this.railgunParticles.length < 5) {
                             const particleCount = Math.floor(Math.random() * 3) + 3;
                             for (let i = this.railgunParticles.length; i < particleCount; i++) {
@@ -723,37 +420,21 @@
                             }
                         }
                     }
-                    
-                    // Always update existing particles
                     this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
-                    // Stop railgun charge sound when firing
-                    if (this.railgunCharging && sounds) {
-                        sounds.stopLoopingSound('railgunCharge');
+                    if (this.railgunCharging && audio) {
+                        audio.stopLoopingSound('railgunCharge');
                         this.railgunCharging = false;
                     }
-                    
                     effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
-                    
-                    // Play railgun shoot sound
-                    if (sounds) sounds.playSound('railgunShoot');
-                    
+                    if (audio) audio.playSound('railgunShoot');
                     this.railgunCharge = 0;
                     this.railgunParticles = [];
                     this.blinkState = true;
                     this.blinkFrame = 0;
-                    // Reset audio event flags for next charge cycle
-                    this.railgunChargeStartPlayed = false;
-                    this.railgunChargeMaxPlayed = false;
-                } else {
-                    // Stop railgun charge sound if right mouse is released without charge
-                    if (this.railgunCharging && sounds) {
-                        sounds.stopLoopingSound('railgunCharge');
-                        this.railgunCharging = false;
-                    }
-                    // Reset audio event flags when not charging
-                    this.railgunChargeStartPlayed = false;
-                    this.railgunChargeMaxPlayed = false;
+                } else if (this.railgunCharging && audio) {
+                    audio.stopLoopingSound('railgunCharge');
+                    this.railgunCharging = false;
                 }
             }
 
@@ -833,8 +514,7 @@
 
             update(canvas, effects) {
                 effects.createBulletTrail(this.x, this.y, '#ffaa00');
-                this.x += this.dx;
-                this.y += this.dy;
+                this.x += this.dy;
                 this.life--;
                 if (this.life <= 0) {
                     effects.createBulletExplosion(this.x, this.y, '#ffaa00');
@@ -854,26 +534,473 @@
             }
         }
 
-        // Rhombus invulnerability effect
-        class RhombusEffect {
-            constructor(x, y, isBecomingInvul) {
+        // Enemy configuration
+        const ENEMY_TYPES = {
+            square: { 
+                health: 200, 
+                speed: 4, 
+                size: 30, 
+                points: 5, 
+                damage: 15,
+                fillColor: '#ff0000',
+                strokeColor: '#cc0000'
+            },
+            triangle: { 
+                health: 50, 
+                speed: 6.5, 
+                size: 15, 
+                points: 10, 
+                damage: 25,
+                fillColor: '#ff6666',
+                strokeColor: '#cc3333'
+            },
+            octagon: { 
+                health: 800, 
+                speed: 1, 
+                size: 50, 
+                points: 50, 
+                damage: 50,
+                fillColor: '#990000',
+                strokeColor: '#660000'
+            },
+            rhombus: {
+                health: 500,
+                speed: 5,
+                size: 45,
+                points: 30,
+                damage: 50,
+                fillColor: '#ff9999',
+                strokeColor: '#ff6666'
+            }
+        };
+
+        // Wave configuration
+        const WAVE_CONFIG = [
+            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10, rhombuses: 3 }, spawnTime: 10000 }
+        ];
+
+        // Shape renderer utility
+        class ShapeRenderer {
+            static drawShape(ctx, x, y, type, size, fillColor, strokeColor) {
+                ctx.fillStyle = fillColor;
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                if (type === 'square') {
+                    const s = size * 1.4;
+                    ctx.fillRect(x - s/2, y - s/2, s, s);
+                    ctx.strokeRect(x - s/2, y - s/2, s, s);
+                } else if (type === 'triangle') {
+                    ctx.beginPath();
+                    const h = size * 1.5;
+                    ctx.moveTo(x, y - h);
+                    ctx.lineTo(x - h * 0.866, y + h * 0.5);
+                    ctx.lineTo(x + h * 0.866, y + h * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (type === 'rhombus') {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - size);
+                    ctx.lineTo(x + size, y);
+                    ctx.lineTo(x, y + size);
+                    ctx.lineTo(x - size, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (type === 'octagon') {
+                    ctx.beginPath();
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (Math.PI * 2 * i) / 8;
+                        const px = x + size * Math.cos(angle);
+                        const py = y + size * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Effect base class
+        class Effect {
+            constructor(type, x, y, config) {
+                this.type = type;
                 this.x = x;
                 this.y = y;
-                this.isBecomingInvul = isBecomingInvul; // true = becoming invul, false = becoming vulnerable
-                this.particles = [];
-                this.shockwaveRadius = 0;
-                this.shockwaveMaxRadius = 80;
-                this.life = 30;
-                this.maxLife = 30;
-                
-                // Create particles
+                Object.assign(this, config);
+            }
+
+            update(...args) {
+                return this.typeSpecificUpdate(...args);
+            }
+
+            draw(ctx) {
+                this.typeSpecificDraw(ctx);
+            }
+        }
+
+        // Effects manager
+        class EffectsManager {
+            constructor() {
+                this.effects = [];
+                this.playerX = 0;
+                this.playerY = 0;
+            }
+
+            createBulletTrail(x, y, color) {
+                this.effects.push(new Effect('bulletTrail', x, y, {
+                    size: 5,
+                    opacity: 0.5,
+                    life: 6,
+                    color,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / 6;
+                        this.size *= 0.95;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createBulletExplosion(x, y, color) {
+                this.effects.push(new Effect('bulletExplosion', x, y, {
+                    size: 8,
+                    opacity: 0.8,
+                    life: 20,
+                    maxLife: 20,
+                    color,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / this.maxLife;
+                        this.size += 0.5;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createHitEffect(x, y) {
+                for (let i = 0; i < 8; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 2;
+                    this.effects.push(new Effect('hitEffect', x, y, {
+                        size: 2 + Math.random() * 2,
+                        opacity: 1,
+                        life: 15 + Math.random() * 10,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        typeSpecificUpdate: function() {
+                            this.x += this.dx;
+                            this.y += this.dy;
+                            this.dx *= 0.9;
+                            this.dy *= 0.9;
+                            this.life--;
+                            this.opacity = this.life / 25;
+                            this.size *= 0.98;
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ctx.fillStyle = '#00ffff';
+                            ctx.beginPath();
+                            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    }));
+                }
+            }
+
+            createDamageLabel(x, y, damage, isPlayerDamage) {
+                if (isPlayerDamage) {
+                    this.effects = this.effects.filter(e => e.type !== 'damageLabel' || e.life > 20);
+                }
+                this.effects.push(new Effect('damageLabel', x, y, {
+                    damage: Math.floor(damage),
+                    dx: isPlayerDamage ? (Math.random() - 0.5) * 4 : 0,
+                    dy: isPlayerDamage ? -2 - Math.random() * 1.5 : -0.5,
+                    gravity: isPlayerDamage ? 0 : 0,
+                    opacity: 1.0,
+                    life: isPlayerDamage ? 50 : 90,
+                    maxLife: isPlayerDamage ? 50 : 90,
+                    scale: 0.8,
+                    isPlayerDamage,
+                    typeSpecificUpdate: function() {
+                        this.x += this.dx;
+                        this.y += this.dy;
+                        this.dy += this.gravity;
+                        this.dx *= 0.99;
+                        this.life--;
+                        this.opacity = Math.max(0, this.life / this.maxLife);
+                        this.scale = 1.0 + (1 - this.opacity) * 0.2;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        if (this.opacity > 0.01 && !isNaN(this.damage)) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            const fontSize = Math.floor(24 * this.scale);
+                            ctx.font = `bold ${fontSize}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.fillStyle = this.isPlayerDamage ? '#ff0000' : '#00ffff';
+                            const text = `-${this.damage}`;
+                            ctx.strokeText(text, this.x, this.y);
+                            ctx.fillText(text, this.x, this.y);
+                            ctx.restore();
+                        }
+                    }
+                }));
+            }
+
+            createExplosion(x, y, type, size) {
+                const config = ENEMY_TYPES[type];
+                const count = 3 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 2 + Math.random() * 3;
+                    this.effects.push(new Effect('explosion', x, y, {
+                        size: size * (0.3 + Math.random() * 0.2),
+                        opacity: 1,
+                        life: 30 + Math.random() * 20,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        fillColor: config.fillColor,
+                        strokeColor: config.strokeColor,
+                        shapeType: type,
+                        typeSpecificUpdate: function() {
+                            this.x += this.dx;
+                            this.y += this.dy;
+                            this.dx *= 0.95;
+                            this.dy *= 0.95;
+                            this.life--;
+                            this.opacity = this.life / 50;
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ShapeRenderer.drawShape(ctx, this.x, this.y, this.shapeType, this.size, this.fillColor, this.strokeColor);
+                            ctx.restore();
+                        }
+                    }));
+                }
+            }
+
+            createTriangleTrail(x, y, size, opacity, fillColor) {
+                this.effects.push(new Effect('triangleTrail', x, y, {
+                    size,
+                    opacity,
+                    fillColor,
+                    life: 60,
+                    maxLife: 60,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.opacity * (this.life / this.maxLife);
+                        this.size *= 0.98;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.fillColor;
+                        ctx.beginPath();
+                        const h = this.size * 1.5;
+                        ctx.moveTo(this.x, this.y - h);
+                        ctx.lineTo(this.x - h * 0.866, this.y + h * 0.5);
+                        ctx.lineTo(this.x + h * 0.866, this.y + h * 0.5);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createScoreLabel(points, x, y, score, ctx) {
+                ctx.font = 'bold 25px Arial';
+                const scoreText = `Score: ${score}`;
+                const textWidth = ctx.measureText(scoreText).width;
+                this.effects.push(new Effect('scoreLabel', 20 + textWidth + 5, 50, {
+                    points: Math.floor(points),
+                    opacity: 1.0,
+                    life: 60,
+                    maxLife: 60,
+                    scale: 0.8,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = Math.max(0, this.life / this.maxLife);
+                        this.scale = 1.0 + (1 - this.opacity) * 0.2;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        if (this.opacity > 0.01 && !isNaN(this.points)) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            const fontSize = Math.floor(24 * this.scale);
+                            ctx.font = `bold ${fontSize}px Arial`;
+                            ctx.textAlign = 'left';
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.fillStyle = '#00ff00';
+                            const text = `+${this.points}Pts`;
+                            ctx.strokeText(text, this.x, this.y);
+                            ctx.fillText(text, this.x, this.y);
+                            ctx.restore();
+                        }
+                    }
+                }));
+            }
+
+            createRailgunParticle(playerX, playerY) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 150;
+                this.effects.push(new Effect('railgunParticle', playerX + Math.cos(angle) * distance, playerY + Math.sin(angle) * distance, {
+                    size: 2 + Math.random() * 2,
+                    opacity: 0,
+                    maxOpacity: 0.7,
+                    life: 60,
+                    maxLife: 60,
+                    speed: 1.3 + Math.random() * 1.3,
+                    typeSpecificUpdate: function(playerX, playerY) {
+                        this.life--;
+                        this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
+                        const dx = playerX - this.x;
+                        const dy = playerY - this.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > 0.1) {
+                            this.x += (dx / dist) * this.speed;
+                            this.y += (dy / dist) * this.speed;
+                        }
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = '#00ffff';
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
+                const dx = targetX - startX;
+                const dy = targetY - startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = Math.max(canvas.width, canvas.height) * 2;
+                this.effects.push(new Effect('railgunBeam', startX, startY, {
+                    endX: startX + (dx / dist) * maxDist,
+                    endY: startY + (dy / dist) * maxDist,
+                    damage: charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05),
+                    life: 60,
+                    maxLife: 60,
+                    opacity: 1.0,
+                    width: 8,
+                    hitEnemies: new Set(),
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / this.maxLife;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        const gradient = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
+                        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+                        gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                        gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        ctx.strokeStyle = gradient;
+                        ctx.lineWidth = this.width;
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(this.endX, this.endY);
+                        ctx.stroke();
+                        ctx.restore();
+                    },
+                    intersectsEnemy: function(enemy) {
+                        if (this.hitEnemies.has(enemy)) return false;
+                        const p1 = { x: this.x, y: this.y };
+                        const p2 = { x: this.endX, y: this.endY };
+                        const p3 = { x: enemy.x, y: enemy.y };
+                        const radius = enemy.radius;
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
+                        const closestX = p1.x + dot * dx;
+                        const closestY = p1.y + dot * dy;
+                        const distX = p3.x - closestX;
+                        const distY = p3.y - closestY;
+                        const distance = Math.sqrt(distX * distX + distY * distY);
+                        if (distance <= radius && dot >= 0 && dot <= 1) {
+                            this.hitEnemies.add(enemy);
+                            return true;
+                        }
+                        return false;
+                    }
+                }));
+            }
+
+            createDashTrail(x, y) {
+                this.effects.push(new Effect('dashTrail', x, y, {
+                    color: '#ffffff',
+                    size: 20,
+                    opacity: 0.9,
+                    life: 20,
+                    maxLife: 20,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = 0.5 * (this.life / this.maxLife);
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRhombusEffect(x, y, isBecomingInvul) {
+                const particles = [];
                 const particleCount = 12;
                 for (let i = 0; i < particleCount; i++) {
                     const angle = (Math.PI * 2 * i) / particleCount;
                     const speed = 3 + Math.random() * 2;
-                    this.particles.push({
-                        x: x,
-                        y: y,
+                    particles.push({
+                        x,
+                        y,
                         dx: Math.cos(angle) * speed,
                         dy: Math.sin(angle) * speed,
                         size: 3 + Math.random() * 3,
@@ -881,182 +1008,78 @@
                         life: 30
                     });
                 }
-            }
-
-            update() {
-                this.life--;
-                this.shockwaveRadius = (this.shockwaveMaxRadius * (1 - this.life / this.maxLife));
-                
-                this.particles = this.particles.filter(p => {
-                    p.x += p.dx;
-                    p.y += p.dy;
-                    p.dx *= 0.95;
-                    p.dy *= 0.95;
-                    p.life--;
-                    p.opacity = p.life / 30;
-                    return p.life > 0;
-                });
-                
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                // Draw shockwave
-                ctx.save();
-                const opacity = this.life / this.maxLife;
-                ctx.globalAlpha = opacity * 0.5;
-                const color = this.isBecomingInvul ? '#000000' : '#ff9999';
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.shockwaveRadius, 0, Math.PI * 2);
-                ctx.stroke();
-                
-                // Draw particles
-                ctx.globalAlpha = 1;
-                this.particles.forEach(p => {
-                    ctx.globalAlpha = p.opacity;
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fill();
-                });
-                ctx.restore();
-            }
-        }
-        class TriangleTrail {
-            constructor(x, y, size, opacity, fillColor) {
-                this.x = x + (Math.random() - 0.5) * 2;
-                this.y = y + (Math.random() - 0.5) * 2;
-                this.size = size;
-                this.opacity = opacity;
-                this.fillColor = fillColor;
-                this.life = 60;
-                this.maxLife = 60;
-            }
-
-            update() {
-                this.life--;
-                this.opacity = (this.opacity * (this.life / this.maxLife));
-                this.size *= 0.98;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = this.fillColor;
-                ctx.beginPath();
-                const h = this.size * 1.5;
-                ctx.moveTo(this.x, this.y - h);
-                ctx.lineTo(this.x - h * 0.866, this.y + h * 0.5);
-                ctx.lineTo(this.x + h * 0.866, this.y + h * 0.5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // Railgun particle effect
-        class RailgunParticle {
-            constructor(x, y) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 150;
-                this.x = x + Math.cos(angle) * distance;
-                this.y = y + Math.sin(angle) * distance;
-                this.size = 2 + Math.random() * 2;
-                this.opacity = 0;
-                this.maxOpacity = 0.7;
-                this.life = 60;
-                this.maxLife = 60;
-                this.speed = 1.3 + Math.random() * 1.3;
+                this.effects.push(new Effect('rhombusEffect', x, y, {
+                    shockwaveRadius: 0,
+                    shockwaveMaxRadius: 80,
+                    life: 30,
+                    maxLife: 30,
+                    isBecomingInvul,
+                    particles,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.shockwaveRadius = (this.shockwaveMaxRadius * (1 - this.life / this.maxLife));
+                        this.particles = this.particles.filter(p => {
+                            p.x += p.dx;
+                            p.y += p.dy;
+                            p.dx *= 0.95;
+                            p.dy *= 0.95;
+                            p.life--;
+                            p.opacity = p.life / 30;
+                            return p.life > 0;
+                        });
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        const opacity = this.life / this.maxLife;
+                        ctx.globalAlpha = opacity * 0.5;
+                        const color = this.isBecomingInvul ? '#000000' : '#ff9999';
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.shockwaveRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.globalAlpha = 1;
+                        this.particles.forEach(p => {
+                            ctx.globalAlpha = p.opacity;
+                            ctx.fillStyle = color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                        ctx.restore();
+                    }
+                }));
             }
 
             update(playerX, playerY) {
-                this.life--;
-                this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
-                const dx = playerX - this.x;
-                const dy = playerY - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0.1) {
-                    this.x += (dx / dist) * this.speed;
-                    this.y += (dy / dist) * this.speed;
-                }
-                return this.life > 0;
+                this.playerX = playerX;
+                this.playerY = playerY;
+                this.effects = this.effects.filter(effect => effect.update(playerX, playerY));
             }
 
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // Railgun beam effect
-        class RailgunBeam {
-            constructor(startX, startY, targetX, targetY, canvas, charge) {
-                this.startX = startX;
-                this.startY = startY;
-                const dx = targetX - startX;
-                const dy = targetY - startY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const maxDist = Math.max(canvas.width, canvas.height) * 2;
-                this.endX = startX + (dx / dist) * maxDist;
-                this.endY = startY + (dy / dist) * maxDist;
-                this.damage = charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05);
-                this.life = 60;
-                this.maxLife = 60;
-                this.opacity = 1.0;
-                this.width = 8;
-                this.hitEnemies = new Set();
-            }
-
-            update() {
-                this.life--;
-                this.opacity = this.life / this.maxLife;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                const gradient = ctx.createLinearGradient(this.startX, this.startY, this.endX, this.endY);
-                gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
-                gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
-                gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
-                ctx.strokeStyle = gradient;
-                ctx.lineWidth = this.width;
-                ctx.beginPath();
-                ctx.moveTo(this.startX, this.startY);
-                ctx.lineTo(this.endX, this.endY);
-                ctx.stroke();
-                ctx.restore();
-            }
-
-            intersectsEnemy(enemy) {
-                if (this.hitEnemies.has(enemy)) return false;
-                const p1 = { x: this.startX, y: this.startY };
-                const p2 = { x: this.endX, y: this.endY };
-                const p3 = { x: enemy.x, y: enemy.y };
-                const radius = enemy.radius;
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const len = Math.sqrt(dx * dx + dy * dy);
-                const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
-                const closestX = p1.x + dot * dx;
-                const closestY = p1.y + dot * dy;
-                const distX = p3.x - closestX;
-                const distY = p3.y - closestY;
-                const distance = Math.sqrt(distX * distX + distY * distY);
-                if (distance <= radius && dot >= 0 && dot <= 1) {
-                    this.hitEnemies.add(enemy);
-                    return true;
-                }
-                return false;
+            draw(ctx, score, playerX, playerY, bullets) {
+                this.effects.forEach(effect => {
+                    if (effect.type === 'dashTrail') {
+                        const index = this.effects.filter(e => e.type === 'dashTrail').indexOf(effect);
+                        const maxOpacity = 0.3;
+                        const minOpacity = 0.05;
+                        const dashTrails = this.effects.filter(e => e.type === 'dashTrail');
+                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, dashTrails.length - 1));
+                        ctx.save();
+                        ctx.globalAlpha = effect.opacity * opacityScale;
+                        ctx.fillStyle = effect.color;
+                        ctx.beginPath();
+                        ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    } else {
+                        effect.draw(ctx);
+                    }
+                });
+                bullets.forEach(bullet => bullet.draw(ctx));
+                this.playerX = playerX;
+                this.playerY = playerY;
             }
         }
 
@@ -1078,72 +1101,49 @@
                 this.lastShot = 0;
                 this.shootDelay = type === 'octagon' ? 4000 : Infinity;
                 this.lastTrailTime = 0;
-                
-                // Rhombus-specific properties
                 if (type === 'rhombus') {
                     this.invulnerable = false;
                     this.lastStateChange = Date.now();
-                    this.stateChangeDuration = 2500; // 2.5 seconds
-                    
-                    // Rhombus movement behavior
-                    this.circleRadius = 150 + Math.random() * 100; // 150-250px orbit radius
-                    this.angleOffset = Math.random() * Math.PI * 2; // Random starting angle
-                    this.clockwise = Math.random() < 0.5; // Random direction
-                    this.orbitSpeed = 0.02 + Math.random() * 0.02; // 0.02-0.04 radians per frame
-                    this.approachSpeed = 0.8; // How fast to approach the orbit
+                    this.stateChangeDuration = 2500;
+                    this.circleRadius = 150 + Math.random() * 100;
+                    this.angleOffset = Math.random() * Math.PI * 2;
+                    this.clockwise = Math.random() < 0.5;
+                    this.orbitSpeed = 0.02 + Math.random() * 0.02;
+                    this.approachSpeed = 0.8;
                 }
             }
 
-            update(player, canvas, effects, enemyBullets, sounds) {
+            update(player, canvas, effects, enemyBullets, audio) {
                 if (this.damageFlash > 0) this.damageFlash--;
-                
-                // Handle rhombus invulnerability state changes
                 if (this.type === 'rhombus') {
                     const now = Date.now();
                     if (now - this.lastStateChange >= this.stateChangeDuration) {
                         const wasInvulnerable = this.invulnerable;
                         this.invulnerable = !this.invulnerable;
                         this.lastStateChange = now;
-                        
-                        // Create VFX for state change
                         effects.createRhombusEffect(this.x, this.y, this.invulnerable);
                     }
                 }
-                
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
                 if (this.type === 'rhombus') {
-                    // Rhombus orbital movement behavior
                     this.angleOffset += this.clockwise ? this.orbitSpeed : -this.orbitSpeed;
-                    
-                    // Calculate desired position on orbit around player
                     const desiredX = player.x + Math.cos(this.angleOffset) * this.circleRadius;
                     const desiredY = player.y + Math.sin(this.angleOffset) * this.circleRadius;
-                    
-                    // Move towards desired orbital position
                     const desiredDx = desiredX - this.x;
                     const desiredDy = desiredY - this.y;
-                    const desiredDist = Math.sqrt(desiredDx * desiredDx + desiredDy * desiredDy);
-                    
-                    if (desiredDist > 0) {
-                        // Blend between orbital movement and approach movement
-                        const moveSpeed = this.speed * this.approachSpeed;
-                        this.x += (desiredDx / desiredDist) * moveSpeed;
-                        this.y += (desiredDy / desiredDist) * moveSpeed;
-                    }
+                    const desiredDist = Math.sqrt(desiredDx * desiredDx + desiredDy * desiredDy) || 0.1;
+                    this.x += (desiredDx / desiredDist) * this.speed * this.approachSpeed;
+                    this.y += (desiredDy / desiredDist) * this.speed * this.approachSpeed;
                 } else {
-                    // Normal enemy movement (direct chase)
-                    if (dist > 0) {
-                        this.x += (dx / dist) * this.speed;
-                        this.y += (dy / dist) * this.speed;
-                    }
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
                 }
                 if (this.type === 'octagon') {
                     const now = Date.now();
                     if (now - this.lastShot >= this.shootDelay) {
-                        this.shoot(player, enemyBullets, sounds);
+                        this.shoot(player, enemyBullets, audio);
                         this.lastShot = now;
                     }
                 }
@@ -1154,13 +1154,7 @@
                         for (let i = 0; i < 5; i++) {
                             const size = baseSize * Math.pow(0.75, i);
                             const opacity = 0.5 - (i * 0.125);
-                            effects.createTriangleTrail(
-                                this.x, 
-                                this.y, 
-                                size, 
-                                opacity, 
-                                this.fillColor
-                            );
+                            effects.createTriangleTrail(this.x, this.y, size, opacity, this.fillColor);
                         }
                         this.lastTrailTime = now;
                     }
@@ -1168,61 +1162,45 @@
                 return dist;
             }
 
-            shoot(player, enemyBullets, sounds) {
+            shoot(player, enemyBullets, audio) {
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    enemyBullets.push(new EnemyBullet(
-                        this.x,
-                        this.y,
-                        (dx / dist) * 8,
-                        (dy / dist) * 8
-                    ));
-                    
-                    // Play enemy shoot sound
-                    if (sounds) sounds.playSound('enemyShoot');
-                }
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                enemyBullets.push(new EnemyBullet(
+                    this.x,
+                    this.y,
+                    (dx / dist) * 8,
+                    (dy / dist) * 8
+                ));
+                if (audio) audio.playSound('enemyShoot');
             }
 
-            takeDamage(damage, effects, score, ctx, sounds) {
-                // Rhombus is invulnerable during certain states
-                if (this.type === 'rhombus' && this.invulnerable) {
-                    return true; // Still alive, no damage taken
-                }
-                
+            takeDamage(damage, effects, score, ctx, audio) {
+                if (this.type === 'rhombus' && this.invulnerable) return true;
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
-                
                 if (this.health <= 0) {
-                    // Enemy death
                     effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
-                    if (sounds) sounds.playSound('enemyDeath');
+                    if (audio) audio.playSound('enemyDeath');
                     return false;
                 } else {
-                    // Enemy hit but still alive
-                    if (sounds) sounds.playSound('enemyHit');
+                    if (audio) audio.playSound('enemyHit');
                     return true;
                 }
             }
 
             draw(ctx) {
                 let color, stroke;
-                
                 if (this.type === 'rhombus' && this.invulnerable) {
-                    // Invulnerable rhombus: 50% transparent black with red stroke
                     color = 'rgba(0, 0, 0, 0.5)';
                     stroke = '#ff0000';
                 } else {
-                    // Normal appearance or damage flash
                     color = this.damageFlash > 0 ? '#ffffff' : this.fillColor;
                     stroke = this.damageFlash > 0 ? '#ffffff' : this.strokeColor;
                 }
-                
-                this.drawShape(ctx, this.x, this.y, this.type, this.radius, color, stroke);
-                
+                ShapeRenderer.drawShape(ctx, this.x, this.y, this.type, this.radius, color, stroke);
                 if (this.maxHealth > 50) {
                     const w = this.radius * 2, h = 4;
                     ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
@@ -1230,377 +1208,6 @@
                     ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
                     ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * (this.health / this.maxHealth), h);
                 }
-            }
-
-            drawShape(ctx, x, y, type, size, fillColor, strokeColor) {
-                ctx.fillStyle = fillColor;
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 2;
-                if (type === 'square') {
-                    const s = size * 1.4;
-                    ctx.fillRect(x - s/2, y - s/2, s, s);
-                    ctx.strokeRect(x - s/2, y - s/2, s, s);
-                } else if (type === 'triangle') {
-                    ctx.beginPath();
-                    const h = size * 1.5;
-                    ctx.moveTo(x, y - h);
-                    ctx.lineTo(x - h * 0.866, y + h * 0.5);
-                    ctx.lineTo(x + h * 0.866, y + h * 0.5);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                } else if (type === 'rhombus') {
-                    ctx.beginPath();
-                    // Draw diamond/rhombus shape
-                    ctx.moveTo(x, y - size);      // Top point
-                    ctx.lineTo(x + size, y);      // Right point
-                    ctx.lineTo(x, y + size);      // Bottom point
-                    ctx.lineTo(x - size, y);      // Left point
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                } else if (type === 'octagon') {
-                    ctx.beginPath();
-                    for (let i = 0; i < 8; i++) {
-                        const angle = (Math.PI * 2 * i) / 8;
-                        const px = x + size * Math.cos(angle);
-                        const py = y + size * Math.sin(angle);
-                        if (i === 0) ctx.moveTo(px, py);
-                        else ctx.lineTo(px, py);
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                }
-            }
-        }
-
-        // Explosion effect
-        class Explosion {
-            constructor(x, y, type, size, fillColor, strokeColor) {
-                this.x = x;
-                this.y = y;
-                const angle = Math.random() * Math.PI * 2;
-                const speed = 2 + Math.random() * 3;
-                this.dx = Math.cos(angle) * speed;
-                this.dy = Math.sin(angle) * speed;
-                this.type = type;
-                this.size = size * (0.3 + Math.random() * 0.2);
-                this.fillColor = fillColor;
-                this.strokeColor = strokeColor;
-                this.opacity = 1;
-                this.life = 30 + Math.random() * 20;
-            }
-
-            update() {
-                this.x += this.dx;
-                this.y += this.dy;
-                this.dx *= 0.95;
-                this.dy *= 0.95;
-                this.life--;
-                this.opacity = this.life / 50;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                Enemy.prototype.drawShape.call(this, ctx, this.x, this.y, this.type, this.size, this.fillColor, this.strokeColor);
-                ctx.restore();
-            }
-        }
-
-        // Bullet trail effect
-        class BulletTrail {
-            constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                this.size = 5;
-                this.opacity = 0.5;
-                this.life = 6;
-            }
-
-            update() {
-                this.life--;
-                this.opacity = this.life / 6;
-                this.size *= 0.95;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // Bullet explosion effect
-        class BulletExplosion {
-            constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                this.size = 8;
-                this.opacity = 0.8;
-                this.life = 20;
-                this.maxLife = 20;
-            }
-
-            update() {
-                this.life--;
-                this.opacity = this.life / this.maxLife;
-                this.size += 0.5;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // Hit effect
-        class HitEffect {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                const angle = Math.random() * Math.PI * 2;
-                const speed = 1 + Math.random() * 2;
-                this.dx = Math.cos(angle) * speed;
-                this.dy = Math.sin(angle) * speed;
-                this.size = 2 + Math.random() * 2;
-                this.opacity = 1;
-                this.life = 15 + Math.random() * 10;
-            }
-
-            update() {
-                this.x += this.dx;
-                this.y += this.dy;
-                this.dx *= 0.9;
-                this.dy *= 0.9;
-                this.life--;
-                this.opacity = this.life / 25;
-                this.size *= 0.98;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // Damage label effect
-        class DamageLabel {
-            constructor(x, y, damage, isPlayerDamage) {
-                this.x = x;
-                this.y = y;
-                this.damage = Math.floor(damage);
-                this.dx = isPlayerDamage ? (Math.random() - 0.5) * 4 : 0;
-                this.dy = isPlayerDamage ? -2 - Math.random() * 1.5 : -0.5;
-                this.gravity = isPlayerDamage ? 0 : 0;
-                this.opacity = 1.0;
-                this.life = isPlayerDamage ? 50 : 90;
-                this.maxLife = this.life;
-                this.scale = 0.8;
-                this.isPlayerDamage = isPlayerDamage;
-            }
-
-            update() {
-                this.x += this.dx;
-                this.y += this.dy;
-                this.dy += this.gravity;
-                this.dx *= 0.99;
-                this.life--;
-                this.opacity = Math.max(0, this.life / this.maxLife);
-                this.scale = 1.0 + (1 - this.opacity) * 0.2;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                if (this.opacity > 0.01 && !isNaN(this.damage)) {
-                    ctx.save();
-                    ctx.globalAlpha = this.opacity;
-                    const fontSize = Math.floor(24 * this.scale);
-                    ctx.font = `bold ${fontSize}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 3;
-                    ctx.fillStyle = this.isPlayerDamage ? '#ff0000' : '#00ffff';
-                    const text = `-${this.damage}`;
-                    ctx.strokeText(text, this.x, this.y);
-                    ctx.fillText(text, this.x, this.y);
-                    ctx.restore();
-                }
-            }
-        }
-
-        // Score label effect
-        class ScoreLabel {
-            constructor(points, x, y, score, ctx) {
-                ctx.font = 'bold 25px Arial';
-                const scoreText = `Score: ${score}`;
-                const textWidth = ctx.measureText(scoreText).width;
-                this.x = 20 + textWidth + 5;
-                this.y = 50;
-                this.points = Math.floor(points);
-                this.opacity = 1.0;
-                this.life = 60;
-                this.maxLife = 60;
-                this.scale = 0.8;
-            }
-
-            update() {
-                this.life--;
-                this.opacity = Math.max(0, this.life / this.maxLife);
-                this.scale = 1.0 + (1 - this.opacity) * 0.2;
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                if (this.opacity > 0.01 && !isNaN(this.points)) {
-                    ctx.save();
-                    ctx.globalAlpha = this.opacity;
-                    const fontSize = Math.floor(24 * this.scale);
-                    ctx.font = `bold ${fontSize}px Arial`;
-                    ctx.textAlign = 'left';
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 3;
-                    ctx.fillStyle = '#00ff00';
-                    const text = `+${this.points}Pts`;
-                    ctx.strokeText(text, this.x, this.y);
-                    ctx.fillText(text, this.x, this.y);
-                    ctx.restore();
-                }
-            }
-        }
-
-        // Effects manager
-        class EffectsManager {
-            constructor() {
-                this.bulletTrails = [];
-                this.bulletExplosions = [];
-                this.hitEffects = [];
-                this.damageLabels = [];
-                this.explosions = [];
-                this.triangleTrails = [];
-                this.scoreLabels = [];
-                this.railgunParticles = [];
-                this.railgunBeams = [];
-                this.dashTrails = [];
-                this.rhombusEffects = [];
-            }
-
-            createBulletTrail(x, y, color) {
-                this.bulletTrails.push(new BulletTrail(x, y, color));
-            }
-
-            createBulletExplosion(x, y, color) {
-                this.bulletExplosions.push(new BulletExplosion(x, y, color));
-            }
-
-            createHitEffect(x, y) {
-                for (let i = 0; i < 8; i++) {
-                    this.hitEffects.push(new HitEffect(x, y));
-                }
-            }
-
-            createDamageLabel(x, y, damage, isPlayerDamage) {
-                if (isPlayerDamage) {
-                    this.damageLabels = this.damageLabels.filter(label => label.life > 20);
-                }
-                this.damageLabels.push(new DamageLabel(x, y, damage, isPlayerDamage));
-            }
-
-            createExplosion(x, y, type, size) {
-                const config = ENEMY_TYPES[type];
-                const count = 3 + Math.floor(Math.random() * 3);
-                for (let i = 0; i < count; i++) {
-                    this.explosions.push(new Explosion(x, y, type, size, config.fillColor, config.strokeColor));
-                }
-            }
-
-            createTriangleTrail(x, y, size, opacity, fillColor) {
-                this.triangleTrails.push(new TriangleTrail(x, y, size, opacity, fillColor));
-            }
-
-            createScoreLabel(points, x, y, score, ctx) {
-                this.scoreLabels.push(new ScoreLabel(points, x, y, score, ctx));
-            }
-
-            createRailgunParticle(playerX, playerY) {
-                this.railgunParticles.push(new RailgunParticle(playerX, playerY));
-            }
-
-            createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
-                this.railgunBeams.push(new RailgunBeam(startX, startY, targetX, targetY, canvas, charge));
-            }
-
-            createDashTrail(x, y) {
-                this.dashTrails.push(new DashTrail(x, y));
-            }
-
-            createRhombusEffect(x, y, isBecomingInvul) {
-                this.rhombusEffects.push(new RhombusEffect(x, y, isBecomingInvul));
-            }
-
-            update() {
-                this.bulletTrails = this.bulletTrails.filter(trail => trail.update());
-                this.bulletExplosions = this.bulletExplosions.filter(explosion => explosion.update());
-                this.hitEffects = this.hitEffects.filter(effect => effect.update());
-                this.damageLabels = this.damageLabels.filter(label => label.update());
-                this.explosions = this.explosions.filter(explosion => explosion.update());
-                this.triangleTrails = this.triangleTrails.filter(trail => trail.update());
-                this.scoreLabels = this.scoreLabels.filter(label => label.update());
-                this.railgunParticles = this.railgunParticles.filter(particle => particle.update(this.playerX, this.playerY));
-                this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
-                this.dashTrails = this.dashTrails.filter(trail => trail.update());
-                this.rhombusEffects = this.rhombusEffects.filter(effect => effect.update());
-            }
-
-            draw(ctx, score, playerX, playerY, bullets) {
-                // Draw dash trails with fading opacity based on index
-                this.dashTrails.forEach((trail, index) => {
-                    // Calculate opacity multiplier: newer trails (higher index) are more opaque
-                    const maxOpacity = 0.3; // Match DashTrail initial opacity
-                    const minOpacity = 0.05; // Minimum opacity for oldest trail
-                    const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, this.dashTrails.length - 1));
-                    ctx.save();
-                    ctx.globalAlpha = trail.opacity * opacityScale;
-                    ctx.fillStyle = trail.color;
-                    ctx.beginPath();
-                    ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-                this.bulletTrails.forEach(trail => trail.draw(ctx));
-                this.bulletExplosions.forEach(explosion => explosion.draw(ctx));
-                this.railgunParticles.forEach(particle => particle.draw(ctx));
-                bullets.forEach(bullet => bullet.draw(ctx));
-                this.railgunBeams.forEach(beam => beam.draw(ctx));
-                this.triangleTrails.forEach(trail => trail.draw(ctx));
-                this.hitEffects.forEach(effect => effect.draw(ctx));
-                this.explosions.forEach(explosion => explosion.draw(ctx));
-                this.damageLabels.forEach(label => label.draw(ctx));
-                this.scoreLabels.forEach(label => label.draw(ctx));
-                this.rhombusEffects.forEach(effect => effect.draw(ctx));
-                this.playerX = playerX;
-                this.playerY = playerY;
             }
         }
 
@@ -1610,79 +1217,35 @@
                 this.canvas = document.getElementById('canvas');
                 this.ctx = this.canvas.getContext('2d');
                 this.input = new InputManager();
-                this.music = new MusicManager();
-                this.sounds = new SoundManager();
-                this.shootDelay = 250; // 0.25 seconds between shots
+                this.audio = new AudioManager();
+                this.shootDelay = 250;
                 this.lastShot = 0;
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
-                
-                // Initialize background binary effect
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
-            }
-
-            async setupAudio() {
-                // Show loading message
-                console.log('Initializing audio system...');
-                
-                try {
-                    // Initialize both audio systems before any user interaction
-                    await this.sounds.initialize();
-                    await this.music.initialize();
-                    
-                    console.log('✓ Audio preloading complete');
-                    
-                    // Wait for user interaction to actually play
-                    const initAudio = async (event) => {
-                        console.log('User interaction detected, starting audio...');
-                        
-                        try {
-                            // Verify audio is ready
-                            if (this.sounds.isReady() && this.music.isReady()) {
-                                await this.music.play();
-                                console.log('✓ Audio started successfully');
-                            } else {
-                                console.warn('Audio not fully ready, starting anyway...');
-                                await this.music.play();
-                            }
-                            
-                            // Test audio status after a moment
-                            setTimeout(() => {
-                                this.music.test();
-                            }, 1000);
-                            
-                        } catch (error) {
-                            console.error('Audio initialization failed:', error);
-                        }
-                        
-                        // Remove listeners
-                        document.removeEventListener('click', initAudio);
-                        document.removeEventListener('keydown', initAudio);
-                        document.removeEventListener('touchstart', initAudio);
-                    };
-                    
-                    // Add user interaction listeners
-                    document.addEventListener('click', initAudio);
-                    document.addEventListener('keydown', initAudio);
-                    document.addEventListener('touchstart', initAudio); // For mobile
-                    
-                    console.log('🎵 Audio system ready - waiting for user interaction to start playback');
-                    
-                } catch (error) {
-                    console.error('Failed to initialize audio system:', error);
-                }
             }
 
             setupCanvas() {
                 this.canvas.width = window.innerWidth;
                 this.canvas.height = window.innerHeight;
-                
-                // Update background binary manager canvas reference
-                if (this.backgroundBinary) {
-                    this.backgroundBinary.resize(this.canvas);
-                }
+            }
+
+            async setupAudio() {
+                console.log('Initializing audio system...');
+                await this.audio.initialize();
+                console.log('✓ Audio preloading complete');
+                const initAudio = async () => {
+                    console.log('User interaction detected, starting audio...');
+                    await this.audio.playSound('backgroundMusic');
+                    document.removeEventListener('click', initAudio);
+                    document.removeEventListener('keydown', initAudio);
+                    document.removeEventListener('touchstart', initAudio);
+                };
+                document.addEventListener('click', initAudio);
+                document.addEventListener('keydown', initAudio);
+                document.addEventListener('touchstart', initAudio);
             }
 
             reset() {
@@ -1704,22 +1267,15 @@
                 this.paused = false;
                 this.pauseTime = 0;
                 this.gameOverTime = 0;
-                this.lastShot = 0; // Reset last shot time
-                
-                // FIXED: Stop railgun charge sound on reset
-                this.player.stopRailgunCharge(this.sounds);
+                this.lastShot = 0;
+                this.player.stopRailgunCharge(this.audio);
             }
 
             setupEventListeners() {
                 window.addEventListener('resize', () => {
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
-                    
-                    // Update background binary manager
-                    if (this.backgroundBinary) {
-                        this.backgroundBinary.resize(this.canvas);
-                    }
-                    
+                    this.backgroundBinary.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
@@ -1731,55 +1287,51 @@
                     if (['Escape', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(code)) {
                         e.preventDefault();
                     }
-                    if (code === 'Escape' && this.input.preventSpam('Escape', 200)) {
+                    if (code === 'Escape' && this.input.preventSpam('pause', 200)) {
                         if (!this.gameOver) {
                             this.paused = !this.paused;
                             if (this.paused) {
                                 this.pauseTime = Date.now();
                                 this.input.clear();
-                                this.music.pause(); // Pause music
-                                
-                                // FIXED: Stop railgun charge sound when pausing
-                                this.player.stopRailgunCharge(this.sounds);
-                                
-                                // Play pause activation sound
-                                this.sounds.playSound('pauseActivate');
+                                this.audio.pauseMusic();
+                                this.player.stopRailgunCharge(this.audio);
+                                this.audio.playSound('pauseActivate');
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
                                 this.waveStartTime += Date.now() - this.pauseTime;
-                                this.music.resume(); // Resume music
-                                
-                                // Play pause deactivation sound
-                                this.sounds.playSound('pauseDeactivate');
+                                this.audio.resumeMusic();
+                                this.audio.playSound('pauseDeactivate');
                             }
                         }
                     }
-                    if (code === 'Space' && this.input.preventSpam('Space', 300) && this.gameOver) {
-                        this.reset();
-                        this.music.play(); // Restart music on new game
+                    if (code === 'Space' && this.input.preventSpam('restart', 100)) {
+                        if (this.gameOver) {
+                            this.reset();
+                            this.audio.playSound('backgroundMusic');
+                        }
                     }
                     if (!this.gameOver && !this.paused) {
-                        const moveKeys = { 
-                            'KeyW': 'w', 'ArrowUp': 'w', 
-                            'KeyS': 's', 'ArrowDown': 's', 
-                            'KeyA': 'a', 'ArrowLeft': 'a', 
+                        const moveKeys = {
+                            'KeyW': 'w', 'ArrowUp': 'w',
+                            'KeyS': 's', 'ArrowDown': 's',
+                            'KeyA': 'a', 'ArrowLeft': 'a',
                             'KeyD': 'd', 'ArrowRight': 'd',
                             'ShiftLeft': 'shift', 'ShiftRight': 'shift'
                         };
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
-                            if (this.input.preventSpam('shift', 500)) {
-                                this.player.startDash(this.input.keys, this.effects, this.sounds);
+                            if (this.input.preventSpam('dash', 500)) {
+                                this.player.startDash(this.input.keys, this.effects, this.audio);
                             }
                         }
                     }
                 });
 
                 document.addEventListener('keyup', e => {
-                    const moveKeys = { 
-                        'KeyW': 'w', 'ArrowUp': 'w', 
-                        'KeyS': 's', 'ArrowDown': 's', 
-                        'KeyA': 'a', 'ArrowLeft': 'a', 
+                    const moveKeys = {
+                        'KeyW': 'w', 'ArrowUp': 'w',
+                        'KeyS': 's', 'ArrowDown': 's',
+                        'KeyA': 'a', 'ArrowLeft': 'a',
                         'KeyD': 'd', 'ArrowRight': 'd',
                         'ShiftLeft': 'shift', 'ShiftRight': 'shift'
                     };
@@ -1806,9 +1358,10 @@
                         const buttonWidth = 220;
                         const buttonHeight = 60;
                         if (mouseX >= buttonX - buttonWidth/2 && mouseX <= buttonX + buttonWidth/2 &&
-                            mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2) {
+                            mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2 &&
+                            this.input.preventSpam('restart', 100)) {
                             this.reset();
-                            this.music.play(); // Restart music on new game
+                            this.audio.playSound('backgroundMusic');
                         }
                         return;
                     }
@@ -1834,19 +1387,15 @@
                 if (now - this.lastShot < this.shootDelay) return;
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    this.bullets.push(new Bullet(
-                        this.player.x,
-                        this.player.y,
-                        (dx / dist) * 8,
-                        (dy / dist) * 8
-                    ));
-                    this.lastShot = now;
-                    
-                    // Play bullet shoot sound
-                    this.sounds.playSound('bulletShoot');
-                }
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                this.bullets.push(new Bullet(
+                    this.player.x,
+                    this.player.y,
+                    (dx / dist) * 8,
+                    (dy / dist) * 8
+                ));
+                this.lastShot = now;
+                this.audio.playSound('bulletShoot');
             }
 
             spawnEnemy(type) {
@@ -1868,34 +1417,25 @@
                 this.waveStartTime = Date.now();
                 this.spawnedEnemies = 0;
                 this.enemiesToSpawn = [];
-                
-                // Map 'cubes' to 'square' for consistency with ENEMY_TYPES
                 const enemyCounts = {
                     square: waveConfig.enemies.cubes || 0,
                     triangle: waveConfig.enemies.triangles || 0,
                     octagon: waveConfig.enemies.octagons || 0,
                     rhombus: waveConfig.enemies.rhombuses || 0
                 };
-                
-                // Create spawn queue
                 for (const [type, count] of Object.entries(enemyCounts)) {
                     for (let i = 0; i < count; i++) {
                         this.enemiesToSpawn.push(type);
                     }
                 }
-                
-                // Shuffle spawn queue for random order
                 for (let i = this.enemiesToSpawn.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [this.enemiesToSpawn[i], this.enemiesToSpawn[j]] = [this.enemiesToSpawn[j], this.enemiesToSpawn[i]];
                 }
-                
-                // Calculate spawn interval
                 const totalEnemies = this.enemiesToSpawn.length;
                 if (totalEnemies > 0) {
                     const spawnInterval = waveConfig.spawnTime / totalEnemies;
                     let spawnIndex = 0;
-                    
                     const spawnNext = () => {
                         if (spawnIndex < this.enemiesToSpawn.length) {
                             this.spawnEnemy(this.enemiesToSpawn[spawnIndex]);
@@ -1906,39 +1446,31 @@
                             }
                         }
                     };
-                    
                     spawnNext();
                 }
             }
 
             update(timestamp) {
                 if (this.gameOver || this.paused) return;
-
-                // Check for wave triggers
                 const gameTime = Date.now() - this.startTime;
                 const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
                 if (nextWave && !this.waveStarted) {
                     this.startWave(nextWave);
                 }
-
-                // Reset waveStarted when all enemies are spawned and defeated
                 if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
                     this.waveStarted = false;
                 }
-
                 this.player.move(this.input.keys, this.canvas);
-                this.player.update(this.input, this.effects, this.canvas, this.sounds);
+                this.player.update(this.input, this.effects, this.canvas, this.audio);
                 if (this.input.mouse.down) this.shoot();
-
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
                 this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
-
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
-                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.sounds);
+                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.sounds);
+                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
                         this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
@@ -1949,13 +1481,9 @@
                             const bullet = this.bullets[j];
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                             if (bulletDist < bullet.radius + enemy.radius) {
-                                // Check if rhombus is invulnerable - if so, bullet passes through
-                                if (enemy.type === 'rhombus' && enemy.invulnerable) {
-                                    continue; // Bullet passes through, don't remove it
-                                }
-                                
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) continue;
                                 this.bullets.splice(j, 1);
-                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.sounds)) {
+                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
@@ -1964,15 +1492,11 @@
                                 break;
                             }
                         }
-                        for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
-                            const beam = this.effects.railgunBeams[j];
-                            if (beam.intersectsEnemy(enemy)) {
-                                // Check if rhombus is invulnerable - railgun still hits but no damage
-                                if (enemy.type === 'rhombus' && enemy.invulnerable) {
-                                    continue; // Railgun passes through, no damage
-                                }
-                                
-                                if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx, this.sounds)) {
+                        for (let j = this.effects.effects.length - 1; j >= 0; j--) {
+                            const effect = this.effects.effects[j];
+                            if (effect.type === 'railgunBeam' && effect.intersectsEnemy(enemy)) {
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) continue;
+                                if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
@@ -1982,40 +1506,31 @@
                         }
                     }
                 }
-
                 if (!this.player.isDashing) {
                     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
                         const bullet = this.enemyBullets[i];
                         const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
                         if (dist < bullet.radius + this.player.radius) {
-                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.sounds);
+                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.audio);
                             this.enemyBullets.splice(i, 1);
                         }
                     }
                 }
-
-                this.effects.update();
+                this.effects.update(this.player.x, this.player.y);
                 if (this.player.health <= 0 && !this.gameOver) {
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
                     this.input.clear();
-                    this.music.stop(); // Stop music on game over
-                    
-                    // FIXED: Stop railgun charge sound on game over
-                    this.player.stopRailgunCharge(this.sounds);
-                    
-                    // Play game over sound
-                    this.sounds.playSound('gameOver');
+                    this.audio.pauseMusic();
+                    this.player.stopRailgunCharge(this.audio);
+                    this.audio.playSound('gameOver');
                 }
             }
 
             draw() {
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-                // Draw background binary effect first (below everything)
                 this.backgroundBinary.draw(this.ctx);
-
                 const gridSize = 40;
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
                 this.ctx.lineWidth = 1;
@@ -2031,19 +1546,16 @@
                     this.ctx.lineTo(this.canvas.width, y);
                     this.ctx.stroke();
                 }
-
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
                 this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
-
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2054,7 +1566,6 @@
                     this.ctx.font = '20px Arial';
                     this.ctx.fillText('Press ESC to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
                 }
-
                 if (this.gameOver) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2067,7 +1578,6 @@
                     this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
                     this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
-
                     const buttonX = this.canvas.width / 2;
                     const buttonY = this.canvas.height / 2 + 150;
                     const buttonWidth = 220;
@@ -2102,20 +1612,15 @@
                 } else {
                     gameTime = Date.now() - this.startTime;
                 }
-
                 if (!this.paused && !this.gameOver) {
                     this.update(timestamp);
                 }
-                
-                // Always update background binary effect
                 this.backgroundBinary.update();
-
                 this.draw();
                 document.getElementById('score').textContent = this.score;
                 document.getElementById('enemies').textContent = this.enemiesKilled;
                 document.getElementById('timer').textContent = this.formatTime(gameTime);
                 document.getElementById('wave').textContent = this.currentWave;
-
                 requestAnimationFrame(t => this.loop(t));
             }
 
