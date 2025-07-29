@@ -96,10 +96,18 @@
                     this.sounds.railgunShoot.volume = this.volume;
                     this.sounds.railgunShoot.preload = 'auto';
                     
-                    this.sounds.railgunCharge = new Audio('railgun_charge_sound.wav');
+                    this.sounds.railgunCharge = new Audio('railgun-charge.wav');
                     this.sounds.railgunCharge.volume = this.volume;
                     this.sounds.railgunCharge.loop = true; // Loop while charging
                     this.sounds.railgunCharge.preload = 'auto';
+                    
+                    this.sounds.railgunChargeStart = new Audio('railgun-charge-start.wav');
+                    this.sounds.railgunChargeStart.volume = this.volume;
+                    this.sounds.railgunChargeStart.preload = 'auto';
+                    
+                    this.sounds.railgunChargeMax = new Audio('railgun-charge-max.wav');
+                    this.sounds.railgunChargeMax.volume = this.volume;
+                    this.sounds.railgunChargeMax.preload = 'auto';
                     
                     this.sounds.dash = new Audio('dash.wav');
                     this.sounds.dash.volume = this.volume;
@@ -352,16 +360,25 @@
                 damage: 50,
                 fillColor: '#990000',
                 strokeColor: '#660000'
+            },
+            rhombus: {
+                health: 500,
+                speed: 5,
+                size: 45,
+                points: 30,
+                damage: 50,
+                fillColor: '#ff9999',
+                strokeColor: '#ff6666'
             }
         };
 
         // Wave configuration
         const WAVE_CONFIG = [
-            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0 }, spawnTime: 10000 },
-            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0 }, spawnTime: 10000 },
-            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0 }, spawnTime: 10000 },
-            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5 }, spawnTime: 10000 },
-            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10 }, spawnTime: 10000 }
+            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10, rhombuses: 3 }, spawnTime: 10000 }
         ];
 
         // Input management
@@ -442,6 +459,8 @@
                 this.dashEndX = 0;
                 this.dashEndY = 0;
                 this.railgunCharging = false; // Track if railgun charge sound is playing
+                this.railgunChargeStartPlayed = false; // Track if charge start sound was played
+                this.railgunChargeMaxPlayed = false; // Track if charge max sound was played
             }
 
             startDash(keys, effects, sounds) {
@@ -502,6 +521,21 @@
                 return true;
             }
 
+            // NEW: Method to stop railgun charging (for pause/game over)
+            stopRailgunCharge(sounds) {
+                if (this.railgunCharging && sounds) {
+                    sounds.stopLoopingSound('railgunCharge');
+                    this.railgunCharging = false;
+                }
+                this.railgunCharge = 0;
+                this.railgunParticles = [];
+                this.blinkState = true;
+                this.blinkFrame = 0;
+                // Reset audio event flags
+                this.railgunChargeStartPlayed = false;
+                this.railgunChargeMaxPlayed = false;
+            }
+
             update(input, effects, canvas, sounds) {
                 if (this.damageFlash > 0) this.damageFlash--;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
@@ -527,7 +561,21 @@
                         this.railgunCharging = true;
                     }
                     
+                    // Play charge start sound once when charging begins
+                    if (!this.railgunChargeStartPlayed && sounds) {
+                        sounds.playSound('railgunChargeStart');
+                        this.railgunChargeStartPlayed = true;
+                    }
+                    
+                    const previousCharge = this.railgunCharge;
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
+                    
+                    // Play charge max sound once when reaching full charge
+                    if (this.railgunCharge === 1 && previousCharge < 1 && !this.railgunChargeMaxPlayed && sounds) {
+                        sounds.playSound('railgunChargeMax');
+                        this.railgunChargeMaxPlayed = true;
+                    }
+                    
                     if (this.railgunCharge === 1) {
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
                         this.blinkState = this.blinkFrame < 15;
@@ -558,12 +606,18 @@
                     this.railgunParticles = [];
                     this.blinkState = true;
                     this.blinkFrame = 0;
+                    // Reset audio event flags for next charge cycle
+                    this.railgunChargeStartPlayed = false;
+                    this.railgunChargeMaxPlayed = false;
                 } else {
                     // Stop railgun charge sound if right mouse is released without charge
                     if (this.railgunCharging && sounds) {
                         sounds.stopLoopingSound('railgunCharge');
                         this.railgunCharging = false;
                     }
+                    // Reset audio event flags when not charging
+                    this.railgunChargeStartPlayed = false;
+                    this.railgunChargeMaxPlayed = false;
                 }
             }
 
@@ -664,7 +718,76 @@
             }
         }
 
-        // Triangle trail effect
+        // Rhombus invulnerability effect
+        class RhombusEffect {
+            constructor(x, y, isBecomingInvul) {
+                this.x = x;
+                this.y = y;
+                this.isBecomingInvul = isBecomingInvul; // true = becoming invul, false = becoming vulnerable
+                this.particles = [];
+                this.shockwaveRadius = 0;
+                this.shockwaveMaxRadius = 80;
+                this.life = 30;
+                this.maxLife = 30;
+                
+                // Create particles
+                const particleCount = 12;
+                for (let i = 0; i < particleCount; i++) {
+                    const angle = (Math.PI * 2 * i) / particleCount;
+                    const speed = 3 + Math.random() * 2;
+                    this.particles.push({
+                        x: x,
+                        y: y,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        size: 3 + Math.random() * 3,
+                        opacity: 1,
+                        life: 30
+                    });
+                }
+            }
+
+            update() {
+                this.life--;
+                this.shockwaveRadius = (this.shockwaveMaxRadius * (1 - this.life / this.maxLife));
+                
+                this.particles = this.particles.filter(p => {
+                    p.x += p.dx;
+                    p.y += p.dy;
+                    p.dx *= 0.95;
+                    p.dy *= 0.95;
+                    p.life--;
+                    p.opacity = p.life / 30;
+                    return p.life > 0;
+                });
+                
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                // Draw shockwave
+                ctx.save();
+                const opacity = this.life / this.maxLife;
+                ctx.globalAlpha = opacity * 0.5;
+                const color = this.isBecomingInvul ? '#000000' : '#ff9999';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.shockwaveRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Draw particles
+                ctx.globalAlpha = 1;
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.restore();
+            }
+        }
         class TriangleTrail {
             constructor(x, y, size, opacity, fillColor) {
                 this.x = x + (Math.random() - 0.5) * 2;
@@ -819,10 +942,31 @@
                 this.lastShot = 0;
                 this.shootDelay = type === 'octagon' ? 4000 : Infinity;
                 this.lastTrailTime = 0;
+                
+                // Rhombus-specific properties
+                if (type === 'rhombus') {
+                    this.invulnerable = false;
+                    this.lastStateChange = Date.now();
+                    this.stateChangeDuration = 2500; // 2.5 seconds
+                }
             }
 
             update(player, canvas, effects, enemyBullets, sounds) {
                 if (this.damageFlash > 0) this.damageFlash--;
+                
+                // Handle rhombus invulnerability state changes
+                if (this.type === 'rhombus') {
+                    const now = Date.now();
+                    if (now - this.lastStateChange >= this.stateChangeDuration) {
+                        const wasInvulnerable = this.invulnerable;
+                        this.invulnerable = !this.invulnerable;
+                        this.lastStateChange = now;
+                        
+                        // Create VFX for state change
+                        effects.createRhombusEffect(this.x, this.y, this.invulnerable);
+                    }
+                }
+                
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -876,6 +1020,11 @@
             }
 
             takeDamage(damage, effects, score, ctx, sounds) {
+                // Rhombus is invulnerable during certain states
+                if (this.type === 'rhombus' && this.invulnerable) {
+                    return true; // Still alive, no damage taken
+                }
+                
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
@@ -894,9 +1043,20 @@
             }
 
             draw(ctx) {
-                const color = this.damageFlash > 0 ? '#ffffff' : this.fillColor;
-                const stroke = this.damageFlash > 0 ? '#ffffff' : this.strokeColor;
+                let color, stroke;
+                
+                if (this.type === 'rhombus' && this.invulnerable) {
+                    // Invulnerable rhombus: 50% transparent black with red stroke
+                    color = 'rgba(0, 0, 0, 0.5)';
+                    stroke = '#ff0000';
+                } else {
+                    // Normal appearance or damage flash
+                    color = this.damageFlash > 0 ? '#ffffff' : this.fillColor;
+                    stroke = this.damageFlash > 0 ? '#ffffff' : this.strokeColor;
+                }
+                
                 this.drawShape(ctx, this.x, this.y, this.type, this.radius, color, stroke);
+                
                 if (this.maxHealth > 50) {
                     const w = this.radius * 2, h = 4;
                     ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
@@ -920,6 +1080,16 @@
                     ctx.moveTo(x, y - h);
                     ctx.lineTo(x - h * 0.866, y + h * 0.5);
                     ctx.lineTo(x + h * 0.866, y + h * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (type === 'rhombus') {
+                    ctx.beginPath();
+                    // Draw diamond/rhombus shape
+                    ctx.moveTo(x, y - size);      // Top point
+                    ctx.lineTo(x + size, y);      // Right point
+                    ctx.lineTo(x, y + size);      // Bottom point
+                    ctx.lineTo(x - size, y);      // Left point
                     ctx.closePath();
                     ctx.fill();
                     ctx.stroke();
@@ -1167,6 +1337,7 @@
                 this.railgunParticles = [];
                 this.railgunBeams = [];
                 this.dashTrails = [];
+                this.rhombusEffects = [];
             }
 
             createBulletTrail(x, y, color) {
@@ -1218,6 +1389,10 @@
                 this.dashTrails.push(new DashTrail(x, y));
             }
 
+            createRhombusEffect(x, y, isBecomingInvul) {
+                this.rhombusEffects.push(new RhombusEffect(x, y, isBecomingInvul));
+            }
+
             update() {
                 this.bulletTrails = this.bulletTrails.filter(trail => trail.update());
                 this.bulletExplosions = this.bulletExplosions.filter(explosion => explosion.update());
@@ -1229,6 +1404,7 @@
                 this.railgunParticles = this.railgunParticles.filter(particle => particle.update(this.playerX, this.playerY));
                 this.railgunBeams = this.railgunBeams.filter(beam => beam.update());
                 this.dashTrails = this.dashTrails.filter(trail => trail.update());
+                this.rhombusEffects = this.rhombusEffects.filter(effect => effect.update());
             }
 
             draw(ctx, score, playerX, playerY, bullets) {
@@ -1256,6 +1432,7 @@
                 this.explosions.forEach(explosion => explosion.draw(ctx));
                 this.damageLabels.forEach(label => label.draw(ctx));
                 this.scoreLabels.forEach(label => label.draw(ctx));
+                this.rhombusEffects.forEach(effect => effect.draw(ctx));
                 this.playerX = playerX;
                 this.playerY = playerY;
             }
@@ -1333,6 +1510,9 @@
                 this.pauseTime = 0;
                 this.gameOverTime = 0;
                 this.lastShot = 0; // Reset last shot time
+                
+                // FIXED: Stop railgun charge sound on reset
+                this.player.stopRailgunCharge(this.sounds);
             }
 
             setupEventListeners() {
@@ -1357,6 +1537,9 @@
                                 this.pauseTime = Date.now();
                                 this.input.clear();
                                 this.music.pause(); // Pause music
+                                
+                                // FIXED: Stop railgun charge sound when pausing
+                                this.player.stopRailgunCharge(this.sounds);
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
                                 this.waveStartTime += Date.now() - this.pauseTime;
@@ -1483,7 +1666,8 @@
                 const enemyCounts = {
                     square: waveConfig.enemies.cubes || 0,
                     triangle: waveConfig.enemies.triangles || 0,
-                    octagon: waveConfig.enemies.octagons || 0
+                    octagon: waveConfig.enemies.octagons || 0,
+                    rhombus: waveConfig.enemies.rhombuses || 0
                 };
                 
                 // Create spawn queue
@@ -1558,6 +1742,11 @@
                             const bullet = this.bullets[j];
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                             if (bulletDist < bullet.radius + enemy.radius) {
+                                // Check if rhombus is invulnerable - if so, bullet passes through
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) {
+                                    continue; // Bullet passes through, don't remove it
+                                }
+                                
                                 this.bullets.splice(j, 1);
                                 if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.sounds)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
@@ -1571,6 +1760,11 @@
                         for (let j = this.effects.railgunBeams.length - 1; j >= 0; j--) {
                             const beam = this.effects.railgunBeams[j];
                             if (beam.intersectsEnemy(enemy)) {
+                                // Check if rhombus is invulnerable - railgun still hits but no damage
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) {
+                                    continue; // Railgun passes through, no damage
+                                }
+                                
                                 if (!enemy.takeDamage(beam.damage, this.effects, this.score, this.ctx, this.sounds)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     this.enemies.splice(i, 1);
@@ -1599,6 +1793,9 @@
                     this.gameOverTime = Date.now();
                     this.input.clear();
                     this.music.stop(); // Stop music on game over
+                    
+                    // FIXED: Stop railgun charge sound on game over
+                    this.player.stopRailgunCharge(this.sounds);
                 }
             }
 
