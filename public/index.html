@@ -582,13 +582,17 @@
                     } else {
                         this.blinkState = true;
                         this.blinkFrame = 0;
-                    }
-                    if (this.railgunParticles.length < 5) {
-                        const particleCount = Math.floor(Math.random() * 3) + 3;
-                        for (let i = this.railgunParticles.length; i < particleCount; i++) {
-                            effects.createRailgunParticle(this.x, this.y);
+                        
+                        // Only show charge particles when not at maximum charge
+                        if (this.railgunParticles.length < 5) {
+                            const particleCount = Math.floor(Math.random() * 3) + 3;
+                            for (let i = this.railgunParticles.length; i < particleCount; i++) {
+                                effects.createRailgunParticle(this.x, this.y);
+                            }
                         }
                     }
+                    
+                    // Always update existing particles
                     this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
                     // Stop railgun charge sound when firing
