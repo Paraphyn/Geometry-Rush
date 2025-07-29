@@ -60,6 +60,7 @@
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
         .score { top: 50px; left: 20px; font-size: 25px; }
+        .wave { top: 80px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
     </style>
 </head>
@@ -68,6 +69,7 @@
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui score">Score: <span id="score">0</span></div>
+    <div class="ui wave">Wave: <span id="wave">0</span></div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
 
     <script>
@@ -352,6 +354,15 @@
                 strokeColor: '#660000'
             }
         };
+
+        // Wave configuration
+        const WAVE_CONFIG = [
+            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0 }, spawnTime: 10000 },
+            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0 }, spawnTime: 10000 },
+            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0 }, spawnTime: 10000 },
+            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5 }, spawnTime: 10000 },
+            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10 }, spawnTime: 10000 }
+        ];
 
         // Input management
         class InputManager {
@@ -1236,6 +1247,8 @@
                 this.input = new InputManager();
                 this.music = new MusicManager();
                 this.sounds = new SoundManager();
+                this.shootDelay = 250; // 0.25 seconds between shots
+                this.lastShot = 0;
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
@@ -1288,14 +1301,16 @@
                 this.score = 0;
                 this.enemiesKilled = 0;
                 this.startTime = Date.now();
-                this.lastEnemySpawn = 0;
-                this.enemySpawnRate = 2000;
-                this.lastShot = 0;
-                this.shootDelay = 250;
+                this.currentWave = 0;
+                this.waveStarted = false;
+                this.waveStartTime = 0;
+                this.enemiesToSpawn = [];
+                this.spawnedEnemies = 0;
                 this.gameOver = false;
                 this.paused = false;
                 this.pauseTime = 0;
                 this.gameOverTime = 0;
+                this.lastShot = 0; // Reset last shot time
             }
 
             setupEventListeners() {
@@ -1322,6 +1337,7 @@
                                 this.music.pause(); // Pause music
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
+                                this.waveStartTime += Date.now() - this.pauseTime;
                                 this.music.resume(); // Resume music
                             }
                         }
@@ -1421,7 +1437,7 @@
                 }
             }
 
-            spawnEnemy() {
+            spawnEnemy(type) {
                 const side = Math.floor(Math.random() * 4);
                 const margin = 30;
                 let x, y;
@@ -1431,16 +1447,70 @@
                     case 2: x = Math.random() * this.canvas.width; y = this.canvas.height + margin; break;
                     case 3: x = -margin; y = Math.random() * this.canvas.height; break;
                 }
-                const type = Object.keys(ENEMY_TYPES)[Math.floor(Math.random() * 3)];
                 this.enemies.push(new Enemy(x, y, type, ENEMY_TYPES[type]));
+            }
+
+            startWave(waveConfig) {
+                this.currentWave = waveConfig.wave;
+                this.waveStarted = true;
+                this.waveStartTime = Date.now();
+                this.spawnedEnemies = 0;
+                this.enemiesToSpawn = [];
+                
+                // Map 'cubes' to 'square' for consistency with ENEMY_TYPES
+                const enemyCounts = {
+                    square: waveConfig.enemies.cubes || 0,
+                    triangle: waveConfig.enemies.triangles || 0,
+                    octagon: waveConfig.enemies.octagons || 0
+                };
+                
+                // Create spawn queue
+                for (const [type, count] of Object.entries(enemyCounts)) {
+                    for (let i = 0; i < count; i++) {
+                        this.enemiesToSpawn.push(type);
+                    }
+                }
+                
+                // Shuffle spawn queue for random order
+                for (let i = this.enemiesToSpawn.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.enemiesToSpawn[i], this.enemiesToSpawn[j]] = [this.enemiesToSpawn[j], this.enemiesToSpawn[i]];
+                }
+                
+                // Calculate spawn interval
+                const totalEnemies = this.enemiesToSpawn.length;
+                if (totalEnemies > 0) {
+                    const spawnInterval = waveConfig.spawnTime / totalEnemies;
+                    let spawnIndex = 0;
+                    
+                    const spawnNext = () => {
+                        if (spawnIndex < this.enemiesToSpawn.length) {
+                            this.spawnEnemy(this.enemiesToSpawn[spawnIndex]);
+                            this.spawnedEnemies++;
+                            spawnIndex++;
+                            if (spawnIndex < this.enemiesToSpawn.length) {
+                                setTimeout(spawnNext, spawnInterval);
+                            }
+                        }
+                    };
+                    
+                    spawnNext();
+                }
             }
 
             update(timestamp) {
                 if (this.gameOver || this.paused) return;
-                if (timestamp - this.lastEnemySpawn > this.enemySpawnRate) {
-                    this.spawnEnemy();
-                    this.lastEnemySpawn = timestamp;
-                    this.enemySpawnRate = Math.max(500, this.enemySpawnRate * 0.99);
+
+                // Check for wave triggers
+                const gameTime = Date.now() - this.startTime;
+                const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
+                if (nextWave && !this.waveStarted) {
+                    this.startWave(nextWave);
+                }
+
+                // Reset waveStarted when all enemies are spawned and defeated
+                if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
+                    this.waveStarted = false;
                 }
 
                 this.player.move(this.input.keys, this.canvas);
@@ -1564,9 +1634,10 @@
                     this.ctx.font = '28px Arial';
                     this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
 
                     const buttonX = this.canvas.width / 2;
-                    const buttonY = this.canvas.height / 2 + 100;
+                    const buttonY = this.canvas.height / 2 + 150;
                     const buttonWidth = 220;
                     const buttonHeight = 60;
                     this.ctx.fillStyle = '#ffffff';
@@ -1608,6 +1679,7 @@
                 document.getElementById('score').textContent = this.score;
                 document.getElementById('enemies').textContent = this.enemiesKilled;
                 document.getElementById('timer').textContent = this.formatTime(gameTime);
+                document.getElementById('wave').textContent = this.currentWave;
 
                 requestAnimationFrame(t => this.loop(t));
             }
