@@ -363,8 +363,8 @@
             },
             rhombus: {
                 health: 500,
-                speed: 5,
-                size: 45,
+                speed: 4.5,
+                size: 35,
                 points: 30,
                 damage: 50,
                 fillColor: '#ff9999',
@@ -381,7 +381,110 @@
             { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10, rhombuses: 3 }, spawnTime: 10000 }
         ];
 
-        // Input management
+        // Background binary effect
+        class BackgroundBinary {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.digit = Math.random() < 0.5 ? '0' : '1';
+                this.opacity = 0;
+                this.maxOpacity = 0.3;
+                this.life = 180 + Math.random() * 120; // 3-5 seconds at 60fps
+                this.maxLife = this.life;
+                this.fadeInDuration = 30; // 0.5 seconds
+                this.fadeOutDuration = 60; // 1 second
+                this.size = 12 + Math.random() * 8; // 12-20px
+            }
+
+            update() {
+                this.life--;
+                
+                // Fade in phase
+                if (this.life > this.maxLife - this.fadeInDuration) {
+                    const fadeProgress = (this.maxLife - this.life) / this.fadeInDuration;
+                    this.opacity = this.maxOpacity * fadeProgress;
+                }
+                // Fade out phase
+                else if (this.life < this.fadeOutDuration) {
+                    this.opacity = this.maxOpacity * (this.life / this.fadeOutDuration);
+                }
+                // Full opacity phase
+                else {
+                    this.opacity = this.maxOpacity;
+                }
+                
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                if (this.opacity > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity;
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = `${this.size}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.digit, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Background binary manager
+        class BackgroundBinaryManager {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.binaries = [];
+                this.spawnTimer = 0;
+                this.spawnDelay = 8; // Spawn every 8 frames for optimal performance (7.5 per second)
+                this.gridSize = 80; // Minimum distance between binaries
+                this.maxBinaries = 50; // Performance limit
+            }
+
+            update() {
+                // Update existing binaries
+                this.binaries = this.binaries.filter(binary => binary.update());
+                
+                // Spawn new binaries
+                this.spawnTimer++;
+                if (this.spawnTimer >= this.spawnDelay && this.binaries.length < this.maxBinaries) {
+                    this.spawnBinary();
+                    this.spawnTimer = 0;
+                }
+            }
+
+            spawnBinary() {
+                // Try to find a good spawn position
+                let attempts = 0;
+                let x, y;
+                
+                do {
+                    x = Math.random() * this.canvas.width;
+                    y = Math.random() * this.canvas.height;
+                    attempts++;
+                } while (attempts < 10 && this.tooCloseToExisting(x, y));
+                
+                // Only spawn if we found a good position or tried too many times
+                if (attempts < 10 || this.binaries.length < this.maxBinaries * 0.5) {
+                    this.binaries.push(new BackgroundBinary(x, y));
+                }
+            }
+
+            tooCloseToExisting(x, y) {
+                return this.binaries.some(binary => {
+                    const dx = binary.x - x;
+                    const dy = binary.y - y;
+                    return Math.sqrt(dx * dx + dy * dy) < this.gridSize;
+                });
+            }
+
+            draw(ctx) {
+                this.binaries.forEach(binary => binary.draw(ctx));
+            }
+
+            resize(canvas) {
+                this.canvas = canvas;
+            }
+        }
         class InputManager {
             constructor() {
                 this.keys = {};
@@ -1456,6 +1559,9 @@
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
+                
+                // Initialize background binary effect
+                this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
             }
 
             async setupAudio() {
@@ -1492,6 +1598,11 @@
             setupCanvas() {
                 this.canvas.width = window.innerWidth;
                 this.canvas.height = window.innerHeight;
+                
+                // Update background binary manager canvas reference
+                if (this.backgroundBinary) {
+                    this.backgroundBinary.resize(this.canvas);
+                }
             }
 
             reset() {
@@ -1523,6 +1634,12 @@
                 window.addEventListener('resize', () => {
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
+                    
+                    // Update background binary manager
+                    if (this.backgroundBinary) {
+                        this.backgroundBinary.resize(this.canvas);
+                    }
+                    
                     if (this.player.health === 100 && this.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
@@ -1807,6 +1924,9 @@
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+                // Draw background binary effect first (below everything)
+                this.backgroundBinary.draw(this.ctx);
+
                 const gridSize = 40;
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
                 this.ctx.lineWidth = 1;
@@ -1897,6 +2017,9 @@
                 if (!this.paused && !this.gameOver) {
                     this.update(timestamp);
                 }
+                
+                // Always update background binary effect
+                this.backgroundBinary.update();
 
                 this.draw();
                 document.getElementById('score').textContent = this.score;
