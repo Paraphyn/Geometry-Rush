@@ -393,16 +393,15 @@
                 this.x = x;
                 this.y = y;
                 this.color = '#ffffff';
-                this.size = 10;
-                this.opacity = 0.6;
+                this.size = 20; // Match player radius
+                this.opacity = 0.7; // Start at 70% transparency
                 this.life = 20;
                 this.maxLife = 20;
             }
 
             update() {
                 this.life--;
-                this.opacity = this.life / this.maxLife;
-                this.size *= 0.95;
+                this.opacity = 0.3 * (this.life / this.maxLife); // Fade from 0.3 to 0
                 return this.life > 0;
             }
 
@@ -445,23 +444,33 @@
                 this.railgunCharging = false; // Track if railgun charge sound is playing
             }
 
-            startDash(mouseX, mouseY, effects, sounds) {
+            startDash(keys, effects, sounds) {
                 if (this.isDashing) return;
+
+                // Calculate movement direction from WASD keys
+                let dx = 0, dy = 0;
+                if (keys.w) dy -= 1;
+                if (keys.s) dy += 1;
+                if (keys.a) dx -= 1;
+                if (keys.d) dx += 1;
+
+                // If no movement keys are pressed, do nothing
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist === 0) return;
+
+                // Normalize direction and set dash distance
+                dx = (dx / dist) * this.dashDistance;
+                dy = (dy / dist) * this.dashDistance;
+
                 this.isDashing = true;
                 this.invulnerable = true;
                 this.dashProgress = 0;
                 this.dashStartX = this.x;
                 this.dashStartY = this.y;
-                const dx = mouseX - this.x;
-                const dy = mouseY - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    this.dashEndX = this.x + (dx / dist) * this.dashDistance;
-                    this.dashEndY = this.y + (dy / dist) * this.dashDistance;
-                } else {
-                    this.dashEndX = this.x;
-                    this.dashEndY = this.y;
-                }
+                this.dashEndX = this.x + dx;
+                this.dashEndY = this.y + dy;
+
+                // Clamp to canvas bounds
                 this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
                 this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
                 
@@ -1223,7 +1232,20 @@
             }
 
             draw(ctx, score, playerX, playerY, bullets) {
-                this.dashTrails.forEach(trail => trail.draw(ctx));
+                // Draw dash trails with fading opacity based on index
+                this.dashTrails.forEach((trail, index) => {
+                    // Calculate opacity multiplier: newer trails (higher index) are more opaque
+                    const maxOpacity = 0.3; // Match DashTrail initial opacity
+                    const minOpacity = 0.05; // Minimum opacity for oldest trail
+                    const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, this.dashTrails.length - 1));
+                    ctx.save();
+                    ctx.globalAlpha = trail.opacity * opacityScale;
+                    ctx.fillStyle = trail.color;
+                    ctx.beginPath();
+                    ctx.arc(trail.x, trail.y, trail.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
                 this.bulletTrails.forEach(trail => trail.draw(ctx));
                 this.bulletExplosions.forEach(explosion => explosion.draw(ctx));
                 this.railgunParticles.forEach(particle => particle.draw(ctx));
@@ -1357,7 +1379,7 @@
                         if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
                         if (code === 'ShiftLeft' || code === 'ShiftRight') {
                             if (this.input.preventSpam('shift', 500)) {
-                                this.player.startDash(this.input.mouse.x, this.input.mouse.y, this.effects, this.sounds);
+                                this.player.startDash(this.input.keys, this.effects, this.sounds);
                             }
                         }
                     }
