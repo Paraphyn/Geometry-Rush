@@ -29,6 +29,12 @@
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
             z-index: 100;
             pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .ui.hidden {
+            opacity: 0;
+            visibility: hidden;
         }
         
         body * {
@@ -1211,6 +1217,34 @@
             }
         }
 
+        // UI Manager for handling UI visibility
+        class UIManager {
+            constructor() {
+                this.uiElements = [
+                    document.querySelector('.enemies'),
+                    document.querySelector('.timer'),
+                    document.querySelector('.score'),
+                    document.querySelector('.wave')
+                ];
+            }
+
+            hideUI() {
+                this.uiElements.forEach(element => {
+                    if (element) {
+                        element.classList.add('hidden');
+                    }
+                });
+            }
+
+            showUI() {
+                this.uiElements.forEach(element => {
+                    if (element) {
+                        element.classList.remove('hidden');
+                    }
+                });
+            }
+        }
+
         // Main game class
         class Game {
             constructor() {
@@ -1218,6 +1252,7 @@
                 this.ctx = this.canvas.getContext('2d');
                 this.input = new InputManager();
                 this.audio = new AudioManager();
+                this.uiManager = new UIManager();
                 this.shootDelay = 250;
                 this.lastShot = 0;
                 this.setupCanvas();
@@ -1269,6 +1304,7 @@
                 this.gameOverTime = 0;
                 this.lastShot = 0;
                 this.player.stopRailgunCharge(this.audio);
+                this.uiManager.showUI(); // Show UI when game resets
             }
 
             setupEventListeners() {
@@ -1524,6 +1560,7 @@
                     this.audio.pauseMusic();
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
+                    this.uiManager.hideUI(); // Hide UI when game over
                 }
             }
 
