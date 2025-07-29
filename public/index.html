@@ -78,7 +78,8 @@
             constructor() {
                 this.sounds = {};
                 this.initialized = false;
-                this.volume = 0.7; // Default 70% for sound effects
+                this.volume = 0.7;
+                this.loadingPromises = [];
             }
 
             async initialize() {
@@ -87,91 +88,95 @@
                 try {
                     console.log('Loading sound effects...');
                     
-                    // Player sounds
-                    this.sounds.bulletShoot = new Audio('bullet-shoot.wav');
-                    this.sounds.bulletShoot.volume = this.volume;
-                    this.sounds.bulletShoot.preload = 'auto';
+                    // Define all audio files with preload settings
+                    const audioFiles = {
+                        bulletShoot: 'bullet-shoot.wav',
+                        railgunShoot: 'railgun-shoot.wav',
+                        railgunCharge: 'railgun-charge.wav',
+                        railgunChargeStart: 'railgun-charge-start.wav',
+                        railgunChargeMax: 'railgun-charge-max.wav',
+                        dash: 'dash.wav',
+                        playerDamage: 'player-damage.wav',
+                        pauseActivate: 'pause-activate.wav',
+                        pauseDeactivate: 'pause-deactivate.wav',
+                        gameOver: 'game-over.wav',
+                        enemyHit: 'enemy-hit.wav',
+                        enemyDeath: 'enemy-death.wav',
+                        enemyShoot: 'enemy-shoot.wav'
+                    };
                     
-                    this.sounds.railgunShoot = new Audio('railgun-shoot.wav');
-                    this.sounds.railgunShoot.volume = this.volume;
-                    this.sounds.railgunShoot.preload = 'auto';
-                    
-                    this.sounds.railgunCharge = new Audio('railgun-charge.wav');
-                    this.sounds.railgunCharge.volume = this.volume;
-                    this.sounds.railgunCharge.loop = true; // Loop while charging
-                    this.sounds.railgunCharge.preload = 'auto';
-                    
-                    this.sounds.railgunChargeStart = new Audio('railgun-charge-start.wav');
-                    this.sounds.railgunChargeStart.volume = this.volume;
-                    this.sounds.railgunChargeStart.preload = 'auto';
-                    
-                    this.sounds.railgunChargeMax = new Audio('railgun-charge-max.wav');
-                    this.sounds.railgunChargeMax.volume = this.volume;
-                    this.sounds.railgunChargeMax.preload = 'auto';
-                    
-                    this.sounds.dash = new Audio('dash.wav');
-                    this.sounds.dash.volume = this.volume;
-                    this.sounds.dash.preload = 'auto';
-                    
-                    // Player state sounds
-                    this.sounds.playerDamage = new Audio('player-damage.wav');
-                    this.sounds.playerDamage.volume = this.volume;
-                    this.sounds.playerDamage.preload = 'auto';
-                    
-                    this.sounds.pauseActivate = new Audio('pause-activate.wav');
-                    this.sounds.pauseActivate.volume = this.volume;
-                    this.sounds.pauseActivate.preload = 'auto';
-                    
-                    this.sounds.pauseDeactivate = new Audio('pause-deactivate.wav');
-                    this.sounds.pauseDeactivate.volume = this.volume;
-                    this.sounds.pauseDeactivate.preload = 'auto';
-                    
-                    this.sounds.gameOver = new Audio('game-over.wav');
-                    this.sounds.gameOver.volume = this.volume;
-                    this.sounds.gameOver.preload = 'auto';
-                    
-                    // Enemy sounds
-                    this.sounds.enemyHit = new Audio('enemy-hit.wav');
-                    this.sounds.enemyHit.volume = this.volume;
-                    this.sounds.enemyHit.preload = 'auto';
-                    
-                    this.sounds.enemyDeath = new Audio('enemy-death.wav');
-                    this.sounds.enemyDeath.volume = this.volume;
-                    this.sounds.enemyDeath.preload = 'auto';
-                    
-                    this.sounds.enemyShoot = new Audio('enemy-shoot.wav');
-                    this.sounds.enemyShoot.volume = this.volume;
-                    this.sounds.enemyShoot.preload = 'auto';
-                    
-                    // Wait for sounds to load
-                    const loadPromises = Object.entries(this.sounds).map(([name, audio]) => {
-                        return new Promise((resolve) => {
-                            audio.addEventListener('canplaythrough', resolve);
-                            audio.addEventListener('error', () => {
-                                console.warn(`Failed to load ${name}`);
+                    // Create and configure all audio objects
+                    Object.entries(audioFiles).forEach(([key, filename]) => {
+                        const audio = new Audio(filename);
+                        audio.volume = this.volume;
+                        audio.preload = 'auto';
+                        
+                        // Special configuration for looping sounds
+                        if (key === 'railgunCharge') {
+                            audio.loop = true;
+                        }
+                        
+                        this.sounds[key] = audio;
+                        
+                        // Create loading promise for each audio file
+                        const loadPromise = new Promise((resolve) => {
+                            const onLoad = () => {
+                                console.log(`✓ Loaded: ${filename}`);
+                                audio.removeEventListener('canplaythrough', onLoad);
+                                audio.removeEventListener('error', onError);
+                                resolve();
+                            };
+                            
+                            const onError = (e) => {
+                                console.warn(`✗ Failed to load ${filename}:`, e);
+                                audio.removeEventListener('canplaythrough', onLoad);
+                                audio.removeEventListener('error', onError);
                                 resolve(); // Continue even if sound fails
-                            });
+                            };
+                            
+                            audio.addEventListener('canplaythrough', onLoad);
+                            audio.addEventListener('error', onError);
+                            
+                            // Force load
                             audio.load();
                         });
+                        
+                        this.loadingPromises.push(loadPromise);
                     });
                     
-                    await Promise.all(loadPromises);
+                    // Wait for ALL audio files to load
+                    await Promise.all(this.loadingPromises);
                     this.initialized = true;
-                    console.log(`Sound effects loaded successfully at ${Math.round(this.volume * 100)}% volume`);
+                    console.log(`🎵 All sound effects loaded successfully at ${Math.round(this.volume * 100)}% volume`);
+                    
                 } catch (error) {
                     console.warn('Failed to load sound effects:', error);
                 }
+            }
+
+            // Add method to check if all sounds are ready
+            isReady() {
+                return this.initialized && Object.values(this.sounds).every(audio => 
+                    audio.readyState >= 3 // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+                );
             }
 
             playSound(soundName) {
                 if (!this.initialized || !this.sounds[soundName]) return;
                 
                 try {
-                    // Reset and play the sound
                     const audio = this.sounds[soundName];
                     audio.currentTime = 0;
                     audio.volume = this.volume;
-                    audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                    
+                    // Use cloneNode for overlapping sounds
+                    if (soundName === 'bulletShoot' || soundName === 'enemyHit') {
+                        const clone = audio.cloneNode();
+                        clone.volume = this.volume;
+                        clone.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                    } else {
+                        audio.play().catch(error => console.warn(`Failed to play ${soundName}:`, error));
+                    }
                 } catch (error) {
                     console.warn(`Error playing ${soundName}:`, error);
                 }
@@ -220,7 +225,7 @@
             constructor() {
                 this.audio = null;
                 this.initialized = false;
-                this.volume = 0.4; // Default 50% for music
+                this.volume = 0.4;
                 this.userInteracted = false;
             }
 
@@ -242,10 +247,10 @@
                     this.audio.addEventListener('pause', () => console.log('Music: Paused'));
                     this.audio.addEventListener('error', (e) => console.error('Music error:', e));
                     
-                    // Wait for the audio to be ready
+                    // Wait for the audio to be ready with timeout
                     await new Promise((resolve, reject) => {
                         const onReady = () => {
-                            console.log(`Music ready to play at ${Math.round(this.volume * 100)}% volume`);
+                            console.log(`🎵 Music ready to play at ${Math.round(this.volume * 100)}% volume`);
                             this.audio.removeEventListener('canplaythrough', onReady);
                             this.audio.removeEventListener('error', onError);
                             resolve();
@@ -261,16 +266,16 @@
                         this.audio.addEventListener('canplaythrough', onReady);
                         this.audio.addEventListener('error', onError);
                         
-                        // Try to load
+                        // Force load
                         this.audio.load();
                         
-                        // Timeout after 5 seconds
+                        // Timeout after 10 seconds
                         setTimeout(() => {
                             if (!this.initialized) {
                                 console.warn('Music loading timeout - continuing anyway');
                                 onReady();
                             }
-                        }, 5000);
+                        }, 10000);
                     });
                     
                     this.initialized = true;
@@ -279,6 +284,10 @@
                     console.warn('Failed to load background music:', error);
                     this.initialized = false;
                 }
+            }
+
+            isReady() {
+                return this.initialized && this.audio && this.audio.readyState >= 3;
             }
 
             async play() {
@@ -336,7 +345,6 @@
                 return this.volume;
             }
 
-            // Method to test if music is working
             test() {
                 console.log('Music test:');
                 console.log('- Initialized:', this.initialized);
@@ -1616,34 +1624,55 @@
             }
 
             async setupAudio() {
-                // Initialize audio on first user interaction
-                const initAudio = async (event) => {
-                    console.log('User interaction detected, initializing audio...');
-                    try {
-                        await this.music.initialize();
-                        await this.sounds.initialize();
-                        await this.music.play();
-                        console.log('Audio should be working now');
-                        
-                        // Test audio status
-                        setTimeout(() => {
-                            this.music.test();
-                        }, 1000);
-                        
-                    } catch (error) {
-                        console.error('Audio initialization failed:', error);
-                    }
+                // Show loading message
+                console.log('Initializing audio system...');
+                
+                try {
+                    // Initialize both audio systems before any user interaction
+                    await this.sounds.initialize();
+                    await this.music.initialize();
                     
-                    document.removeEventListener('click', initAudio);
-                    document.removeEventListener('keydown', initAudio);
-                    document.removeEventListener('touchstart', initAudio);
-                };
-                
-                document.addEventListener('click', initAudio);
-                document.addEventListener('keydown', initAudio);
-                document.addEventListener('touchstart', initAudio); // For mobile
-                
-                console.log('Audio system ready - waiting for user interaction');
+                    console.log('✓ Audio preloading complete');
+                    
+                    // Wait for user interaction to actually play
+                    const initAudio = async (event) => {
+                        console.log('User interaction detected, starting audio...');
+                        
+                        try {
+                            // Verify audio is ready
+                            if (this.sounds.isReady() && this.music.isReady()) {
+                                await this.music.play();
+                                console.log('✓ Audio started successfully');
+                            } else {
+                                console.warn('Audio not fully ready, starting anyway...');
+                                await this.music.play();
+                            }
+                            
+                            // Test audio status after a moment
+                            setTimeout(() => {
+                                this.music.test();
+                            }, 1000);
+                            
+                        } catch (error) {
+                            console.error('Audio initialization failed:', error);
+                        }
+                        
+                        // Remove listeners
+                        document.removeEventListener('click', initAudio);
+                        document.removeEventListener('keydown', initAudio);
+                        document.removeEventListener('touchstart', initAudio);
+                    };
+                    
+                    // Add user interaction listeners
+                    document.addEventListener('click', initAudio);
+                    document.addEventListener('keydown', initAudio);
+                    document.addEventListener('touchstart', initAudio); // For mobile
+                    
+                    console.log('🎵 Audio system ready - waiting for user interaction to start playback');
+                    
+                } catch (error) {
+                    console.error('Failed to initialize audio system:', error);
+                }
             }
 
             setupCanvas() {
