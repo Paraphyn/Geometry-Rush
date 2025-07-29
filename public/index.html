@@ -113,6 +113,23 @@
                     this.sounds.dash.volume = this.volume;
                     this.sounds.dash.preload = 'auto';
                     
+                    // Player state sounds
+                    this.sounds.playerDamage = new Audio('player-damage.wav');
+                    this.sounds.playerDamage.volume = this.volume;
+                    this.sounds.playerDamage.preload = 'auto';
+                    
+                    this.sounds.pauseActivate = new Audio('pause-activate.wav');
+                    this.sounds.pauseActivate.volume = this.volume;
+                    this.sounds.pauseActivate.preload = 'auto';
+                    
+                    this.sounds.pauseDeactivate = new Audio('pause-deactivate.wav');
+                    this.sounds.pauseDeactivate.volume = this.volume;
+                    this.sounds.pauseDeactivate.preload = 'auto';
+                    
+                    this.sounds.gameOver = new Audio('game-over.wav');
+                    this.sounds.gameOver.volume = this.volume;
+                    this.sounds.gameOver.preload = 'auto';
+                    
                     // Enemy sounds
                     this.sounds.enemyHit = new Audio('enemy-hit.wav');
                     this.sounds.enemyHit.volume = this.volume;
@@ -363,8 +380,8 @@
             },
             rhombus: {
                 health: 500,
-                speed: 4.5,
-                size: 35,
+                speed: 5,
+                size: 45,
                 points: 30,
                 damage: 50,
                 fillColor: '#ff9999',
@@ -612,7 +629,7 @@
                 this.canvas = canvas;
             }
 
-            takeDamage(damage, sourceX, sourceY, effects) {
+            takeDamage(damage, sourceX, sourceY, effects, sounds) {
                 if (this.health <= 0 || this.invulnerable) return false;
                 const actualDamage = Math.min(damage, this.health);
                 if (actualDamage <= 0) return false;
@@ -621,6 +638,10 @@
                 this.invulnerable = true;
                 this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
+                
+                // Play player damage sound
+                if (sounds) sounds.playSound('playerDamage');
+                
                 return true;
             }
 
@@ -1055,6 +1076,13 @@
                     this.invulnerable = false;
                     this.lastStateChange = Date.now();
                     this.stateChangeDuration = 2500; // 2.5 seconds
+                    
+                    // Rhombus movement behavior
+                    this.circleRadius = 150 + Math.random() * 100; // 150-250px orbit radius
+                    this.angleOffset = Math.random() * Math.PI * 2; // Random starting angle
+                    this.clockwise = Math.random() < 0.5; // Random direction
+                    this.orbitSpeed = 0.02 + Math.random() * 0.02; // 0.02-0.04 radians per frame
+                    this.approachSpeed = 0.8; // How fast to approach the orbit
                 }
             }
 
@@ -1077,9 +1105,32 @@
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    this.x += (dx / dist) * this.speed;
-                    this.y += (dy / dist) * this.speed;
+                
+                if (this.type === 'rhombus') {
+                    // Rhombus orbital movement behavior
+                    this.angleOffset += this.clockwise ? this.orbitSpeed : -this.orbitSpeed;
+                    
+                    // Calculate desired position on orbit around player
+                    const desiredX = player.x + Math.cos(this.angleOffset) * this.circleRadius;
+                    const desiredY = player.y + Math.sin(this.angleOffset) * this.circleRadius;
+                    
+                    // Move towards desired orbital position
+                    const desiredDx = desiredX - this.x;
+                    const desiredDy = desiredY - this.y;
+                    const desiredDist = Math.sqrt(desiredDx * desiredDx + desiredDy * desiredDy);
+                    
+                    if (desiredDist > 0) {
+                        // Blend between orbital movement and approach movement
+                        const moveSpeed = this.speed * this.approachSpeed;
+                        this.x += (desiredDx / desiredDist) * moveSpeed;
+                        this.y += (desiredDy / desiredDist) * moveSpeed;
+                    }
+                } else {
+                    // Normal enemy movement (direct chase)
+                    if (dist > 0) {
+                        this.x += (dx / dist) * this.speed;
+                        this.y += (dy / dist) * this.speed;
+                    }
                 }
                 if (this.type === 'octagon') {
                     const now = Date.now();
@@ -1661,10 +1712,16 @@
                                 
                                 // FIXED: Stop railgun charge sound when pausing
                                 this.player.stopRailgunCharge(this.sounds);
+                                
+                                // Play pause activation sound
+                                this.sounds.playSound('pauseActivate');
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
                                 this.waveStartTime += Date.now() - this.pauseTime;
                                 this.music.resume(); // Resume music
+                                
+                                // Play pause deactivation sound
+                                this.sounds.playSound('pauseDeactivate');
                             }
                         }
                     }
@@ -1852,7 +1909,7 @@
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.sounds);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects);
+                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.sounds);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
                         this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
@@ -1902,7 +1959,7 @@
                         const bullet = this.enemyBullets[i];
                         const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
                         if (dist < bullet.radius + this.player.radius) {
-                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects);
+                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.sounds);
                             this.enemyBullets.splice(i, 1);
                         }
                     }
@@ -1917,6 +1974,9 @@
                     
                     // FIXED: Stop railgun charge sound on game over
                     this.player.stopRailgunCharge(this.sounds);
+                    
+                    // Play game over sound
+                    this.sounds.playSound('gameOver');
                 }
             }
 
