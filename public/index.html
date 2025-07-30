@@ -95,6 +95,7 @@
                     bulletShoot: { file: 'bullet-shoot.wav', loop: false },
                     railgunShoot: { file: 'railgun-shoot.wav', loop: false },
                     railgunCharge: { file: 'railgun-charge.wav', loop: true },
+                    railgunChargeMax: { file: 'railgun-charge-max.wav', loop: false },
                     dash: { file: 'dash.wav', loop: false },
                     playerDamage: { file: 'player-damage.wav', loop: false },
                     pauseActivate: { file: 'pause-activate.wav', loop: false },
@@ -414,6 +415,13 @@
                     }
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
+                        // Stop charging sound and play max charge sound when fully charged
+                        if (this.railgunCharging && audio) {
+                            audio.stopLoopingSound('railgunCharge');
+                            this.railgunCharging = false;
+                            // Play max charge sound (assuming this sound exists)
+                            audio.playSound('railgunChargeMax');
+                        }
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
                         this.blinkState = this.blinkFrame < 15;
                     } else {
@@ -1303,6 +1311,7 @@
                 this.pauseTime = 0;
                 this.gameOverTime = 0;
                 this.lastShot = 0;
+                this.gameOverBlinkFrame = 0;
                 this.player.stopRailgunCharge(this.audio);
                 this.uiManager.showUI(); // Show UI when game resets
             }
@@ -1385,22 +1394,7 @@
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
-                    if (this.gameOver) {
-                        const rect = this.canvas.getBoundingClientRect();
-                        const mouseX = e.clientX - rect.left;
-                        const mouseY = e.clientY - rect.top;
-                        const buttonX = this.canvas.width / 2;
-                        const buttonY = this.canvas.height / 2 + 100;
-                        const buttonWidth = 220;
-                        const buttonHeight = 60;
-                        if (mouseX >= buttonX - buttonWidth/2 && mouseX <= buttonX + buttonWidth/2 &&
-                            mouseY >= buttonY - buttonHeight/2 && mouseY <= buttonY + buttonHeight/2 &&
-                            this.input.preventSpam('restart', 100)) {
-                            this.reset();
-                            this.audio.playSound('backgroundMusic');
-                        }
-                        return;
-                    }
+                    if (this.gameOver) return;
                     if (!this.paused) {
                         if (e.button === 0) this.input.mouse.down = true;
                         else if (e.button === 2) this.input.mouse.rightDown = true;
@@ -1615,21 +1609,25 @@
                     this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
                     this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
-                    const buttonX = this.canvas.width / 2;
-                    const buttonY = this.canvas.height / 2 + 150;
-                    const buttonWidth = 220;
-                    const buttonHeight = 60;
-                    this.ctx.fillStyle = '#ffffff';
-                    this.ctx.fillRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
-                    this.ctx.strokeStyle = '#cccccc';
-                    this.ctx.lineWidth = 3;
-                    this.ctx.strokeRect(buttonX - buttonWidth/2, buttonY - buttonHeight/2, buttonWidth, buttonHeight);
-                    this.ctx.fillStyle = '#ff0000';
-                    this.ctx.font = '24px Arial';
-                    this.ctx.fillText('PLAY AGAIN', buttonX, buttonY + 8);
+                    
+                    // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
+                    const blinkCycle = this.gameOverBlinkFrame % 90;
+                    let opacity;
+                    
+                    if (blinkCycle < 45) {
+                        // Fade in during first half
+                        opacity = blinkCycle / 45;
+                    } else {
+                        // Fade out during second half
+                        opacity = (90 - blinkCycle) / 45;
+                    }
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = opacity;
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
-                    this.ctx.fillText('Press SPACE or click button to restart', buttonX, buttonY + 70);
+                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 120);
+                    this.ctx.restore();
                 }
             }
 
@@ -1654,6 +1652,11 @@
                 }
                 this.backgroundBinary.update();
                 this.draw();
+                
+                // Update game over blink animation
+                if (this.gameOver) {
+                    this.gameOverBlinkFrame++;
+                }
                 document.getElementById('score').textContent = this.score;
                 document.getElementById('enemies').textContent = this.enemiesKilled;
                 document.getElementById('timer').textContent = this.formatTime(gameTime);
