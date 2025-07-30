@@ -485,39 +485,40 @@
             }
         }
 
-        // Player bullet management
-        class Bullet {
-            constructor(x, y, dx, dy) {
-                this.x = x;
-                this.y = y;
-                this.dx = dx;
-                this.dy = dy;
-                this.radius = 4;
-                this.life = 100;
-            }
+        // Enemy bullet management
+class EnemyBullet {
+    constructor(x, y, dx, dy) {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+        this.radius = 6;
+        this.life = 100;
+        this.damage = 15;
+    }
 
-            update(canvas, effects) {
-                effects.createBulletTrail(this.x, this.y, '#00ffff');
-                this.x += this.dx;
-                this.y += this.dy;
-                this.life--;
-                if (this.life <= 0) {
-                    effects.createBulletExplosion(this.x, this.y, '#00ffff');
-                    return false;
-                }
-                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
-            }
-
-            draw(ctx) {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = '#00ffff';
-                ctx.fill();
-                ctx.strokeStyle = '#00cccc';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
+    update(canvas, effects) {
+        effects.createBulletTrail(this.x, this.y, '#ffaa00');
+        this.x += this.dx;
+        this.y += this.dy; // Fixed: Update y-position to move toward player
+        this.life--;
+        if (this.life <= 0) {
+            effects.createBulletExplosion(this.x, this.y, '#ffaa00');
+            return false;
         }
+        return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffaa00';
+        ctx.fill();
+        ctx.strokeStyle = '#ff8800';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+}
 
         // Enemy bullet management
         class EnemyBullet {
