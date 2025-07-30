@@ -533,7 +533,7 @@
 
             update(canvas, effects) {
                 effects.createBulletTrail(this.x, this.y, '#ffaa00');
-                this.x += this.dy;
+                this.x += this.dx;
                 this.life--;
                 if (this.life <= 0) {
                     effects.createBulletExplosion(this.x, this.y, '#ffaa00');
@@ -595,11 +595,12 @@
 
         // Wave configuration
         const WAVE_CONFIG = [
-            { timer: 0, wave: 1, enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 15000, wave: 2, enemies: { cubes: 10, triangles: 5, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 10, octagons: 5, rhombuses: 3 }, spawnTime: 10000 },
-            { timer: 60000, wave: 5, enemies: { cubes: 25, triangles: 15, octagons: 10, rhombuses: 3 }, spawnTime: 10000 }
+            { timer: 0, wave: 1, enemies: { cubes: 15, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 15000, wave: 2, enemies: { cubes: 15, triangles: 5, octagons: 5, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 30, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 45000, wave: 4, enemies: { cubes: 15, triangles: 0, octagons: 10, rhombuses: 5 }, spawnTime: 10000 },
+            { timer: 60000, wave: 5, enemies: { cubes: 20, triangles: 15, octagons: 10, rhombuses: 5 }, spawnTime: 10000 },
+            { timer: 60000, wave: 6, enemies: { cubes: 30, triangles: 0, octagons: 20, rhombuses: 0 }, spawnTime: 10000 }
         ];
 
         // Shape renderer utility
