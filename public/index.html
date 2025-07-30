@@ -329,6 +329,7 @@
                 this.dashEndX = 0;
                 this.dashEndY = 0;
                 this.railgunCharging = false;
+                this.railgunMaxChargeSoundPlayed = false;
             }
 
             startDash(keys, effects, audio) {
@@ -388,6 +389,7 @@
                 this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
+                this.railgunMaxChargeSoundPlayed = false;
             }
 
             update(input, effects, canvas, audio) {
@@ -415,12 +417,14 @@
                     }
                     this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
-                        // Stop charging sound and play max charge sound when fully charged
+                        // Stop charging sound and play max charge sound when fully charged (only once)
                         if (this.railgunCharging && audio) {
                             audio.stopLoopingSound('railgunCharge');
                             this.railgunCharging = false;
-                            // Play max charge sound (assuming this sound exists)
+                        }
+                        if (!this.railgunMaxChargeSoundPlayed && audio) {
                             audio.playSound('railgunChargeMax');
+                            this.railgunMaxChargeSoundPlayed = true;
                         }
                         this.blinkFrame = (this.blinkFrame + 1) % 30;
                         this.blinkState = this.blinkFrame < 15;
@@ -446,6 +450,7 @@
                     this.railgunParticles = [];
                     this.blinkState = true;
                     this.blinkFrame = 0;
+                    this.railgunMaxChargeSoundPlayed = false;
                 } else if (this.railgunCharging && audio) {
                     audio.stopLoopingSound('railgunCharge');
                     this.railgunCharging = false;
@@ -1312,6 +1317,7 @@
                 this.gameOverTime = 0;
                 this.lastShot = 0;
                 this.gameOverBlinkFrame = 0;
+                this.pauseBlinkFrame = 0;
                 this.player.stopRailgunCharge(this.audio);
                 this.uiManager.showUI(); // Show UI when game resets
             }
@@ -1594,8 +1600,25 @@
                     this.ctx.font = '48px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2 - 20);
+                    
+                    // Fast blinking continue text with fade (90 frames = 1.5 seconds at 60fps)
+                    const blinkCycle = this.pauseBlinkFrame % 90;
+                    let opacity;
+                    
+                    if (blinkCycle < 45) {
+                        // Fade in during first half
+                        opacity = blinkCycle / 45;
+                    } else {
+                        // Fade out during second half
+                        opacity = (90 - blinkCycle) / 45;
+                    }
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = opacity;
+                    this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
                     this.ctx.fillText('Press ESC to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.restore();
                 }
                 if (this.gameOver) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
@@ -1656,6 +1679,11 @@
                 // Update game over blink animation
                 if (this.gameOver) {
                     this.gameOverBlinkFrame++;
+                }
+                
+                // Update pause blink animation
+                if (this.paused) {
+                    this.pauseBlinkFrame++;
                 }
                 document.getElementById('score').textContent = this.score;
                 document.getElementById('enemies').textContent = this.enemiesKilled;
