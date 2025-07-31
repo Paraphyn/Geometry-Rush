@@ -610,8 +610,8 @@
                 this.canvas = canvas;
                 this.binaries = [];
                 this.spawnTimer = 0;
-                this.spawnDelay = 8;
-                this.maxBinaries = 50;
+                this.spawnDelay = 4; // Reduced from 8 to spawn twice as fast
+                this.maxBinaries = 100; // Increased from 50 to double the amount
             }
 
             update() {
@@ -1815,16 +1815,7 @@
                 const playerDeltaX = this.player.x - this.lastPlayerX;
                 const playerDeltaY = this.player.y - this.lastPlayerY;
                 
-                // Update grid offset in opposite direction of player movement
-                this.gridOffsetX -= playerDeltaX * 0.5; // Grid moves opposite to player
-                this.gridOffsetY -= playerDeltaY * 0.5;
-                
-                // Keep grid offsets within bounds
-                const gridSize = 40;
-                this.gridOffsetX = ((this.gridOffsetX % gridSize) + gridSize) % gridSize;
-                this.gridOffsetY = ((this.gridOffsetY % gridSize) + gridSize) % gridSize;
-                
-                // Update background binary numbers with parallax
+                // Only update background binary numbers with parallax (not the grid)
                 this.backgroundBinary.updateParallax(playerDeltaX, playerDeltaY);
                 
                 // Store current player position for next frame
@@ -1837,12 +1828,9 @@
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
                 this.ctx.lineWidth = 1;
                 
-                // Calculate starting positions with offset
-                const startX = -this.gridOffsetX;
-                const startY = -this.gridOffsetY;
-                
+                // Draw static grid (no movement during gameplay)
                 // Draw vertical lines
-                for (let x = startX; x <= this.canvas.width + gridSize; x += gridSize) {
+                for (let x = 0; x <= this.canvas.width; x += gridSize) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(x, 0);
                     this.ctx.lineTo(x, this.canvas.height);
@@ -1850,7 +1838,7 @@
                 }
                 
                 // Draw horizontal lines
-                for (let y = startY; y <= this.canvas.height + gridSize; y += gridSize) {
+                for (let y = 0; y <= this.canvas.height; y += gridSize) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(0, y);
                     this.ctx.lineTo(this.canvas.width, y);
