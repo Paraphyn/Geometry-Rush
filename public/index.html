@@ -68,6 +68,7 @@
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
         .next-wave { top: 85px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #00ffff; }
         .score { top: 50px; left: 20px; font-size: 25px; }
+        .score-addition { color: #00ff00; }
         .wave { top: 80px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         
@@ -255,7 +256,7 @@
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
     <div class="ui next-wave" id="nextWave" style="display: none;"></div>
-    <div class="ui score">Score: <span id="score">0</span></div>
+    <div class="ui score">Score: <span id="score">0</span><span class="score-addition" id="scoreAddition"></span></div>
     <div class="ui wave">Wave: <span id="wave">0</span></div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
     
@@ -417,6 +418,7 @@
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
+                    buttonClick: { file: 'button-click.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
                     backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
                 };
@@ -1253,38 +1255,8 @@
             }
 
             createScoreLabel(points, x, y, score, ctx) {
-                ctx.font = 'bold 25px Arial';
-                const scoreText = `Score: ${score}`;
-                const textWidth = ctx.measureText(scoreText).width;
-                this.effects.push(new Effect('scoreLabel', 20 + textWidth + 5, 50, {
-                    points: Math.floor(points),
-                    opacity: 1.0,
-                    life: 60,
-                    maxLife: 60,
-                    scale: 0.8,
-                    typeSpecificUpdate: function() {
-                        this.life--;
-                        this.opacity = Math.max(0, this.life / this.maxLife);
-                        this.scale = 1.0 + (1 - this.opacity) * 0.2;
-                        return this.life > 0;
-                    },
-                    typeSpecificDraw: function(ctx) {
-                        if (this.opacity > 0.01 && !isNaN(this.points)) {
-                            ctx.save();
-                            ctx.globalAlpha = this.opacity;
-                            const fontSize = Math.floor(24 * this.scale);
-                            ctx.font = `bold ${fontSize}px Arial`;
-                            ctx.textAlign = 'left';
-                            ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = 3;
-                            ctx.fillStyle = '#00ff00';
-                            const text = `+${this.points}Pts`;
-                            ctx.strokeText(text, this.x, this.y);
-                            ctx.fillText(text, this.x, this.y);
-                            ctx.restore();
-                        }
-                    }
-                }));
+                // No longer create visual effects - just trigger UI update
+                // The UI manager will handle showing the score addition
             }
 
             createRailgunParticle(playerX, playerY) {
@@ -1633,6 +1605,8 @@
                     document.querySelector('.controls')
                 ];
                 this.nextWaveElement = document.querySelector('#nextWave');
+                this.scoreAdditionElement = document.querySelector('#scoreAddition');
+                this.scoreAdditionTimeout = null;
             }
 
             hideUI() {
@@ -1662,6 +1636,23 @@
             hideNextWaveTimer() {
                 if (this.nextWaveElement) {
                     this.nextWaveElement.style.display = 'none';
+                }
+            }
+            
+            showScoreAddition(points) {
+                if (this.scoreAdditionElement) {
+                    // Clear any existing timeout
+                    if (this.scoreAdditionTimeout) {
+                        clearTimeout(this.scoreAdditionTimeout);
+                    }
+                    
+                    // Show the addition
+                    this.scoreAdditionElement.textContent = ` +${points}`;
+                    
+                    // Hide after 2 seconds
+                    this.scoreAdditionTimeout = setTimeout(() => {
+                        this.scoreAdditionElement.textContent = '';
+                    }, 2000);
                 }
             }
         }
@@ -1734,6 +1725,7 @@
                 let rainInterval;
                 
                 startButton.addEventListener('click', () => {
+                    this.audio.playSound('buttonClick');
                     this.startGame();
                 });
                 
@@ -2150,7 +2142,7 @@
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
-                        this.effects.createScoreLabel(enemy.points, enemy.x, enemy.y, this.score, this.ctx);
+                        // No score addition for collision deaths
                         continue;
                     }
                     if (!this.player.isDashing) {
@@ -2165,6 +2157,7 @@
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
+                                    this.uiManager.showScoreAddition(enemy.points);
                                 }
                                 break;
                             }
@@ -2178,6 +2171,7 @@
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
+                                    this.uiManager.showScoreAddition(enemy.points);
                                 }
                             }
                         }
