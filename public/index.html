@@ -100,6 +100,27 @@
             text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
             margin-bottom: 50px;
             animation: titleGlow 2s ease-in-out infinite alternate;
+            /* Hide text when logo image is loaded */
+            position: relative;
+        }
+        
+        .lobby-logo {
+            max-width: 500px;
+            max-height: 200px;
+            width: auto;
+            height: auto;
+            filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #00ffff);
+            animation: logoGlow 2s ease-in-out infinite alternate;
+            display: none; /* Hidden by default, shown when image loads */
+        }
+        
+        @keyframes logoGlow {
+            from {
+                filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #00ffff);
+            }
+            to {
+                filter: drop-shadow(0 0 30px #00ffff) drop-shadow(0 0 60px #00ffff) drop-shadow(0 0 80px #00ffff);
+            }
         }
         
         @keyframes titleGlow {
@@ -175,9 +196,8 @@
             right: 30px;
             width: 60px;
             height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid #ffffff;
-            border-radius: 50%;
+            background: transparent;
+            border: none;
             cursor: pointer;
             display: flex;
             justify-content: center;
@@ -189,14 +209,13 @@
         }
         
         .music-toggle:hover {
-            background: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
         }
         
-        .music-toggle.muted {
-            background: rgba(255, 0, 0, 0.2);
-            border-color: #ff0000;
-            color: #ff0000;
+        .music-icon {
+            width: 32px;
+            height: 32px;
+            display: block;
         }
         
         /* Quit Button in Pause Menu */
@@ -242,7 +261,8 @@
     
     <!-- Lobby Screen -->
     <div class="lobby" id="lobby">
-        <div class="lobby-title">GEOMETRY RUSH</div>
+        <div class="lobby-title" id="lobbyTitle">GEOMETRY RUSH</div>
+        <img class="lobby-logo" id="lobbyLogo" src="game-logo.png" alt="GEOMETRY RUSH" />
         <button class="start-button" id="startButton">
             START
             <div class="button-rain" id="buttonRain"></div>
@@ -250,7 +270,9 @@
     </div>
     
     <!-- Music Toggle Button -->
-    <div class="music-toggle" id="musicToggle" title="Toggle Music">♪</div>
+    <div class="music-toggle" id="musicToggle" title="Toggle Music">
+        <img class="music-icon" id="musicIcon" src="sound-on.png" alt="Music On" />
+    </div>
     
     <!-- Quit Button for Pause Menu -->
     <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
@@ -536,6 +558,8 @@
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
+                this.baseX = x; // Store original position for parallax
+                this.baseY = y;
                 this.digit = Math.random() < 0.5 ? '0' : '1';
                 this.opacity = 0;
                 this.maxOpacity = 0.3;
@@ -557,6 +581,14 @@
                     this.opacity = this.maxOpacity;
                 }
                 return this.life > 0;
+            }
+            
+            updateParallax(playerDeltaX, playerDeltaY) {
+                // Move in opposite direction to player movement for parallax effect
+                this.baseX -= playerDeltaX * 0.3; // 30% parallax intensity
+                this.baseY -= playerDeltaY * 0.3;
+                this.x = this.baseX;
+                this.y = this.baseY;
             }
 
             draw(ctx) {
@@ -589,6 +621,12 @@
                     this.spawnBinary();
                     this.spawnTimer = 0;
                 }
+            }
+            
+            updateParallax(playerDeltaX, playerDeltaY) {
+                this.binaries.forEach(binary => {
+                    binary.updateParallax(playerDeltaX, playerDeltaY);
+                });
             }
 
             spawnBinary() {
@@ -1647,6 +1685,15 @@
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.setupLobby();
                 
+                // Grid movement for infinite background effect
+                this.gridOffsetX = 0;
+                this.gridOffsetY = 0;
+                this.gridSpeed = 0.5; // Speed of grid movement
+                
+                // Track player position for parallax effect
+                this.lastPlayerX = 0;
+                this.lastPlayerY = 0;
+                
                 // Initially hide UI since we start in lobby
                 this.uiManager.hideUI();
             }
@@ -1665,9 +1712,24 @@
             setupLobby() {
                 const startButton = document.getElementById('startButton');
                 const musicToggle = document.getElementById('musicToggle');
+                const musicIcon = document.getElementById('musicIcon');
                 const quitButton = document.getElementById('quitButton');
                 const lobby = document.getElementById('lobby');
                 const buttonRain = document.getElementById('buttonRain');
+                const lobbyTitle = document.getElementById('lobbyTitle');
+                const lobbyLogo = document.getElementById('lobbyLogo');
+                
+                // Handle logo loading
+                lobbyLogo.addEventListener('load', () => {
+                    lobbyTitle.style.display = 'none';
+                    lobbyLogo.style.display = 'block';
+                });
+                
+                // Handle logo load error (fallback to text)
+                lobbyLogo.addEventListener('error', () => {
+                    lobbyTitle.style.display = 'block';
+                    lobbyLogo.style.display = 'none';
+                });
                 
                 let rainInterval;
                 
@@ -1695,8 +1757,13 @@
                 
                 musicToggle.addEventListener('click', () => {
                     const musicEnabled = this.audio.toggleMusic();
-                    musicToggle.classList.toggle('muted', !musicEnabled);
-                    musicToggle.textContent = musicEnabled ? '♪' : '♪̸';
+                    if (musicEnabled) {
+                        musicIcon.src = 'sound-on.png';
+                        musicIcon.alt = 'Music On';
+                    } else {
+                        musicIcon.src = 'sound-off.png';
+                        musicIcon.alt = 'Music Off';
+                    }
                 });
                 
                 // Auto-start audio on any interaction
@@ -1729,6 +1796,65 @@
                             digit.parentNode.removeChild(digit);
                         }
                     }, 1500);
+                }
+            }
+            
+            updateGridMovement() {
+                // Move grid continuously for infinite scroll effect
+                this.gridOffsetX += this.gridSpeed * 0.7; // Slower horizontal movement
+                this.gridOffsetY += this.gridSpeed; // Normal vertical movement
+                
+                const gridSize = 40;
+                // Keep offsets within grid bounds to prevent overflow
+                this.gridOffsetX = this.gridOffsetX % gridSize;
+                this.gridOffsetY = this.gridOffsetY % gridSize;
+            }
+            
+            updateBackgroundParallax() {
+                // Calculate player movement delta
+                const playerDeltaX = this.player.x - this.lastPlayerX;
+                const playerDeltaY = this.player.y - this.lastPlayerY;
+                
+                // Update grid offset in opposite direction of player movement
+                this.gridOffsetX -= playerDeltaX * 0.5; // Grid moves opposite to player
+                this.gridOffsetY -= playerDeltaY * 0.5;
+                
+                // Keep grid offsets within bounds
+                const gridSize = 40;
+                this.gridOffsetX = ((this.gridOffsetX % gridSize) + gridSize) % gridSize;
+                this.gridOffsetY = ((this.gridOffsetY % gridSize) + gridSize) % gridSize;
+                
+                // Update background binary numbers with parallax
+                this.backgroundBinary.updateParallax(playerDeltaX, playerDeltaY);
+                
+                // Store current player position for next frame
+                this.lastPlayerX = this.player.x;
+                this.lastPlayerY = this.player.y;
+            }
+            
+            drawInfiniteGrid() {
+                const gridSize = 40;
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                
+                // Calculate starting positions with offset
+                const startX = -this.gridOffsetX;
+                const startY = -this.gridOffsetY;
+                
+                // Draw vertical lines
+                for (let x = startX; x <= this.canvas.width + gridSize; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                
+                // Draw horizontal lines
+                for (let y = startY; y <= this.canvas.height + gridSize; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
                 }
             }
             
@@ -1793,6 +1919,16 @@
                 this.player.stopRailgunCharge(this.audio);
                 this.wavePauseEndTime = 0;
                 this.inWavePause = false;
+                
+                // Reset grid position when game resets
+                this.gridOffsetX = 0;
+                this.gridOffsetY = 0;
+                
+                // Reset player tracking for parallax
+                if (!this.inLobby) {
+                    this.lastPlayerX = this.player.x;
+                    this.lastPlayerY = this.player.y;
+                }
                 
                 // Hide UI when in lobby, show when in game
                 if (this.inLobby) {
@@ -1984,23 +2120,20 @@
                 
                 const gameTime = Date.now() - this.startTime;
                 
-                // Check for wave pause between waves
+                // Handle wave pause - only affects wave spawning, not gameplay
                 if (this.inWavePause) {
                     if (Date.now() >= this.wavePauseEndTime) {
                         this.inWavePause = false;
                     }
-                    // Allow player movement and shooting during wave pause
-                    this.player.move(this.input.keys, this.canvas);
-                    this.player.update(this.input, this.effects, this.canvas, this.audio);
-                    if (this.input.mouse.down) this.shoot();
-                    this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
-                    this.effects.update(this.player.x, this.player.y);
-                    return; // Don't update wave logic during pause
+                    // Continue with all normal gameplay during wave pause
                 }
                 
-                const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
-                if (nextWave && !this.waveStarted) {
-                    this.startWave(nextWave);
+                // Only check for next wave if not in wave pause
+                if (!this.inWavePause) {
+                    const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
+                    if (nextWave && !this.waveStarted) {
+                        this.startWave(nextWave);
+                    }
                 }
                 
                 if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
@@ -2010,11 +2143,17 @@
                     this.wavePauseEndTime = Date.now() + 3000; // 3 second pause
                 }
                 
+                // Continue all normal game mechanics regardless of wave pause
                 this.player.move(this.input.keys, this.canvas);
                 this.player.update(this.input, this.effects, this.canvas, this.audio);
+                
+                // Update background parallax based on player movement
+                this.updateBackgroundParallax();
+                
                 if (this.input.mouse.down) this.shoot();
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
                 this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
@@ -2067,6 +2206,7 @@
                     }
                 }
                 this.effects.update(this.player.x, this.player.y);
+                
                 if (this.player.health <= 0 && !this.gameOver) {
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
@@ -2089,21 +2229,8 @@
                 }
                 
                 this.backgroundBinary.draw(this.ctx);
-                const gridSize = 40;
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                this.ctx.lineWidth = 1;
-                for (let x = 0; x <= this.canvas.width; x += gridSize) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(x, 0);
-                    this.ctx.lineTo(x, this.canvas.height);
-                    this.ctx.stroke();
-                }
-                for (let y = 0; y <= this.canvas.height; y += gridSize) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(0, y);
-                    this.ctx.lineTo(this.canvas.width, y);
-                    this.ctx.stroke();
-                }
+                this.drawInfiniteGrid();
+                
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
                 this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
