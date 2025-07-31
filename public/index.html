@@ -134,8 +134,8 @@
         }
         
         .start-button {
-            padding: 15px 40px;
-            font-size: 28px;
+            padding: 15px 60px;
+            font-size: 20px;
             font-weight: bold;
             color: #ffffff;
             background: transparent;
@@ -823,7 +823,7 @@
                     } else {
                         this.blinkState = true;
                         this.blinkFrame = 0;
-                        if (this.railgunParticles.length < 5) {
+                        if (this.railgunParticles.length < 4) {
                             const particleCount = Math.floor(Math.random() * 3) + 3;
                             for (let i = this.railgunParticles.length; i < particleCount; i++) {
                                 effects.createRailgunParticle(this.x, this.y);
@@ -919,17 +919,17 @@
                 this.dx = dx;
                 this.dy = dy;
                 this.radius = 6;
-                this.life = 100;
+                this.life = 200;
                 this.damage = 15;
             }
 
             update(canvas, effects) {
-                effects.createBulletTrail(this.x, this.y, '#ffaa00');
+                effects.createBulletTrail(this.x, this.y, '#FFC13B');
                 this.x += this.dx;
                 this.y += this.dy;
                 this.life--;
                 if (this.life <= 0) {
-                    effects.createBulletExplosion(this.x, this.y, '#ffaa00');
+                    effects.createBulletExplosion(this.x, this.y, '#FFC13B');
                     return false;
                 }
                 return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
@@ -938,9 +938,9 @@
             draw(ctx) {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffaa00';
+                ctx.fillStyle = '#FFC13B';
                 ctx.fill();
-                ctx.strokeStyle = '#ff8800';
+                ctx.strokeStyle = '#FFC13B';
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
@@ -968,7 +968,7 @@
             },
             octagon: { 
                 health: 800, 
-                speed: 1, 
+                speed: 1.5, 
                 size: 50, 
                 points: 50, 
                 damage: 50,
@@ -993,7 +993,7 @@
             { timer: 33000, wave: 3, enemies: { cubes: 0, triangles: 30, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
             { timer: 48000, wave: 4, enemies: { cubes: 25, triangles: 0, octagons: 0, rhombuses: 10 }, spawnTime: 10000 },
             { timer: 63000, wave: 5, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 15 }, spawnTime: 10000 },
-            { timer: 63000, wave: 6, enemies: { cubes: 20, triangles: 20, octagons: 10, rhombuses: 5 }, spawnTime: 10000 }
+            { timer: 78000, wave: 6, enemies: { cubes: 20, triangles: 20, octagons: 10, rhombuses: 5 }, spawnTime: 10000 }
         ];
 
         // Shape renderer utility
