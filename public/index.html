@@ -68,6 +68,101 @@
         .score { top: 50px; left: 20px; font-size: 25px; }
         .wave { top: 80px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
+        
+        /* Lobby Screen Styles */
+        .lobby {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            transition: opacity 0.5s ease;
+        }
+        
+        .lobby.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        
+        .lobby-title {
+            font-size: 72px;
+            font-weight: bold;
+            color: #ffffff;
+            text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            margin-bottom: 50px;
+            animation: titleGlow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes titleGlow {
+            from {
+                text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            }
+            to {
+                text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff, 0 0 80px #00ffff;
+            }
+        }
+        
+        .start-button {
+            padding: 15px 40px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffff;
+            background: linear-gradient(45deg, #ff0040, #ff4080);
+            border: 3px solid #ffffff;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 0 20px rgba(255, 0, 64, 0.5);
+        }
+        
+        .start-button:hover {
+            background: linear-gradient(45deg, #ff4080, #ff0040);
+            box-shadow: 0 0 30px rgba(255, 0, 64, 0.8);
+            transform: scale(1.05);
+        }
+        
+        .start-button:active {
+            transform: scale(0.98);
+        }
+        
+        .music-toggle {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #ffffff;
+            transition: all 0.3s ease;
+            z-index: 300;
+        }
+        
+        .music-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+        
+        .music-toggle.muted {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: #ff0000;
+            color: #ff0000;
+        }
     </style>
 </head>
 <body>
@@ -77,8 +172,88 @@
     <div class="ui score">Score: <span id="score">0</span></div>
     <div class="ui wave">Wave: <span id="wave">0</span></div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
+    
+    <!-- Lobby Screen -->
+    <div class="lobby" id="lobby">
+        <div class="lobby-title">GEOMETRY RUSH</div>
+        <button class="start-button" id="startButton">START</button>
+    </div>
+    
+    <!-- Music Toggle Button -->
+    <div class="music-toggle" id="musicToggle" title="Toggle Music">♪</div>
 
     <script>
+        // Falling numbers background effect for lobby
+        class FallingNumbers {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.digit = Math.floor(Math.random() * 10).toString();
+                this.speed = 1 + Math.random() * 3;
+                this.opacity = 0.3 + Math.random() * 0.7;
+                this.size = 16 + Math.random() * 12;
+                this.life = 0;
+                this.maxLife = 300 + Math.random() * 200;
+            }
+
+            update(canvas) {
+                this.y += this.speed;
+                this.life++;
+                
+                // Fade in at start, fade out at end
+                if (this.life < 30) {
+                    this.opacity = (this.life / 30) * (0.3 + Math.random() * 0.7);
+                } else if (this.life > this.maxLife - 60) {
+                    this.opacity = ((this.maxLife - this.life) / 60) * (0.3 + Math.random() * 0.7);
+                }
+                
+                return this.y < canvas.height + 50 && this.life < this.maxLife;
+            }
+
+            draw(ctx) {
+                if (this.opacity > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `${this.size}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.digit, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Falling numbers manager for lobby
+        class FallingNumbersManager {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.numbers = [];
+                this.spawnTimer = 0;
+                this.spawnDelay = 3;
+                this.maxNumbers = 80;
+            }
+
+            update() {
+                this.numbers = this.numbers.filter(number => number.update(this.canvas));
+                
+                this.spawnTimer++;
+                if (this.spawnTimer >= this.spawnDelay && this.numbers.length < this.maxNumbers) {
+                    this.spawnNumber();
+                    this.spawnTimer = 0;
+                }
+            }
+
+            spawnNumber() {
+                const x = Math.random() * this.canvas.width;
+                const y = -20;
+                this.numbers.push(new FallingNumbers(x, y));
+            }
+
+            draw(ctx) {
+                this.numbers.forEach(number => number.draw(ctx));
+            }
+        }
+
         // Audio Manager
         class AudioManager {
             constructor() {
@@ -87,6 +262,7 @@
                 this.volume = 0.7;
                 this.musicVolume = 0.4;
                 this.loadingPromises = [];
+                this.musicEnabled = true;
             }
 
             async initialize() {
@@ -104,6 +280,7 @@
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
+                    lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
                     backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
                 };
 
@@ -139,10 +316,15 @@
 
             playSound(soundName) {
                 if (!this.initialized || !this.audios[soundName]) return;
+                
+                // Check if it's music and if music is disabled
+                if ((soundName === 'backgroundMusic' || soundName === 'lobbyMusic') && !this.musicEnabled) return;
+                
                 try {
                     const audio = this.audios[soundName];
                     audio.currentTime = 0;
-                    audio.volume = audio === this.audios.backgroundMusic ? this.musicVolume : this.volume;
+                    audio.volume = (audio === this.audios.backgroundMusic || audio === this.audios.lobbyMusic) ? 
+                        (this.musicEnabled ? this.musicVolume : 0) : this.volume;
                     if (soundName === 'bulletShoot' || soundName === 'enemyHit') {
                         const clone = audio.cloneNode();
                         clone.volume = audio.volume;
@@ -170,12 +352,67 @@
                 if (this.initialized && this.audios.backgroundMusic) {
                     this.audios.backgroundMusic.pause();
                 }
+                if (this.initialized && this.audios.lobbyMusic) {
+                    this.audios.lobbyMusic.pause();
+                }
             }
 
             resumeMusic() {
-                if (this.initialized && this.audios.backgroundMusic) {
+                if (this.initialized && this.audios.backgroundMusic && this.musicEnabled) {
                     this.audios.backgroundMusic.play().catch(e => console.warn('Failed to resume music:', e));
                 }
+            }
+            
+            playLobbyMusic() {
+                if (this.initialized && this.audios.lobbyMusic && this.musicEnabled) {
+                    this.audios.lobbyMusic.play().catch(e => console.warn('Failed to play lobby music:', e));
+                }
+            }
+            
+            stopLobbyMusic() {
+                if (this.initialized && this.audios.lobbyMusic) {
+                    this.audios.lobbyMusic.pause();
+                    this.audios.lobbyMusic.currentTime = 0;
+                }
+            }
+            
+            playGameMusic() {
+                if (this.initialized && this.audios.backgroundMusic && this.musicEnabled) {
+                    this.audios.backgroundMusic.play().catch(e => console.warn('Failed to play game music:', e));
+                }
+            }
+            
+            stopGameMusic() {
+                if (this.initialized && this.audios.backgroundMusic) {
+                    this.audios.backgroundMusic.pause();
+                    this.audios.backgroundMusic.currentTime = 0;
+                }
+            }
+            
+            toggleMusic() {
+                this.musicEnabled = !this.musicEnabled;
+                if (this.initialized) {
+                    if (this.musicEnabled) {
+                        // Resume appropriate music based on current state
+                        if (this.audios.lobbyMusic && !this.audios.lobbyMusic.paused) {
+                            this.audios.lobbyMusic.volume = this.musicVolume;
+                            this.audios.lobbyMusic.play().catch(e => console.warn('Failed to enable lobby music:', e));
+                        }
+                        if (this.audios.backgroundMusic && !this.audios.backgroundMusic.paused) {
+                            this.audios.backgroundMusic.volume = this.musicVolume;
+                            this.audios.backgroundMusic.play().catch(e => console.warn('Failed to enable game music:', e));
+                        }
+                    } else {
+                        // Pause all music
+                        if (this.audios.lobbyMusic) {
+                            this.audios.lobbyMusic.pause();
+                        }
+                        if (this.audios.backgroundMusic) {
+                            this.audios.backgroundMusic.pause();
+                        }
+                    }
+                }
+                return this.musicEnabled;
             }
         }
 
@@ -1270,11 +1507,14 @@
                 this.uiManager = new UIManager();
                 this.shootDelay = 250;
                 this.lastShot = 0;
+                this.inLobby = true;
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
+                this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                this.setupLobby();
             }
 
             setupCanvas() {
@@ -1286,9 +1526,28 @@
                 console.log('Initializing audio system...');
                 await this.audio.initialize();
                 console.log('✓ Audio preloading complete');
+            }
+            
+            setupLobby() {
+                const startButton = document.getElementById('startButton');
+                const musicToggle = document.getElementById('musicToggle');
+                const lobby = document.getElementById('lobby');
+                
+                startButton.addEventListener('click', () => {
+                    this.startGame();
+                });
+                
+                musicToggle.addEventListener('click', () => {
+                    const musicEnabled = this.audio.toggleMusic();
+                    musicToggle.classList.toggle('muted', !musicEnabled);
+                    musicToggle.textContent = musicEnabled ? '♪' : '♪̸';
+                });
+                
+                // Auto-start audio on any interaction
                 const initAudio = async () => {
-                    console.log('User interaction detected, starting audio...');
-                    await this.audio.playSound('backgroundMusic');
+                    if (this.audio.musicEnabled) {
+                        await this.audio.playLobbyMusic();
+                    }
                     document.removeEventListener('click', initAudio);
                     document.removeEventListener('keydown', initAudio);
                     document.removeEventListener('touchstart', initAudio);
@@ -1296,6 +1555,19 @@
                 document.addEventListener('click', initAudio);
                 document.addEventListener('keydown', initAudio);
                 document.addEventListener('touchstart', initAudio);
+            }
+            
+            startGame() {
+                this.inLobby = false;
+                document.getElementById('lobby').classList.add('hidden');
+                this.uiManager.showUI();
+                this.reset();
+                
+                // Switch from lobby music to game music
+                this.audio.stopLobbyMusic();
+                if (this.audio.musicEnabled) {
+                    this.audio.playGameMusic();
+                }
             }
 
             reset() {
@@ -1321,7 +1593,9 @@
                 this.gameOverBlinkFrame = 0;
                 this.pauseBlinkFrame = 0;
                 this.player.stopRailgunCharge(this.audio);
-                this.uiManager.showUI(); // Show UI when game resets
+                if (!this.inLobby) {
+                    this.uiManager.showUI();
+                }
             }
 
             setupEventListeners() {
@@ -1329,6 +1603,7 @@
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
                     this.backgroundBinary.canvas = this.canvas;
+                    this.fallingNumbers.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
@@ -1341,7 +1616,7 @@
                         e.preventDefault();
                     }
                     if (code === 'Escape' && this.input.preventSpam('pause', 200)) {
-                        if (!this.gameOver) {
+                        if (!this.gameOver && !this.inLobby) {
                             this.paused = !this.paused;
                             if (this.paused) {
                                 this.pauseTime = Date.now();
@@ -1360,10 +1635,12 @@
                     if (code === 'Space' && this.input.preventSpam('restart', 100)) {
                         if (this.gameOver) {
                             this.reset();
-                            this.audio.playSound('backgroundMusic');
+                            if (this.audio.musicEnabled) {
+                                this.audio.playGameMusic();
+                            }
                         }
                     }
-                    if (!this.gameOver && !this.paused) {
+                    if (!this.gameOver && !this.paused && !this.inLobby) {
                         const moveKeys = {
                             'KeyW': 'w', 'ArrowUp': 'w',
                             'KeyS': 's', 'ArrowDown': 's',
@@ -1395,14 +1672,14 @@
                 });
 
                 this.canvas.addEventListener('mousemove', e => {
-                    if (this.gameOver) return;
+                    if (this.gameOver || this.inLobby) return;
                     const rect = this.canvas.getBoundingClientRect();
                     this.input.mouse.x = e.clientX - rect.left;
                     this.input.mouse.y = e.clientY - rect.top;
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
-                    if (this.gameOver) return;
+                    if (this.gameOver || this.inLobby) return;
                     if (!this.paused) {
                         if (e.button === 0) this.input.mouse.down = true;
                         else if (e.button === 2) this.input.mouse.rightDown = true;
@@ -1489,6 +1766,7 @@
             }
 
             update(timestamp) {
+                if (this.inLobby) return;  // Don't update game logic in lobby
                 if (this.gameOver || this.paused) return;
                 const gameTime = Date.now() - this.startTime;
                 const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
@@ -1569,6 +1847,13 @@
             draw() {
                 this.ctx.fillStyle = '#000000';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (this.inLobby) {
+                    // Draw falling numbers background in lobby
+                    this.fallingNumbers.draw(this.ctx);
+                    return;
+                }
+                
                 this.backgroundBinary.draw(this.ctx);
                 const gridSize = 40;
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -1664,18 +1949,28 @@
             }
 
             loop(timestamp) {
+                // Always update falling numbers in lobby
+                if (this.inLobby) {
+                    this.fallingNumbers.update();
+                } else {
+                    this.backgroundBinary.update();
+                }
+                
                 let gameTime;
                 if (this.gameOver) {
                     gameTime = this.gameOverTime - this.startTime;
                 } else if (this.paused) {
                     gameTime = this.pauseTime - this.startTime;
-                } else {
+                } else if (!this.inLobby) {
                     gameTime = Date.now() - this.startTime;
+                } else {
+                    gameTime = 0;
                 }
-                if (!this.paused && !this.gameOver) {
+                
+                if (!this.paused && !this.gameOver && !this.inLobby) {
                     this.update(timestamp);
                 }
-                this.backgroundBinary.update();
+                
                 this.draw();
                 
                 // Update game over blink animation
@@ -1687,10 +1982,15 @@
                 if (this.paused) {
                     this.pauseBlinkFrame++;
                 }
-                document.getElementById('score').textContent = this.score;
-                document.getElementById('enemies').textContent = this.enemiesKilled;
-                document.getElementById('timer').textContent = this.formatTime(gameTime);
-                document.getElementById('wave').textContent = this.currentWave;
+                
+                // Only update UI if not in lobby
+                if (!this.inLobby) {
+                    document.getElementById('score').textContent = this.score;
+                    document.getElementById('enemies').textContent = this.enemiesKilled;
+                    document.getElementById('timer').textContent = this.formatTime(gameTime);
+                    document.getElementById('wave').textContent = this.currentWave;
+                }
+                
                 requestAnimationFrame(t => this.loop(t));
             }
 
