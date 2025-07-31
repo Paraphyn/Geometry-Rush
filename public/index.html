@@ -51,10 +51,18 @@
             background: #000000 !important;
         }
         
+        .debug, .overlay, .watermark, .info, pre, code {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
         body::before, body::after {
             display: none !important;
         }
         
+        script {
+            display: none !important;
+        }
         
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
@@ -98,8 +106,8 @@
         }
         
         .lobby-logo {
-            max-width: 1000px;
-            max-height: 400px;
+            max-width: 500px;
+            max-height: 200px;
             width: auto;
             height: auto;
             filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #00ffff);
@@ -126,8 +134,8 @@
         }
         
         .start-button {
-            padding: 12px 60px;
-            font-size: 12px;
+            padding: 15px 60px;
+            font-size: 20px;
             font-weight: bold;
             color: #ffffff;
             background: transparent;
@@ -271,68 +279,6 @@
     <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
 
     <script>
-        // Game Constants
-        const GAME_CONFIG = {
-            FALLING_NUMBERS: {
-                LAYERS: 5,
-                LAYER_0: { SPEED_MIN: 0.3, SPEED_RANGE: 0.5, OPACITY_MIN: 0.2, OPACITY_RANGE: 0.1, SIZE_MIN: 8, SIZE_RANGE: 4 },
-                LAYER_1: { SPEED_MIN: 0.4, SPEED_RANGE: 0.7, OPACITY_MIN: 0.3, OPACITY_RANGE: 0.15, SIZE_MIN: 10, SIZE_RANGE: 6 },
-                LAYER_2: { SPEED_MIN: 0.5, SPEED_RANGE: 1, OPACITY_MIN: 0.4, OPACITY_RANGE: 0.2, SIZE_MIN: 12, SIZE_RANGE: 8 },
-                LAYER_3: { SPEED_MIN: 1, SPEED_RANGE: 2, OPACITY_MIN: 0.6, OPACITY_RANGE: 0.2, SIZE_MIN: 16, SIZE_RANGE: 12 },
-                LAYER_4: { SPEED_MIN: 2, SPEED_RANGE: 3, OPACITY_MIN: 0.8, OPACITY_RANGE: 0.2, SIZE_MIN: 20, SIZE_RANGE: 16 },
-                MAX_LIFE: { MIN: 400, RANGE: 300 }
-            },
-            PLAYER: {
-                RADIUS: 20,
-                SPEED: 5,
-                MAX_HEALTH: 100,
-                RAILGUN_MAX_CHARGE_TIME: 3000,
-                DASH_DURATION: 10,
-                DASH_DISTANCE: 300,
-                INVULNERABILITY_TIME: 5
-            },
-            BULLETS: {
-                PLAYER_RADIUS: 4,
-                PLAYER_SPEED: 8,
-                PLAYER_LIFE: 100,
-                ENEMY_RADIUS: 6,
-                ENEMY_SPEED: 8,
-                ENEMY_LIFE: 200,
-                ENEMY_DAMAGE: 15
-            }
-        };
-
-        // Utility Functions
-        const Utils = {
-            // Calculate distance between two points
-            distance(x1, y1, x2, y2) {
-                const dx = x2 - x1;
-                const dy = y2 - y1;
-                return Math.sqrt(dx * dx + dy * dy);
-            },
-
-            // Normalize vector with fallback to prevent division by zero
-            normalizeVector(dx, dy, fallback = 0.1) {
-                const dist = Math.sqrt(dx * dx + dy * dy) || fallback;
-                return { dx: dx / dist, dy: dy / dist, dist };
-            },
-
-            // Clamp value between min and max
-            clamp(value, min, max) {
-                return Math.max(min, Math.min(max, value));
-            },
-
-            // Linear interpolation
-            lerp(start, end, t) {
-                return start + (end - start) * t;
-            },
-
-            // Check collision between two circles
-            circleCollision(x1, y1, r1, x2, y2, r2) {
-                return this.distance(x1, y1, x2, y2) < r1 + r2;
-            }
-        };
-
         // Falling numbers background effect for lobby
         class FallingNumbers {
             constructor(x, y, layer = 0) {
@@ -341,23 +287,38 @@
                 this.digit = Math.floor(Math.random() * 10).toString();
                 this.layer = layer;
                 
-                // Layer-based properties for depth effect
-                const layerConfigs = [
-                    GAME_CONFIG.FALLING_NUMBERS.LAYER_0,
-                    GAME_CONFIG.FALLING_NUMBERS.LAYER_1,
-                    GAME_CONFIG.FALLING_NUMBERS.LAYER_2,
-                    GAME_CONFIG.FALLING_NUMBERS.LAYER_3,
-                    GAME_CONFIG.FALLING_NUMBERS.LAYER_4
-                ];
-                
-                const config = layerConfigs[layer] || layerConfigs[0];
-                this.speed = config.SPEED_MIN + Math.random() * config.SPEED_RANGE;
-                this.baseOpacity = config.OPACITY_MIN + Math.random() * config.OPACITY_RANGE;
-                this.size = config.SIZE_MIN + Math.random() * config.SIZE_RANGE;
+                // Layer-based properties for depth effect (5 layers total)
+                switch(layer) {
+                    case 0: // Furthest background layer (smallest)
+                        this.speed = 0.3 + Math.random() * 0.5;
+                        this.baseOpacity = 0.2 + Math.random() * 0.1;
+                        this.size = 8 + Math.random() * 4;
+                        break;
+                    case 1: // Very far background layer
+                        this.speed = 0.4 + Math.random() * 0.7;
+                        this.baseOpacity = 0.3 + Math.random() * 0.15;
+                        this.size = 10 + Math.random() * 6;
+                        break;
+                    case 2: // Far background layer
+                        this.speed = 0.5 + Math.random() * 1;
+                        this.baseOpacity = 0.4 + Math.random() * 0.2;
+                        this.size = 12 + Math.random() * 8;
+                        break;
+                    case 3: // Middle layer
+                        this.speed = 1 + Math.random() * 2;
+                        this.baseOpacity = 0.6 + Math.random() * 0.2;
+                        this.size = 16 + Math.random() * 12;
+                        break;
+                    case 4: // Front layer
+                        this.speed = 2 + Math.random() * 3;
+                        this.baseOpacity = 0.8 + Math.random() * 0.2;
+                        this.size = 20 + Math.random() * 16;
+                        break;
+                }
                 
                 this.opacity = 0;
                 this.life = 0;
-                this.maxLife = GAME_CONFIG.FALLING_NUMBERS.MAX_LIFE.MIN + Math.random() * GAME_CONFIG.FALLING_NUMBERS.MAX_LIFE.RANGE;
+                this.maxLife = 400 + Math.random() * 300;
                 this.twinkle = Math.random() * Math.PI * 2;
             }
 
@@ -445,7 +406,7 @@
             async initialize() {
                 if (this.initialized) return;
                 const audioFiles = {
-                    bulletShoot: { file: 'bullet-shoot.wav', loop: false },
+                    bulletShoot: { file: 'bullet-shoot.mp3', loop: false },
                     railgunShoot: { file: 'railgun-shoot.wav', loop: false },
                     railgunCharge: { file: 'railgun-charge.wav', loop: true },
                     railgunChargeMax: { file: 'railgun-charge-max.wav', loop: false },
@@ -463,37 +424,33 @@
                 };
 
                 Object.entries(audioFiles).forEach(([key, config]) => {
-                    try {
-                        const audio = new Audio();
-                        audio.volume = config.isMusic ? this.musicVolume : this.volume;
-                        audio.loop = config.loop;
-                        audio.preload = 'none'; // Changed to 'none' to avoid preloading missing files
-                        
-                        const loadPromise = new Promise((resolve) => {
-                            const onLoad = () => {
-                                this.audios[key] = audio; // Only add to audios if successfully loaded
-                                audio.removeEventListener('canplaythrough', onLoad);
-                                audio.removeEventListener('error', onError);
-                                resolve();
-                            };
-                            const onError = (e) => {
-                                // Silently fail for missing audio files
-                                audio.removeEventListener('canplaythrough', onLoad);
-                                audio.removeEventListener('error', onError);
-                                resolve();
-                            };
-                            audio.addEventListener('canplaythrough', onLoad);
-                            audio.addEventListener('error', onError);
-                            audio.src = config.file; // Set src after event listeners
-                        });
-                        this.loadingPromises.push(loadPromise);
-                    } catch (e) {
-                        // Skip this audio file if Audio constructor fails
-                    }
+                    const audio = new Audio(config.file);
+                    audio.volume = config.isMusic ? this.musicVolume : this.volume;
+                    audio.loop = config.loop;
+                    audio.preload = 'auto';
+                    this.audios[key] = audio;
+
+                    const loadPromise = new Promise((resolve) => {
+                        const onLoad = () => {
+                            console.log(`✓ Loaded: ${config.file}`);
+                            audio.removeEventListener('canplaythrough', onLoad);
+                            audio.removeEventListener('error', onError);
+                            resolve();
+                        };
+                        const onError = (e) => {
+                            console.warn(`✗ Failed to load ${config.file}:`, e);
+                            resolve();
+                        };
+                        audio.addEventListener('canplaythrough', onLoad);
+                        audio.addEventListener('error', onError);
+                        audio.load();
+                    });
+                    this.loadingPromises.push(loadPromise);
                 });
 
                 await Promise.all(this.loadingPromises);
                 this.initialized = true;
+                console.log('🎵 Audio initialized');
             }
 
             playSound(soundName) {
@@ -743,22 +700,22 @@
                 this.canvas = canvas;
                 this.x = canvas.width / 2;
                 this.y = canvas.height / 2;
-                this.radius = GAME_CONFIG.PLAYER.RADIUS;
-                this.speed = GAME_CONFIG.PLAYER.SPEED;
-                this.health = GAME_CONFIG.PLAYER.MAX_HEALTH;
-                this.maxHealth = GAME_CONFIG.PLAYER.MAX_HEALTH;
+                this.radius = 20;
+                this.speed = 5;
+                this.health = 100;
+                this.maxHealth = 100;
                 this.damageFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
-                this.railgunMaxChargeTime = GAME_CONFIG.PLAYER.RAILGUN_MAX_CHARGE_TIME;
+                this.railgunMaxChargeTime = 3000;
                 this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
                 this.isDashing = false;
                 this.dashProgress = 0;
-                this.dashDuration = GAME_CONFIG.PLAYER.DASH_DURATION;
-                this.dashDistance = GAME_CONFIG.PLAYER.DASH_DISTANCE;
+                this.dashDuration = 10;
+                this.dashDistance = 300;
                 this.dashStartX = 0;
                 this.dashStartY = 0;
                 this.dashEndX = 0;
@@ -785,8 +742,8 @@
                 this.dashStartY = this.y;
                 this.dashEndX = this.x + dx;
                 this.dashEndY = this.y + dy;
-                this.dashEndX = Utils.clamp(this.dashEndX, this.radius, this.canvas.width - this.radius);
-                this.dashEndY = Utils.clamp(this.dashEndY, this.radius, this.canvas.height - this.radius);
+                this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
+                this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
                 if (audio) audio.playSound('dash');
             }
 
@@ -797,8 +754,8 @@
                 if (keys.s) newY += this.speed;
                 if (keys.a) newX -= this.speed;
                 if (keys.d) newX += this.speed;
-                this.x = Utils.clamp(newX, this.radius, canvas.width - this.radius);
-                this.y = Utils.clamp(newY, this.radius, canvas.height - this.radius);
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
                 this.canvas = canvas;
             }
 
@@ -806,10 +763,10 @@
                 if (this.health <= 0 || this.invulnerable) return false;
                 const actualDamage = Math.min(damage, this.health);
                 if (actualDamage <= 0) return false;
-                this.health = Utils.clamp(this.health - actualDamage, 0, this.maxHealth);
+                this.health = Math.max(0, this.health - actualDamage);
                 this.damageFlash = 20;
                 this.invulnerable = true;
-                this.invulnerabilityTime = GAME_CONFIG.PLAYER.INVULNERABILITY_TIME;
+                this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
                 if (audio) audio.playSound('playerDamage');
                 return true;
@@ -833,7 +790,7 @@
                     this.invulnerabilityTime--;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
                 }
-                this.health = Utils.clamp(Math.floor(this.health), 0, this.maxHealth);
+                this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
 
                 if (this.isDashing) {
                     this.dashProgress++;
@@ -850,7 +807,7 @@
                         audio.startLoopingSound('railgunCharge');
                         this.railgunCharging = true;
                     }
-                    this.railgunCharge = Utils.clamp(this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime), 0, 1);
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
                         // Stop charging sound and play max charge sound when fully charged (only once)
                         if (this.railgunCharging && audio) {
@@ -927,8 +884,8 @@
                 this.y = y;
                 this.dx = dx;
                 this.dy = dy;
-                this.radius = GAME_CONFIG.BULLETS.PLAYER_RADIUS;
-                this.life = GAME_CONFIG.BULLETS.PLAYER_LIFE;
+                this.radius = 4;
+                this.life = 100;
             }
 
             update(canvas, effects) {
@@ -961,9 +918,9 @@
                 this.y = y;
                 this.dx = dx;
                 this.dy = dy;
-                this.radius = GAME_CONFIG.BULLETS.ENEMY_RADIUS;
-                this.life = GAME_CONFIG.BULLETS.ENEMY_LIFE;
-                this.damage = GAME_CONFIG.BULLETS.ENEMY_DAMAGE;
+                this.radius = 6;
+                this.life = 200;
+                this.damage = 15;
             }
 
             update(canvas, effects) {
@@ -1339,11 +1296,11 @@
             createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
                 const dx = targetX - startX;
                 const dy = targetY - startY;
-                const normalized = Utils.normalizeVector(dx, dy);
+                const dist = Math.sqrt(dx * dx + dy * dy);
                 const maxDist = Math.max(canvas.width, canvas.height) * 2;
                 this.effects.push(new Effect('railgunBeam', startX, startY, {
-                    endX: startX + normalized.dx * maxDist,
-                    endY: startY + normalized.dy * maxDist,
+                    endX: startX + (dx / dist) * maxDist,
+                    endY: startY + (dy / dist) * maxDist,
                     damage: charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05),
                     life: 60,
                     maxLife: 60,
@@ -1591,12 +1548,12 @@
             shoot(player, enemyBullets, audio) {
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
-                const normalized = Utils.normalizeVector(dx, dy);
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
                 enemyBullets.push(new EnemyBullet(
                     this.x,
                     this.y,
-                    normalized.dx * GAME_CONFIG.BULLETS.ENEMY_SPEED,
-                    normalized.dy * GAME_CONFIG.BULLETS.ENEMY_SPEED
+                    (dx / dist) * 8,
+                    (dy / dist) * 8
                 ));
                 if (audio) audio.playSound('enemyShoot');
             }
@@ -1738,7 +1695,9 @@
             }
 
             async setupAudio() {
+                console.log('Initializing audio system...');
                 await this.audio.initialize();
+                console.log('✓ Audio preloading complete');
             }
             
             setupLobby() {
@@ -2070,12 +2029,12 @@
                 if (now - this.lastShot < this.shootDelay) return;
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
-                const normalized = Utils.normalizeVector(dx, dy);
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
                 this.bullets.push(new Bullet(
                     this.player.x,
                     this.player.y,
-                    normalized.dx * GAME_CONFIG.BULLETS.PLAYER_SPEED,
-                    normalized.dy * GAME_CONFIG.BULLETS.PLAYER_SPEED
+                    (dx / dist) * 8,
+                    (dy / dist) * 8
                 ));
                 this.lastShot = now;
                 this.audio.playSound('bulletShoot');
