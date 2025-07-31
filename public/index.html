@@ -20,6 +20,7 @@
             background: #000000;
             position: relative;
             z-index: 10;
+            cursor: none;
         }
         
         .ui {
@@ -65,6 +66,7 @@
         
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
+        .next-wave { top: 85px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #00ffff; }
         .score { top: 50px; left: 20px; font-size: 25px; }
         .wave { top: 80px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
@@ -76,7 +78,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: transparent;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -116,7 +118,7 @@
             color: #ffffff;
             background: transparent;
             border: 3px solid #00ffff;
-            border-radius: 10px;
+            border-radius: 0;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
@@ -126,80 +128,41 @@
         }
         
         .start-button:hover {
-            color: #00D5FF;
+            color: #00ffff;
             border-color: #ffffff;
-            animation: glitch 0.3s ease-in-out infinite;
         }
         
-        .start-button:hover::before {
-            content: 'START';
+        .start-button .button-rain {
             position: absolute;
-            top: 0;
+            top: 100%;
             left: 0;
             width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            color: #00F1FF;
-            animation: glitch-overlay 0.3s ease-in-out infinite;
-            clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
         }
         
-        .start-button:hover::after {
-            content: 'START';
+        .start-button:hover .button-rain {
+            height: 60px;
+        }
+        
+        .rain-digit {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            color: #00FFD0;
-            animation: glitch-overlay2 0.3s ease-in-out infinite;
-            clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 12px;
+            animation: rainFall 1s linear infinite;
         }
         
-        @keyframes glitch {
-            0%, 100% { transform: translate(0); }
-            10% { transform: translate(-2px, -1px); }
-            20% { transform: translate(2px, 1px); }
-            30% { transform: translate(-1px, 2px); }
-            40% { transform: translate(1px, -2px); }
-            50% { transform: translate(-2px, 1px); }
-            60% { transform: translate(2px, -1px); }
-            70% { transform: translate(-1px, -2px); }
-            80% { transform: translate(1px, 2px); }
-            90% { transform: translate(-2px, -1px); }
-        }
-        
-        @keyframes glitch-overlay {
-            0%, 100% { transform: translate(0); }
-            10% { transform: translate(2px, 1px); }
-            20% { transform: translate(-2px, -1px); }
-            30% { transform: translate(1px, -2px); }
-            40% { transform: translate(-1px, 2px); }
-            50% { transform: translate(2px, -1px); }
-            60% { transform: translate(-2px, 1px); }
-            70% { transform: translate(1px, 2px); }
-            80% { transform: translate(-1px, -2px); }
-            90% { transform: translate(2px, 1px); }
-        }
-        
-        @keyframes glitch-overlay2 {
-            0%, 100% { transform: translate(0); }
-            10% { transform: translate(-1px, 2px); }
-            20% { transform: translate(1px, -2px); }
-            30% { transform: translate(-2px, 1px); }
-            40% { transform: translate(2px, -1px); }
-            50% { transform: translate(-1px, -2px); }
-            60% { transform: translate(1px, 2px); }
-            70% { transform: translate(-2px, -1px); }
-            80% { transform: translate(2px, 1px); }
-            90% { transform: translate(-1px, 2px); }
+        @keyframes rainFall {
+            from {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(60px);
+                opacity: 0;
+            }
         }
         
         .start-button:active {
@@ -208,10 +171,10 @@
         
         .music-toggle {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 40px;
-            height: 40px;
+            top: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
             background: rgba(255, 255, 255, 0.1);
             border: 2px solid #ffffff;
             border-radius: 50%;
@@ -242,8 +205,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, 100px);
-            width: 40px;
-            height: 40px;
+            width: 60px;
+            height: 60px;
             background: rgba(255, 0, 0, 0.1);
             border: 2px solid #ff0000;
             border-radius: 10px;
@@ -272,6 +235,7 @@
     <canvas id="canvas"></canvas>
     <div class="ui enemies">Kills: <span id="enemies">0</span></div>
     <div class="ui timer"><span id="timer">00:00</span></div>
+    <div class="ui next-wave" id="nextWave" style="display: none;"></div>
     <div class="ui score">Score: <span id="score">0</span></div>
     <div class="ui wave">Wave: <span id="wave">0</span></div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
@@ -279,7 +243,10 @@
     <!-- Lobby Screen -->
     <div class="lobby" id="lobby">
         <div class="lobby-title">GEOMETRY RUSH</div>
-        <button class="start-button" id="startButton">START</button>
+        <button class="start-button" id="startButton">
+            START
+            <div class="button-rain" id="buttonRain"></div>
+        </button>
     </div>
     
     <!-- Music Toggle Button -->
@@ -297,21 +264,31 @@
                 this.digit = Math.floor(Math.random() * 10).toString();
                 this.layer = layer;
                 
-                // Layer-based properties for depth effect
+                // Layer-based properties for depth effect (5 layers total)
                 switch(layer) {
-                    case 0: // Far background layer
+                    case 0: // Furthest background layer (smallest)
+                        this.speed = 0.3 + Math.random() * 0.5;
+                        this.baseOpacity = 0.2 + Math.random() * 0.1;
+                        this.size = 8 + Math.random() * 4;
+                        break;
+                    case 1: // Very far background layer
+                        this.speed = 0.4 + Math.random() * 0.7;
+                        this.baseOpacity = 0.3 + Math.random() * 0.15;
+                        this.size = 10 + Math.random() * 6;
+                        break;
+                    case 2: // Far background layer
                         this.speed = 0.5 + Math.random() * 1;
-                        this.baseOpacity = 0.2 + Math.random() * 0.15;
+                        this.baseOpacity = 0.4 + Math.random() * 0.2;
                         this.size = 12 + Math.random() * 8;
                         break;
-                    case 1: // Middle layer
+                    case 3: // Middle layer
                         this.speed = 1 + Math.random() * 2;
-                        this.baseOpacity = 0.5 + Math.random() * 0.2;
+                        this.baseOpacity = 0.6 + Math.random() * 0.2;
                         this.size = 16 + Math.random() * 12;
                         break;
-                    case 2: // Front layer
+                    case 4: // Front layer
                         this.speed = 2 + Math.random() * 3;
-                        this.baseOpacity = 0.7 + Math.random() * 0.3;
+                        this.baseOpacity = 0.8 + Math.random() * 0.2;
                         this.size = 20 + Math.random() * 16;
                         break;
                 }
@@ -358,15 +335,15 @@
         class FallingNumbersManager {
             constructor(canvas) {
                 this.canvas = canvas;
-                this.layers = [[], [], []]; // Three layers for depth
-                this.spawnTimers = [0, 0, 0];
-                this.spawnDelays = [12, 8, 5]; // Different spawn rates per layer
-                this.maxNumbers = [60, 40, 25]; // Different max counts per layer
+                this.layers = [[], [], [], [], []]; // Five layers for enhanced depth
+                this.spawnTimers = [0, 0, 0, 0, 0];
+                this.spawnDelays = [18, 15, 12, 8, 5]; // Different spawn rates per layer (slower for smaller numbers)
+                this.maxNumbers = [80, 70, 60, 40, 25]; // Different max counts per layer (more smaller numbers)
             }
 
             update() {
                 // Update all layers
-                for (let layer = 0; layer < 3; layer++) {
+                for (let layer = 0; layer < 5; layer++) {
                     this.layers[layer] = this.layers[layer].filter(number => number.update(this.canvas));
                     
                     this.spawnTimers[layer]++;
@@ -386,7 +363,7 @@
 
             draw(ctx) {
                 // Draw layers from back to front for proper depth
-                for (let layer = 0; layer < 3; layer++) {
+                for (let layer = 0; layer < 5; layer++) {
                     this.layers[layer].forEach(number => number.draw(ctx));
                 }
             }
@@ -971,12 +948,12 @@
 
         // Wave configuration
         const WAVE_CONFIG = [
-            { timer: 0, wave: 1, enemies: { cubes: 15, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 15000, wave: 2, enemies: { cubes: 15, triangles: 0, octagons: 5, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 30000, wave: 3, enemies: { cubes: 0, triangles: 30, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 45000, wave: 4, enemies: { cubes: 25, triangles: 0, octagons: 0, rhombuses: 10 }, spawnTime: 10000 },
-            { timer: 60000, wave: 5, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 15 }, spawnTime: 10000 },
-            { timer: 60000, wave: 6, enemies: { cubes: 20, triangles: 20, octagons: 10, rhombuses: 5 }, spawnTime: 10000 }
+            { timer: 3000, wave: 1, enemies: { cubes: 15, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 18000, wave: 2, enemies: { cubes: 15, triangles: 0, octagons: 5, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 33000, wave: 3, enemies: { cubes: 0, triangles: 30, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 48000, wave: 4, enemies: { cubes: 25, triangles: 0, octagons: 0, rhombuses: 10 }, spawnTime: 10000 },
+            { timer: 63000, wave: 5, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 15 }, spawnTime: 10000 },
+            { timer: 63000, wave: 6, enemies: { cubes: 20, triangles: 20, octagons: 10, rhombuses: 5 }, spawnTime: 10000 }
         ];
 
         // Shape renderer utility
@@ -1617,6 +1594,7 @@
                     document.querySelector('.wave'),
                     document.querySelector('.controls')
                 ];
+                this.nextWaveElement = document.querySelector('#nextWave');
             }
 
             hideUI() {
@@ -1625,6 +1603,7 @@
                         element.classList.add('hidden');
                     }
                 });
+                this.hideNextWaveTimer();
             }
 
             showUI() {
@@ -1633,6 +1612,19 @@
                         element.classList.remove('hidden');
                     }
                 });
+            }
+            
+            showNextWaveTimer(seconds) {
+                if (this.nextWaveElement) {
+                    this.nextWaveElement.textContent = `Next Wave in ${seconds}...`;
+                    this.nextWaveElement.style.display = 'block';
+                }
+            }
+            
+            hideNextWaveTimer() {
+                if (this.nextWaveElement) {
+                    this.nextWaveElement.style.display = 'none';
+                }
             }
         }
 
@@ -1675,9 +1667,26 @@
                 const musicToggle = document.getElementById('musicToggle');
                 const quitButton = document.getElementById('quitButton');
                 const lobby = document.getElementById('lobby');
+                const buttonRain = document.getElementById('buttonRain');
+                
+                let rainInterval;
                 
                 startButton.addEventListener('click', () => {
                     this.startGame();
+                });
+                
+                startButton.addEventListener('mouseenter', () => {
+                    this.startButtonRain(buttonRain);
+                    rainInterval = setInterval(() => {
+                        this.startButtonRain(buttonRain);
+                    }, 100);
+                });
+                
+                startButton.addEventListener('mouseleave', () => {
+                    clearInterval(rainInterval);
+                    setTimeout(() => {
+                        buttonRain.innerHTML = '';
+                    }, 1000);
                 });
                 
                 quitButton.addEventListener('click', () => {
@@ -1702,6 +1711,25 @@
                 document.addEventListener('click', initAudio);
                 document.addEventListener('keydown', initAudio);
                 document.addEventListener('touchstart', initAudio);
+            }
+            
+            startButtonRain(container) {
+                const buttonWidth = 120; // Approximate button width
+                for (let i = 0; i < 3; i++) {
+                    const digit = document.createElement('div');
+                    digit.className = 'rain-digit';
+                    digit.textContent = Math.random() < 0.5 ? '0' : '1';
+                    digit.style.left = Math.random() * buttonWidth + 'px';
+                    digit.style.animationDelay = Math.random() * 0.5 + 's';
+                    container.appendChild(digit);
+                    
+                    // Remove digit after animation
+                    setTimeout(() => {
+                        if (digit.parentNode) {
+                            digit.parentNode.removeChild(digit);
+                        }
+                    }, 1500);
+                }
             }
             
             startGame() {
@@ -1763,6 +1791,8 @@
                 this.gameOverBlinkFrame = 0;
                 this.pauseBlinkFrame = 0;
                 this.player.stopRailgunCharge(this.audio);
+                this.wavePauseEndTime = 0;
+                this.inWavePause = false;
                 
                 // Hide UI when in lobby, show when in game
                 if (this.inLobby) {
@@ -1913,6 +1943,8 @@
                 this.waveStartTime = Date.now();
                 this.spawnedEnemies = 0;
                 this.enemiesToSpawn = [];
+                this.inWavePause = false;
+                
                 const enemyCounts = {
                     square: waveConfig.enemies.cubes || 0,
                     triangle: waveConfig.enemies.triangles || 0,
@@ -1949,14 +1981,35 @@
             update(timestamp) {
                 if (this.inLobby) return;  // Don't update game logic in lobby
                 if (this.gameOver || this.paused) return;
+                
                 const gameTime = Date.now() - this.startTime;
+                
+                // Check for wave pause between waves
+                if (this.inWavePause) {
+                    if (Date.now() >= this.wavePauseEndTime) {
+                        this.inWavePause = false;
+                    }
+                    // Allow player movement and shooting during wave pause
+                    this.player.move(this.input.keys, this.canvas);
+                    this.player.update(this.input, this.effects, this.canvas, this.audio);
+                    if (this.input.mouse.down) this.shoot();
+                    this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                    this.effects.update(this.player.x, this.player.y);
+                    return; // Don't update wave logic during pause
+                }
+                
                 const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
                 if (nextWave && !this.waveStarted) {
                     this.startWave(nextWave);
                 }
+                
                 if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
+                    // Wave completed, start pause before next wave
                     this.waveStarted = false;
+                    this.inWavePause = true;
+                    this.wavePauseEndTime = Date.now() + 3000; // 3 second pause
                 }
+                
                 this.player.move(this.input.keys, this.canvas);
                 this.player.update(this.input, this.effects, this.canvas, this.audio);
                 if (this.input.mouse.down) this.shoot();
@@ -2061,6 +2114,10 @@
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
+                
+                // Draw custom crosshair
+                this.drawCrosshair();
+                
                 if (this.paused) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2129,6 +2186,47 @@
                 const secs = seconds % 60;
                 return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             }
+            
+            drawCrosshair() {
+                if (this.inLobby || this.gameOver) return;
+                
+                const crosshairSize = 20;
+                const centerX = this.input.mouse.x;
+                const centerY = this.input.mouse.y;
+                const gap = 4; // Gap between center and crosshair lines
+                const thickness = 2;
+                
+                this.ctx.strokeStyle = '#00ffff';
+                this.ctx.lineWidth = thickness;
+                this.ctx.lineCap = 'round';
+                
+                // Draw crosshair lines
+                this.ctx.beginPath();
+                
+                // Horizontal line (left)
+                this.ctx.moveTo(centerX - crosshairSize/2, centerY);
+                this.ctx.lineTo(centerX - gap, centerY);
+                
+                // Horizontal line (right)
+                this.ctx.moveTo(centerX + gap, centerY);
+                this.ctx.lineTo(centerX + crosshairSize/2, centerY);
+                
+                // Vertical line (top)
+                this.ctx.moveTo(centerX, centerY - crosshairSize/2);
+                this.ctx.lineTo(centerX, centerY - gap);
+                
+                // Vertical line (bottom)
+                this.ctx.moveTo(centerX, centerY + gap);
+                this.ctx.lineTo(centerX, centerY + crosshairSize/2);
+                
+                this.ctx.stroke();
+                
+                // Draw center dot
+                this.ctx.fillStyle = '#00ffff';
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, 1, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
 
             loop(timestamp) {
                 // Always update falling numbers in lobby
@@ -2163,6 +2261,15 @@
                 // Update pause blink animation
                 if (this.paused) {
                     this.pauseBlinkFrame++;
+                }
+                
+                // Update next wave timer display
+                if (this.inWavePause) {
+                    const remainingTime = Math.max(0, this.wavePauseEndTime - Date.now());
+                    const seconds = Math.ceil(remainingTime / 1000);
+                    this.uiManager.showNextWaveTimer(seconds);
+                } else {
+                    this.uiManager.hideNextWaveTimer();
                 }
                 
                 // Only update UI if not in lobby
