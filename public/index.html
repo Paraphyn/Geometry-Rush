@@ -348,13 +348,6 @@
                     ctx.fillStyle = '#ffffff';
                     ctx.font = `${this.size}px monospace`;
                     ctx.textAlign = 'center';
-                    
-                    // Add glow effect for front layer
-                    if (this.layer === 2) {
-                        ctx.shadowColor = '#ffffff';
-                        ctx.shadowBlur = 10;
-                    }
-                    
                     ctx.fillText(this.digit, this.x, this.y);
                     ctx.restore();
                 }
