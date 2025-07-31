@@ -114,20 +114,92 @@
             font-size: 28px;
             font-weight: bold;
             color: #ffffff;
-            background: linear-gradient(45deg, #ff0040, #ff4080);
-            border: 3px solid #ffffff;
+            background: transparent;
+            border: 3px solid #00ffff;
             border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 2px;
-            box-shadow: 0 0 20px rgba(255, 0, 64, 0.5);
+            position: relative;
+            overflow: hidden;
         }
         
         .start-button:hover {
-            background: linear-gradient(45deg, #ff4080, #ff0040);
-            box-shadow: 0 0 30px rgba(255, 0, 64, 0.8);
-            transform: scale(1.05);
+            color: #00D5FF;
+            border-color: #ffffff;
+            animation: glitch 0.3s ease-in-out infinite;
+        }
+        
+        .start-button:hover::before {
+            content: 'START';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #00F1FF;
+            animation: glitch-overlay 0.3s ease-in-out infinite;
+            clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+        }
+        
+        .start-button:hover::after {
+            content: 'START';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #00FFD0;
+            animation: glitch-overlay2 0.3s ease-in-out infinite;
+            clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+        }
+        
+        @keyframes glitch {
+            0%, 100% { transform: translate(0); }
+            10% { transform: translate(-2px, -1px); }
+            20% { transform: translate(2px, 1px); }
+            30% { transform: translate(-1px, 2px); }
+            40% { transform: translate(1px, -2px); }
+            50% { transform: translate(-2px, 1px); }
+            60% { transform: translate(2px, -1px); }
+            70% { transform: translate(-1px, -2px); }
+            80% { transform: translate(1px, 2px); }
+            90% { transform: translate(-2px, -1px); }
+        }
+        
+        @keyframes glitch-overlay {
+            0%, 100% { transform: translate(0); }
+            10% { transform: translate(2px, 1px); }
+            20% { transform: translate(-2px, -1px); }
+            30% { transform: translate(1px, -2px); }
+            40% { transform: translate(-1px, 2px); }
+            50% { transform: translate(2px, -1px); }
+            60% { transform: translate(-2px, 1px); }
+            70% { transform: translate(1px, 2px); }
+            80% { transform: translate(-1px, -2px); }
+            90% { transform: translate(2px, 1px); }
+        }
+        
+        @keyframes glitch-overlay2 {
+            0%, 100% { transform: translate(0); }
+            10% { transform: translate(-1px, 2px); }
+            20% { transform: translate(1px, -2px); }
+            30% { transform: translate(-2px, 1px); }
+            40% { transform: translate(2px, -1px); }
+            50% { transform: translate(-1px, -2px); }
+            60% { transform: translate(1px, 2px); }
+            70% { transform: translate(-2px, -1px); }
+            80% { transform: translate(2px, 1px); }
+            90% { transform: translate(-1px, 2px); }
         }
         
         .start-button:active {
@@ -136,10 +208,10 @@
         
         .music-toggle {
             position: absolute;
-            top: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
             background: rgba(255, 255, 255, 0.1);
             border: 2px solid #ffffff;
             border-radius: 50%;
@@ -163,6 +235,37 @@
             border-color: #ff0000;
             color: #ff0000;
         }
+        
+        /* Quit Button in Pause Menu */
+        .quit-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, 100px);
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 0, 0, 0.1);
+            border: 2px solid #ff0000;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #ff0000;
+            transition: all 0.3s ease;
+            z-index: 400;
+        }
+        
+        .quit-button:hover {
+            background: rgba(255, 0, 0, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            transform: translate(-50%, 100px) scale(1.1);
+        }
+        
+        .quit-button.visible {
+            display: flex;
+        }
     </style>
 </head>
 <body>
@@ -181,33 +284,61 @@
     
     <!-- Music Toggle Button -->
     <div class="music-toggle" id="musicToggle" title="Toggle Music">♪</div>
+    
+    <!-- Quit Button for Pause Menu -->
+    <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
 
     <script>
         // Falling numbers background effect for lobby
         class FallingNumbers {
-            constructor(x, y) {
+            constructor(x, y, layer = 0) {
                 this.x = x;
                 this.y = y;
                 this.digit = Math.floor(Math.random() * 10).toString();
-                this.speed = 1 + Math.random() * 3;
-                this.opacity = 0.3 + Math.random() * 0.7;
-                this.size = 16 + Math.random() * 12;
+                this.layer = layer;
+                
+                // Layer-based properties for depth effect
+                switch(layer) {
+                    case 0: // Far background layer
+                        this.speed = 0.5 + Math.random() * 1;
+                        this.baseOpacity = 0.2 + Math.random() * 0.15;
+                        this.size = 12 + Math.random() * 8;
+                        break;
+                    case 1: // Middle layer
+                        this.speed = 1 + Math.random() * 2;
+                        this.baseOpacity = 0.5 + Math.random() * 0.2;
+                        this.size = 16 + Math.random() * 12;
+                        break;
+                    case 2: // Front layer
+                        this.speed = 2 + Math.random() * 3;
+                        this.baseOpacity = 0.7 + Math.random() * 0.3;
+                        this.size = 20 + Math.random() * 16;
+                        break;
+                }
+                
+                this.opacity = 0;
                 this.life = 0;
-                this.maxLife = 300 + Math.random() * 200;
+                this.maxLife = 400 + Math.random() * 300;
+                this.twinkle = Math.random() * Math.PI * 2;
             }
 
             update(canvas) {
                 this.y += this.speed;
                 this.life++;
+                this.twinkle += 0.05;
                 
-                // Fade in at start, fade out at end
-                if (this.life < 30) {
-                    this.opacity = (this.life / 30) * (0.3 + Math.random() * 0.7);
-                } else if (this.life > this.maxLife - 60) {
-                    this.opacity = ((this.maxLife - this.life) / 60) * (0.3 + Math.random() * 0.7);
+                // Enhanced fade in/out with twinkling effect
+                if (this.life < 60) {
+                    this.opacity = (this.life / 60) * this.baseOpacity;
+                } else if (this.life > this.maxLife - 100) {
+                    this.opacity = ((this.maxLife - this.life) / 100) * this.baseOpacity;
+                } else {
+                    // Add subtle twinkling effect
+                    const twinkleMultiplier = 0.8 + 0.4 * Math.sin(this.twinkle);
+                    this.opacity = this.baseOpacity * twinkleMultiplier;
                 }
                 
-                return this.y < canvas.height + 50 && this.life < this.maxLife;
+                return this.y < canvas.height + 100 && this.life < this.maxLife;
             }
 
             draw(ctx) {
@@ -217,6 +348,13 @@
                     ctx.fillStyle = '#ffffff';
                     ctx.font = `${this.size}px monospace`;
                     ctx.textAlign = 'center';
+                    
+                    // Add glow effect for front layer
+                    if (this.layer === 2) {
+                        ctx.shadowColor = '#ffffff';
+                        ctx.shadowBlur = 10;
+                    }
+                    
                     ctx.fillText(this.digit, this.x, this.y);
                     ctx.restore();
                 }
@@ -227,30 +365,37 @@
         class FallingNumbersManager {
             constructor(canvas) {
                 this.canvas = canvas;
-                this.numbers = [];
-                this.spawnTimer = 0;
-                this.spawnDelay = 3;
-                this.maxNumbers = 80;
+                this.layers = [[], [], []]; // Three layers for depth
+                this.spawnTimers = [0, 0, 0];
+                this.spawnDelays = [12, 8, 5]; // Different spawn rates per layer
+                this.maxNumbers = [60, 40, 25]; // Different max counts per layer
             }
 
             update() {
-                this.numbers = this.numbers.filter(number => number.update(this.canvas));
-                
-                this.spawnTimer++;
-                if (this.spawnTimer >= this.spawnDelay && this.numbers.length < this.maxNumbers) {
-                    this.spawnNumber();
-                    this.spawnTimer = 0;
+                // Update all layers
+                for (let layer = 0; layer < 3; layer++) {
+                    this.layers[layer] = this.layers[layer].filter(number => number.update(this.canvas));
+                    
+                    this.spawnTimers[layer]++;
+                    if (this.spawnTimers[layer] >= this.spawnDelays[layer] && 
+                        this.layers[layer].length < this.maxNumbers[layer]) {
+                        this.spawnNumber(layer);
+                        this.spawnTimers[layer] = 0;
+                    }
                 }
             }
 
-            spawnNumber() {
+            spawnNumber(layer) {
                 const x = Math.random() * this.canvas.width;
-                const y = -20;
-                this.numbers.push(new FallingNumbers(x, y));
+                const y = -50;
+                this.layers[layer].push(new FallingNumbers(x, y, layer));
             }
 
             draw(ctx) {
-                this.numbers.forEach(number => number.draw(ctx));
+                // Draw layers from back to front for proper depth
+                for (let layer = 0; layer < 3; layer++) {
+                    this.layers[layer].forEach(number => number.draw(ctx));
+                }
             }
         }
 
@@ -1476,7 +1621,8 @@
                     document.querySelector('.enemies'),
                     document.querySelector('.timer'),
                     document.querySelector('.score'),
-                    document.querySelector('.wave')
+                    document.querySelector('.wave'),
+                    document.querySelector('.controls')
                 ];
             }
 
@@ -1515,6 +1661,9 @@
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.setupLobby();
+                
+                // Initially hide UI since we start in lobby
+                this.uiManager.hideUI();
             }
 
             setupCanvas() {
@@ -1531,10 +1680,15 @@
             setupLobby() {
                 const startButton = document.getElementById('startButton');
                 const musicToggle = document.getElementById('musicToggle');
+                const quitButton = document.getElementById('quitButton');
                 const lobby = document.getElementById('lobby');
                 
                 startButton.addEventListener('click', () => {
                     this.startGame();
+                });
+                
+                quitButton.addEventListener('click', () => {
+                    this.returnToLobby();
                 });
                 
                 musicToggle.addEventListener('click', () => {
@@ -1569,6 +1723,29 @@
                     this.audio.playGameMusic();
                 }
             }
+            
+            returnToLobby() {
+                this.inLobby = true;
+                this.gameOver = false;
+                this.paused = false;
+                
+                // Hide quit button and show lobby
+                document.getElementById('quitButton').classList.remove('visible');
+                document.getElementById('lobby').classList.remove('hidden');
+                
+                // Hide game UI and clear input
+                this.uiManager.hideUI();
+                this.input.clear();
+                
+                // Stop game music and start lobby music
+                this.audio.stopGameMusic();
+                if (this.audio.musicEnabled) {
+                    this.audio.playLobbyMusic();
+                }
+                
+                // Reset game state
+                this.reset();
+            }
 
             reset() {
                 this.input.clear();
@@ -1593,7 +1770,11 @@
                 this.gameOverBlinkFrame = 0;
                 this.pauseBlinkFrame = 0;
                 this.player.stopRailgunCharge(this.audio);
-                if (!this.inLobby) {
+                
+                // Hide UI when in lobby, show when in game
+                if (this.inLobby) {
+                    this.uiManager.hideUI();
+                } else {
                     this.uiManager.showUI();
                 }
             }
@@ -1616,19 +1797,26 @@
                         e.preventDefault();
                     }
                     if (code === 'Escape' && this.input.preventSpam('pause', 200)) {
-                        if (!this.gameOver && !this.inLobby) {
+                        if (this.gameOver) {
+                            // ESC in game over screen returns to lobby
+                            this.returnToLobby();
+                        } else if (!this.inLobby) {
+                            // ESC in game toggles pause
                             this.paused = !this.paused;
+                            const quitButton = document.getElementById('quitButton');
                             if (this.paused) {
                                 this.pauseTime = Date.now();
                                 this.input.clear();
                                 this.audio.pauseMusic();
                                 this.player.stopRailgunCharge(this.audio);
                                 this.audio.playSound('pauseActivate');
+                                quitButton.classList.add('visible');
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
                                 this.waveStartTime += Date.now() - this.pauseTime;
                                 this.audio.resumeMusic();
                                 this.audio.playSound('pauseDeactivate');
+                                quitButton.classList.remove('visible');
                             }
                         }
                     }
@@ -1849,7 +2037,7 @@
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 
                 if (this.inLobby) {
-                    // Draw falling numbers background in lobby
+                    // Draw falling numbers background in lobby (above black background, below UI)
                     this.fallingNumbers.draw(this.ctx);
                     return;
                 }
@@ -1937,6 +2125,7 @@
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
                     this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 120);
+                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 150);
                     this.ctx.restore();
                 }
             }
