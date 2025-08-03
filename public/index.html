@@ -950,7 +950,7 @@
         const ENEMY_TYPES = {
             square: { 
                 health: 200, 
-                speed: 3, 
+                speed: 2.5, 
                 size: 30, 
                 points: 5, 
                 damage: 15,
@@ -958,8 +958,8 @@
                 strokeColor: '#cc0000'
             },
             triangle: { 
-                health: 50, 
-                speed: 5, 
+                health: 45, 
+                speed: 4.5, 
                 size: 15, 
                 points: 10, 
                 damage: 10,
@@ -970,17 +970,17 @@
                 health: 800, 
                 speed: 1.5, 
                 size: 50, 
-                points: 50, 
+                points: 15, 
                 damage: 25,
                 fillColor: '#990000',
                 strokeColor: '#660000'
             },
             rhombus: {
                 health: 500,
-                speed: 5,
+                speed: 3,
                 size: 45,
                 points: 30,
-                damage: 35,
+                damage: 25,
                 fillColor: '#ff9999',
                 strokeColor: '#ff6666'
             }
@@ -988,18 +988,18 @@
 
         // Wave configuration
         const WAVE_CONFIG = [
-            { timer: 3000, wave: 1, enemies: { cubes: 8, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 3000, wave: 1, enemies: { cubes: 6, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
             { timer: 18000, wave: 2, enemies: { cubes: 10, triangles: 0, octagons: 4, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 33000, wave: 3, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 0 }, spawnTime: 12000 },
+            { timer: 33000, wave: 3, enemies: { cubes: 0, triangles: 20, octagons: 0, rhombuses: 0 }, spawnTime: 13000 },
             { timer: 48000, wave: 4, enemies: { cubes: 15, triangles: 0, octagons: 0, rhombuses: 5 }, spawnTime: 10000 },
-            { timer: 63000, wave: 5, enemies: { cubes: 0, triangles: 25, octagons: 8, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 78000, wave: 6, enemies: { cubes: 50, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 93000, wave: 7, enemies: { cubes: 10, triangles: 10, octagons: 10, rhombuses: 10 }, spawnTime: 13000 },
-            { timer: 108000, wave: 8, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 10000 },
-            { timer: 123000, wave: 9, enemies: { cubes: 0, triangles: 0, octagons: 35, rhombuses: 0 }, spawnTime: 10000 },
-            { timer: 138000, wave: 10, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 10000 },
-            { timer: 153000, wave: 11, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 10000 },
-            { timer: 168000, wave: 12, enemies: { cubes: 0, triangles: 0, octagons: 0, rhombuses: 25 }, spawnTime: 10000 }
+            { timer: 63000, wave: 5, enemies: { cubes: 0, triangles: 25, octagons: 8, rhombuses: 0 }, spawnTime: 15000 },
+            { timer: 78000, wave: 6, enemies: { cubes: 50, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 15000 },
+            { timer: 93000, wave: 7, enemies: { cubes: 10, triangles: 10, octagons: 10, rhombuses: 10 }, spawnTime: 15000 },
+            { timer: 108000, wave: 8, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 15000 },
+            { timer: 123000, wave: 9, enemies: { cubes: 0, triangles: 0, octagons: 35, rhombuses: 0 }, spawnTime: 15000 },
+            { timer: 138000, wave: 10, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 20000 },
+            { timer: 153000, wave: 11, enemies: { cubes: 15, triangles: 15, octagons: 15, rhombuses: 15 }, spawnTime: 20000 },
+            { timer: 168000, wave: 12, enemies: { cubes: 0, triangles: 0, octagons: 0, rhombuses: 25 }, spawnTime: 15000 }
         ];
 
         // Shape renderer utility
