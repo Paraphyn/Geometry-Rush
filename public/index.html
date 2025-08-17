@@ -2060,11 +2060,22 @@
             }
 
             spawnTrianglesAt(x, y, count = 3) {
+                const radius = 60;
+                const minSeparation = ENEMY_TYPES.triangle.size * 1.5;
+                const points = [];
                 for (let i = 0; i < count; i++) {
-                    const offsetAngle = Math.random() * Math.PI * 2;
-                    const offsetDist = Math.random() * 10;
-                    const spawnX = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.width - ENEMY_TYPES.triangle.size, x + Math.cos(offsetAngle) * offsetDist));
-                    const spawnY = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.height - ENEMY_TYPES.triangle.size, y + Math.sin(offsetAngle) * offsetDist));
+                    let tries = 0;
+                    let spawnX, spawnY;
+                    do {
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = Math.random() * radius;
+                        const px = x + Math.cos(angle) * dist;
+                        const py = y + Math.sin(angle) * dist;
+                        spawnX = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.width - ENEMY_TYPES.triangle.size, px));
+                        spawnY = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.height - ENEMY_TYPES.triangle.size, py));
+                        tries++;
+                    } while (tries < 20 && points.some(p => Math.hypot(p.x - spawnX, p.y - spawnY) < minSeparation));
+                    points.push({ x: spawnX, y: spawnY });
                     this.enemies.push(new Enemy(spawnX, spawnY, 'triangle', ENEMY_TYPES.triangle));
                 }
             }
