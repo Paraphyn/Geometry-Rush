@@ -2059,6 +2059,16 @@
                 this.enemies.push(new Enemy(x, y, type, ENEMY_TYPES[type]));
             }
 
+            spawnTrianglesAt(x, y, count = 3) {
+                for (let i = 0; i < count; i++) {
+                    const offsetAngle = Math.random() * Math.PI * 2;
+                    const offsetDist = Math.random() * 10;
+                    const spawnX = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.width - ENEMY_TYPES.triangle.size, x + Math.cos(offsetAngle) * offsetDist));
+                    const spawnY = Math.max(ENEMY_TYPES.triangle.size, Math.min(this.canvas.height - ENEMY_TYPES.triangle.size, y + Math.sin(offsetAngle) * offsetDist));
+                    this.enemies.push(new Enemy(spawnX, spawnY, 'triangle', ENEMY_TYPES.triangle));
+                }
+            }
+
             startWave(waveConfig) {
                 this.currentWave = waveConfig.wave;
                 this.waveStarted = true;
@@ -2146,6 +2156,9 @@
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+                        if (enemy.type === 'rhombus') {
+                            this.spawnTrianglesAt(enemy.x, enemy.y, 3);
+                        }
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
                         // No score addition for collision deaths
@@ -2160,6 +2173,9 @@
                                 this.bullets.splice(j, 1);
                                 if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    if (enemy.type === 'rhombus') {
+                                        this.spawnTrianglesAt(enemy.x, enemy.y, 3);
+                                    }
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
@@ -2174,6 +2190,9 @@
                                 if (enemy.type === 'rhombus' && enemy.invulnerable) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    if (enemy.type === 'rhombus') {
+                                        this.spawnTrianglesAt(enemy.x, enemy.y, 3);
+                                    }
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
