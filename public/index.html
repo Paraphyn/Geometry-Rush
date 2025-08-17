@@ -72,6 +72,12 @@
         .wave { top: 80px; left: 20px; font-size: 25px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         
+        /* XP Bar */
+        .xp-bar { top: 120px; left: 50%; transform: translateX(-50%); width: 400px; height: 16px; border: 2px solid #ffffff; }
+        .xp-bar-fill { height: 100%; width: 0%; background: #00ff00; }
+        .xp-label { top: 120px; left: calc(50% - 200px - 40px); font-size: 18px; }
+        .xp-level { top: 120px; left: calc(50% + 200px + 10px); font-size: 18px; }
+        
         /* Lobby Screen Styles */
         .lobby {
             position: absolute;
@@ -258,6 +264,9 @@
     <div class="ui next-wave" id="nextWave" style="display: none;"></div>
     <div class="ui score">Score: <span id="score">0</span><span class="score-addition" id="scoreAddition"></span></div>
     <div class="ui wave">Wave: <span id="wave">0</span></div>
+    <div class="ui xp-label">XP</div>
+    <div class="ui xp-bar"><div class="xp-bar-fill" id="xpFill"></div></div>
+    <div class="ui xp-level" id="xpLevel">Level 1</div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
     
     <!-- Lobby Screen -->
@@ -954,6 +963,7 @@
                 size: 30, 
                 points: 5, 
                 damage: 10,
+                xp: 10,
                 fillColor: '#ff0000',
                 strokeColor: '#cc0000'
             },
@@ -963,6 +973,7 @@
                 size: 15, 
                 points: 10, 
                 damage: 10,
+                xp: 15,
                 fillColor: '#ff6666',
                 strokeColor: '#cc3333'
             },
@@ -972,6 +983,7 @@
                 size: 50, 
                 points: 15, 
                 damage: 20,
+                xp: 30,
                 fillColor: '#990000',
                 strokeColor: '#660000'
             },
@@ -981,6 +993,7 @@
                 size: 45,
                 points: 30,
                 damage: 15,
+                xp: 25,
                 fillColor: '#ff9999',
                 strokeColor: '#ff6666'
             }
@@ -1513,6 +1526,40 @@
                 this.playerX = playerX;
                 this.playerY = playerY;
             }
+
+            createXPRing(x, y, size, xpAmount) {
+                const fillColor = 'rgba(0, 255, 0, 0.25)';
+                const strokeColor = '#00ff00';
+                this.effects.push(new Effect('xpRing', x, y, {
+                    size,
+                    xpAmount,
+                    life: 300, // 5 seconds at 60fps
+                    maxLife: 300,
+                    pulse: 0,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.pulse += 0.2;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        const alpha = Math.max(0.15, 0.4 + 0.1 * Math.sin(this.pulse));
+                        ctx.save();
+                        // Fill
+                        ctx.fillStyle = fillColor;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Stroke
+                        ctx.strokeStyle = strokeColor;
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.globalAlpha = 1.0;
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }));
+            }
         }
 
         // Enemy management
@@ -1652,11 +1699,16 @@
                     document.querySelector('.timer'),
                     document.querySelector('.score'),
                     document.querySelector('.wave'),
-                    document.querySelector('.controls')
+                    document.querySelector('.controls'),
+                    document.querySelector('.xp-label'),
+                    document.querySelector('.xp-bar'),
+                    document.querySelector('.xp-level')
                 ];
                 this.nextWaveElement = document.querySelector('#nextWave');
                 this.scoreAdditionElement = document.querySelector('#scoreAddition');
                 this.scoreAdditionTimeout = null;
+                this.xpFill = document.getElementById('xpFill');
+                this.xpLevel = document.getElementById('xpLevel');
             }
 
             hideUI() {
@@ -1704,6 +1756,19 @@
                         this.scoreAdditionElement.textContent = '';
                     }, 2000);
                 }
+            }
+
+            updateXPBar(currentXp, requiredXp, level) {
+                if (!this.xpFill || !this.xpLevel) return;
+                const pct = Math.max(0, Math.min(1, requiredXp > 0 ? currentXp / requiredXp : 0));
+                this.xpFill.style.width = `${pct * 100}%`;
+                this.xpLevel.textContent = `Level ${level}`;
+            }
+
+            resetXPBar() {
+                if (!this.xpFill || !this.xpLevel) return;
+                this.xpFill.style.width = '0%';
+                this.xpLevel.textContent = 'Level 1';
             }
         }
 
@@ -1942,6 +2007,12 @@
                 this.spawnedEnemies = 0;
                 this.gameOver = false;
                 this.paused = false;
+                
+                // Player XP state
+                this.playerLevel = 1;
+                this.playerXp = 0;
+                this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
+                if (this.uiManager && this.uiManager.resetXPBar) this.uiManager.resetXPBar();
                 
                 // Grouped wave state
                 if (USE_WAVE_GROUPS) {
@@ -2231,6 +2302,8 @@
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                        // Spawn XP ring on death
+                        { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                         if (enemy.type === 'rhombus') {
                             this.spawnTrianglesAround(enemy.x, enemy.y);
                         }
@@ -2249,6 +2322,8 @@
                                 this.bullets.splice(j, 1);
                                 if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    // Spawn XP ring on death
+                                    { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                                     if (enemy.type === 'rhombus') {
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
@@ -2266,6 +2341,8 @@
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    // Spawn XP ring on death
+                                    { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                                     if (enemy.type === 'rhombus') {
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
@@ -2298,6 +2375,30 @@
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
+                }
+
+                // Collect XP rings
+                for (let k = this.effects.effects.length - 1; k >= 0; k--) {
+                    const eff = this.effects.effects[k];
+                    if (eff.type === 'xpRing') {
+                        const distToPlayer = Math.hypot(eff.x - this.player.x, eff.y - this.player.y);
+                        if (distToPlayer < eff.size + this.player.radius) {
+                            // Collect
+                            const add = eff.xpAmount || 0;
+                            this.playerXp += add;
+                            // Level-up loop
+                            while (this.playerXp >= this.playerXpRequired) {
+                                this.playerXp -= this.playerXpRequired;
+                                this.playerLevel += 1;
+                                this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
+                                // TODO: trigger upgrade selection menu here next iteration
+                            }
+                            // Update UI
+                            this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
+                            // Remove the ring
+                            this.effects.effects.splice(k, 1);
+                        }
+                    }
                 }
             }
 
@@ -2488,6 +2589,8 @@
                     document.getElementById('enemies').textContent = this.enemiesKilled;
                     document.getElementById('timer').textContent = this.formatTime(gameTime);
                     document.getElementById('wave').textContent = this.currentWave;
+                    // Keep XP bar in sync
+                    this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
                 }
                 
                 requestAnimationFrame(t => this.loop(t));
@@ -2525,6 +2628,20 @@
         // Initialize and start the game
         const game = new Game();
         game.start();
+
+        // XP / Level configuration
+        const XP_LEVELS = [
+            100, // Level 1 -> 2
+            200, // Level 2 -> 3
+            300, // Level 3 -> 4
+            400, // Level 4 -> 5
+        ]; // Extendable; last value repeats for higher levels if needed
+
+        function getRequiredXpForLevel(level) {
+            if (level <= 0) return XP_LEVELS[0] || 100;
+            if (level - 1 < XP_LEVELS.length) return XP_LEVELS[level - 1];
+            return XP_LEVELS[XP_LEVELS.length - 1];
+        }
     </script>
 </body>
 </html>
