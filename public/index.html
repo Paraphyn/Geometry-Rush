@@ -429,6 +429,7 @@
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
+                    level-up: { file: 'level-up.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
                     backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
                 };
@@ -1553,18 +1554,22 @@
                     pulse: 0,
                     shrink: 0,
                     typeSpecificUpdate: function() {
-                        this.life--;
-                        // Blink slowly during the last 2 seconds
-                        if (this.life < 120) {
-                            this.pulse += 0.35;
+                        if (this.life > 0) {
+                            this.life--;
+                        }
+                        // More visible blink during the last 2 seconds
+                        if (this.life > 0 && this.life < 120) {
+                            this.pulse += 0.6; // faster pulse for visibility
                         } else {
-                            this.pulse += 0.2;
+                            this.pulse += 0.25;
                         }
-                        // Start shrinking during the very last 20 frames
-                        if (this.life < 20) {
-                            this.shrink = Math.min(1, this.shrink + 0.05);
+                        // After life ends, run shrink-out for 20 frames where it cannot be collected
+                        if (this.life <= 0) {
+                            this.shrink = Math.min(1, this.shrink + 0.1);
+                            // When fully shrunk, remove effect
+                            return this.shrink < 1;
                         }
-                        return this.life > 0;
+                        return true;
                     },
                     typeSpecificDraw: function(ctx) {
                         const blinkAlpha = this.life < 120 ? (0.3 + 0.3 * Math.abs(Math.sin(this.pulse))) : 0.4;
@@ -2409,8 +2414,9 @@
                 for (let k = this.effects.effects.length - 1; k >= 0; k--) {
                     const eff = this.effects.effects[k];
                     if (eff.type === 'xpRing') {
+                        // Only collectible while life > 0 (pre-shrink phase)
                         const distToPlayer = Math.hypot(eff.x - this.player.x, eff.y - this.player.y);
-                        if (distToPlayer < eff.size + this.player.radius) {
+                        if (eff.life > 0 && distToPlayer < eff.size + this.player.radius) {
                             // Collect
                             const add = eff.xpAmount || 0;
                             this.playerXp += add;
@@ -2418,6 +2424,7 @@
                             while (this.playerXp >= this.playerXpRequired) {
                                 this.playerXp -= this.playerXpRequired;
                                 this.playerLevel += 1;
+                                if (this.audio) this.audio.playSound('level-up');
                                 this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
                                 // TODO: trigger upgrade selection menu here next iteration
                             }
