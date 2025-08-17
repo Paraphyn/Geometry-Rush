@@ -255,61 +255,6 @@
         .quit-button.visible {
             display: flex;
         }
-        
-        /* Upgrade Selection Overlay */
-        .upgrade-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 500;
-        }
-        .upgrade-overlay.visible { display: flex; }
-        .upgrade-container {
-            display: grid;
-            grid-template-columns: repeat(3, 280px);
-            gap: 24px;
-            padding: 24px;
-        }
-        .upgrade-card {
-            background: #000000;
-            border: 2px solid #ffffff;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            width: 280px;
-        }
-        .upgrade-card img {
-            width: 120px;
-            height: 120px;
-            object-fit: contain;
-            margin-bottom: 12px;
-            filter: drop-shadow(0 0 10px #00ffff33);
-        }
-        .upgrade-title {
-            color: #00ffff;
-            font-weight: bold;
-            font-size: 22px;
-            margin: 8px 0 6px;
-        }
-        .upgrade-desc {
-            color: #ffffff;
-            font-size: 16px;
-            min-height: 48px;
-            margin-bottom: 12px;
-        }
-        .upgrade-select-btn {
-            padding: 10px 18px;
-            border: 2px solid #ffffff;
-            background: #00aa00;
-            color: #ffffff;
-            font-weight: bold;
-            cursor: pointer;
-        }
     </style>
 </head>
 <body>
@@ -341,10 +286,6 @@
     
     <!-- Quit Button for Pause Menu -->
     <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
-
-    <div class="upgrade-overlay" id="upgradeOverlay">
-        <div class="upgrade-container" id="upgradeContainer"></div>
-    </div>
 
     <script>
         // Falling numbers background effect for lobby
@@ -819,12 +760,11 @@
 
             move(keys, canvas) {
                 if (this.isDashing) return;
-                const speedMul = this.speedMultiplier || 1;
                 let newX = this.x, newY = this.y;
-                if (keys.w) newY -= this.speed * speedMul;
-                if (keys.s) newY += this.speed * speedMul;
-                if (keys.a) newX -= this.speed * speedMul;
-                if (keys.d) newX += this.speed * speedMul;
+                if (keys.w) newY -= this.speed;
+                if (keys.s) newY += this.speed;
+                if (keys.a) newX -= this.speed;
+                if (keys.d) newX += this.speed;
                 this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
                 this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
                 this.canvas = canvas;
@@ -878,8 +818,7 @@
                         audio.startLoopingSound('railgunCharge');
                         this.railgunCharging = true;
                     }
-                    const chargeMul = this.railgunChargeSpeedMultiplier || 1;
-                    this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)));
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (1000 / 60 / this.railgunMaxChargeTime));
                     if (this.railgunCharge === 1) {
                         // Stop charging sound and play max charge sound when fully charged (only once)
                         if (this.railgunCharging && audio) {
@@ -951,14 +890,13 @@
 
         // Player bullet management
         class Bullet {
-            constructor(x, y, dx, dy, damage = 50) {
+            constructor(x, y, dx, dy) {
                 this.x = x;
                 this.y = y;
                 this.dx = dx;
                 this.dy = dy;
                 this.radius = 4;
                 this.life = 100;
-                this.damage = damage;
             }
 
             update(canvas, effects) {
@@ -1922,10 +1860,6 @@
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.setupLobby();
                 
-                // Upgrades
-                this.upgradeManager = new UpgradeManager(this);
-                this.upgradePause = false;
-                
                 // Grid movement for infinite background effect
                 this.gridOffsetX = 0;
                 this.gridOffsetY = 0;
@@ -2148,15 +2082,6 @@
                 this.playerXp = 0;
                 this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
                 if (this.uiManager && this.uiManager.resetXPBar) this.uiManager.resetXPBar();
-                // Reset upgrades
-                if (this.upgradeManager) this.upgradeManager.reset();
-                if (this.player) {
-                    this.player.maxHealth = 100;
-                    this.player.health = 100;
-                    this.player.speedMultiplier = 1;
-                    this.player.bulletDamageMultiplier = 1;
-                    this.player.railgunChargeSpeedMultiplier = 1;
-                }
                 
                 // Grouped wave state
                 if (USE_WAVE_GROUPS) {
@@ -2307,14 +2232,11 @@
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-                const baseDamage = 50;
-                const dmgMul = this.player.bulletDamageMultiplier || 1;
                 this.bullets.push(new Bullet(
                     this.player.x,
                     this.player.y,
                     (dx / dist) * 8,
-                    (dy / dist) * 8,
-                    Math.floor(baseDamage * dmgMul)
+                    (dy / dist) * 8
                 ));
                 this.lastShot = now;
                 this.audio.playSound('bulletShoot');
@@ -2398,7 +2320,6 @@
             update(timestamp) {
                 if (this.inLobby) return;  // Don't update game logic in lobby
                 if (this.gameOver || this.paused) return;
-                if (this.upgradePause) return;
                 
                 const gameTime = Date.now() - this.startTime;
                 
@@ -2468,7 +2389,7 @@
                             if (bulletDist < bullet.radius + enemy.radius) {
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
                                 this.bullets.splice(j, 1);
-                                if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     // Spawn XP ring on death
                                     { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
@@ -2541,7 +2462,7 @@
                                 this.playerLevel += 1;
                                 if (this.audio) this.audio.playSound('Level_UP');
                                 this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
-                                this.triggerLevelUpSelection();
+                                // TODO: trigger upgrade selection menu here next iteration
                             }
                             if (this.audio) this.audio.playSound('XP_collect');
                             // Visual collect effect
@@ -2776,92 +2697,12 @@
                 const wave = this.currentGroupQueue.shift();
                 return wave || null;
             }
-
-            resumeAfterUpgrade() {
-                this.upgradePause = false;
-                this.paused = false;
-                this.startTime += Date.now() - this.pauseTime;
-                this.waveStartTime += Date.now() - this.pauseTime;
-                this.audio.resumeMusic();
-            }
-
-            triggerLevelUpSelection() {
-                // Pause game and show upgrade UI
-                this.paused = true;
-                this.upgradePause = true;
-                this.pauseTime = Date.now();
-                this.input.clear();
-                this.audio.pauseMusic();
-                const options = this.upgradeManager.getRandomOptions(this.playerLevel, 3);
-                this.upgradeManager.renderOptions(options);
-            }
         }
 
         // Initialize and start the game
         const game = new Game();
         game.start();
 
-        // Upgrade Manager
-        class UpgradeManager {
-            constructor(game) {
-                this.game = game;
-                this.upgrades = [
-                    { key: 'health_1', level: 1, title: 'HEALTH', desc: 'Add 15 Health Points', image: 'upgrade_health.png', apply: () => { this.game.player.maxHealth += 15; this.game.player.health = Math.min(this.game.player.maxHealth, this.game.player.health + 15); } },
-                    { key: 'speed_1', level: 1, title: 'SPEED', desc: '+5% Speed', image: 'upgrade_speed.png', apply: () => { this.game.player.speedMultiplier = (this.game.player.speedMultiplier || 1) * 1.05; } },
-                    { key: 'damage_1', level: 1, title: 'DAMAGE', desc: '+10% of Bullets Damage', image: 'upgrade_damage.png', apply: () => { this.game.player.bulletDamageMultiplier = (this.game.player.bulletDamageMultiplier || 1) * 1.10; } },
-                    { key: 'railgun_charge_2', level: 2, title: 'RAILGUN CHARGE', desc: '10% Faster Railgun Charge', image: 'upgrade_railgun.png', apply: () => { this.game.player.railgunChargeSpeedMultiplier = (this.game.player.railgunChargeSpeedMultiplier || 1) * 1.10; } }
-                ];
-                this.taken = new Set();
-            }
-
-            getRandomOptions(maxLevel, count = 3) {
-                const pool = this.upgrades.filter(u => u.level <= maxLevel && !this.taken.has(u.key));
-                const shuffled = shuffleArray(pool);
-                return shuffled.slice(0, Math.min(count, shuffled.length));
-            }
-
-            renderOptions(options) {
-                const overlay = document.getElementById('upgradeOverlay');
-                const container = document.getElementById('upgradeContainer');
-                container.innerHTML = '';
-                options.forEach(opt => {
-                    const card = document.createElement('div');
-                    card.className = 'upgrade-card';
-                    const img = document.createElement('img');
-                    img.src = opt.image;
-                    img.alt = opt.title;
-                    const title = document.createElement('div');
-                    title.className = 'upgrade-title';
-                    title.textContent = opt.title;
-                    const desc = document.createElement('div');
-                    desc.className = 'upgrade-desc';
-                    desc.textContent = opt.desc;
-                    const btn = document.createElement('button');
-                    btn.className = 'upgrade-select-btn';
-                    btn.textContent = 'Select';
-                    btn.onclick = () => this.selectUpgrade(opt);
-                    card.appendChild(img);
-                    card.appendChild(title);
-                    card.appendChild(desc);
-                    card.appendChild(btn);
-                    container.appendChild(card);
-                });
-                overlay.classList.add('visible');
-            }
-
-            selectUpgrade(opt) {
-                if (!opt) return;
-                this.taken.add(opt.key);
-                opt.apply();
-                // Close overlay and resume
-                document.getElementById('upgradeOverlay').classList.remove('visible');
-                this.game.resumeAfterUpgrade();
-            }
-
-            reset() {
-                this.taken.clear();
-            }
-        }
 
     </script>
 </body>
