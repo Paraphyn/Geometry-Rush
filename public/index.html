@@ -2062,64 +2062,7 @@
             }
 
             spawnTrianglesAt(x, y, count = 3) {
-                const desiredRadius = 100; // will be clamped to at least 70 later; use larger to help stay outside 140px diameter while honoring bounds
-                const size = ENEMY_TYPES.triangle.size;
-                const h = size * 1.5;
-                const marginX = h * 0.8660254037844386; // half-width of triangle
-                const marginY = h; // top/bottom margin
-                const minRadius = Math.max(h + 5, size * 2);
 
-                const allowedForAngle = (angle) => {
-                    const c = Math.cos(angle);
-                    const s = Math.sin(angle);
-                    let rMaxX = Infinity;
-                    if (c > 0) rMaxX = (this.canvas.width - marginX - x) / c;
-                    else if (c < 0) rMaxX = (x - marginX) / (-c);
-                    let rMaxY = Infinity;
-                    if (s > 0) rMaxY = (this.canvas.height - marginY - y) / s;
-                    else if (s < 0) rMaxY = (y - marginY) / (-s);
-                    return Math.max(0, Math.min(rMaxX, rMaxY));
-                };
-
-                const computeAllowedForBase = (base) => {
-                    const a1 = base;
-                    const a2 = base + (Math.PI * 2 / 3);
-                    const a3 = base + (Math.PI * 4 / 3);
-                    return Math.min(allowedForAngle(a1), allowedForAngle(a2), allowedForAngle(a3));
-                };
-
-                let bestBase = 0;
-                let bestAllowed = -1;
-                const candidates = 24;
-                const offset = Math.random() * Math.PI * 2;
-                for (let k = 0; k < candidates; k++) {
-                    const base = offset + (k * (Math.PI * 2 / candidates));
-                    const allowed = computeAllowedForBase(base);
-                    if (allowed > bestAllowed) {
-                        bestAllowed = allowed;
-                        bestBase = base;
-                    }
-                }
-
-                // Ensure radius is at least 70 (outside 140px diameter zone)
-                let radius = Math.max(70, Math.min(desiredRadius, bestAllowed));
-                if (!isFinite(radius) || radius <= 0) {
-                    radius = 70;
-                }
-                if (bestAllowed >= minRadius) {
-                    radius = Math.max(70, Math.min(desiredRadius, bestAllowed));
-                }
-
-                const angles = [bestBase, bestBase + (Math.PI * 2 / 3), bestBase + (Math.PI * 4 / 3)];
-                for (let i = 0; i < 3; i++) {
-                    const ang = angles[i];
-                    const spawnX = x + Math.cos(ang) * radius;
-                    const spawnY = y + Math.sin(ang) * radius;
-                    const clampedX = Math.max(marginX, Math.min(this.canvas.width - marginX, spawnX));
-                    const clampedY = Math.max(marginY, Math.min(this.canvas.height - marginY, spawnY));
-                    const tri = new Enemy(clampedX, clampedY, 'triangle', ENEMY_TYPES.triangle);
-                    tri.tempInvulnerableUntil = Date.now() + 1500;
-                    this.enemies.push(tri);
                 }
             }
 
@@ -2241,20 +2184,7 @@
                         }
                         for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                             const effect = this.effects.effects[j];
-                            if (effect.type === 'railgunBeam') {
-                                const now = Date.now();
-                                if ((enemy.type === 'rhombus' && enemy.invulnerable) || (enemy.type === 'triangle' && now < enemy.tempInvulnerableUntil)) continue;
-                                if (effect.intersectsEnemy(enemy)) {
-                                    if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
-                                        this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                        if (enemy.type === 'rhombus') {
-                                            this.spawnTrianglesAt(enemy.x, enemy.y, 3);
-                                        }
-                                        this.enemies.splice(i, 1);
-                                        this.score += enemy.points;
-                                        this.enemiesKilled++;
-                                        this.uiManager.showScoreAddition(enemy.points);
-                                    }
+
                                 }
                             }
                         }
