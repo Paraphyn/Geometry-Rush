@@ -1489,9 +1489,8 @@
                 this.damageFlash = 0;
                 this.lastShot = 0;
                 this.shootDelay = type === 'octagon' ? 4000 : Infinity;
-                				this.lastTrailTime = 0;
-				this.tempInvulnerableUntil = 0;
-				if (type === 'rhombus') {
+                this.lastTrailTime = 0;
+                if (type === 'rhombus') {
                     this.invulnerable = false;
                     this.lastStateChange = Date.now();
                     this.stateChangeDuration = 2500;
@@ -1566,8 +1565,7 @@
             }
 
             takeDamage(damage, effects, score, ctx, audio) {
-                const now = Date.now();
-                if ((this.type === 'triangle' && now < this.tempInvulnerableUntil) || (this.type === 'rhombus' && this.invulnerable)) return true;
+                if (this.type === 'rhombus' && this.invulnerable) return true;
                 this.health -= damage;
                 this.damageFlash = 10;
                 effects.createHitEffect(this.x, this.y);
@@ -2061,11 +2059,6 @@
                 this.enemies.push(new Enemy(x, y, type, ENEMY_TYPES[type]));
             }
 
-            spawnTrianglesAt(x, y, count = 3) {
-
-                }
-            }
-
             startWave(waveConfig) {
                 this.currentWave = waveConfig.wave;
                 this.waveStarted = true;
@@ -2153,9 +2146,6 @@
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
-                        if (enemy.type === 'rhombus') {
-                            this.spawnTrianglesAt(enemy.x, enemy.y, 3);
-                        }
                         this.enemies.splice(i, 1);
                         this.enemiesKilled++;
                         // No score addition for collision deaths
@@ -2166,14 +2156,10 @@
                             const bullet = this.bullets[j];
                             const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
                             if (bulletDist < bullet.radius + enemy.radius) {
-                                const now = Date.now();
-                                if ((enemy.type === 'rhombus' && enemy.invulnerable) || (enemy.type === 'triangle' && now < enemy.tempInvulnerableUntil)) continue;
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) continue;
                                 this.bullets.splice(j, 1);
                                 if (!enemy.takeDamage(50, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                    if (enemy.type === 'rhombus') {
-                                        this.spawnTrianglesAt(enemy.x, enemy.y, 3);
-                                    }
                                     this.enemies.splice(i, 1);
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
@@ -2184,7 +2170,14 @@
                         }
                         for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                             const effect = this.effects.effects[j];
-
+                            if (effect.type === 'railgunBeam' && effect.intersectsEnemy(enemy)) {
+                                if (enemy.type === 'rhombus' && enemy.invulnerable) continue;
+                                if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                    this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    this.enemies.splice(i, 1);
+                                    this.score += enemy.points;
+                                    this.enemiesKilled++;
+                                    this.uiManager.showScoreAddition(enemy.points);
                                 }
                             }
                         }
