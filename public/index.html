@@ -1572,7 +1572,7 @@
                         return true;
                     },
                     typeSpecificDraw: function(ctx) {
-                        const blinkAlpha = this.life < 120 ? (0.3 + 0.3 * Math.abs(Math.sin(this.pulse))) : 0.4;
+                        const blinkAlpha = this.life < 120 ? (0.2 + 0.6 * Math.abs(Math.sin(this.pulse))) : 0.5;
                         ctx.save();
                         // Fill with base 0.25 alpha and subtle blink modulation
                         ctx.fillStyle = fillColor;
@@ -1592,6 +1592,41 @@
                         ctx.restore();
                     }
                 }));
+            }
+
+            createXPCollectEffect(x, y) {
+                const rings = 3;
+                const startRadius = 12;
+                const delayFrames = 30; // 0.5s at 60fps
+                for (let i = 0; i < rings; i++) {
+                    this.effects.push(new Effect('xpCollectRing', x, y, {
+                        radius: startRadius,
+                        opacity: 0.9,
+                        life: 40,
+                        maxLife: 40,
+                        lineWidth: 3,
+                        delay: i * delayFrames,
+                        typeSpecificUpdate: function() {
+                            if (this.delay > 0) { this.delay--; return true; }
+                            this.life--;
+                            const t = 1 - (this.life / this.maxLife);
+                            this.radius = startRadius + t * 40;
+                            this.opacity = Math.max(0, 0.9 * (1 - t));
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            if (this.delay > 0) return;
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ctx.strokeStyle = '#00ff00';
+                            ctx.lineWidth = this.lineWidth;
+                            ctx.beginPath();
+                            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }));
+                }
             }
         }
 
@@ -2429,6 +2464,8 @@
                                 // TODO: trigger upgrade selection menu here next iteration
                             }
                             if (this.audio) this.audio.playSound('XP_collect');
+                            // Visual collect effect
+                            this.effects.createXPCollectEffect(eff.x, eff.y);
                             // Update UI
                             this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
                             // Remove the ring
