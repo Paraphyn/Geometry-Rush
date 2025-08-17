@@ -1002,6 +1002,49 @@
             { timer: 168000, wave: 12, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 25 }, spawnTime: 35000 }
         ];
 
+        // Option: use grouped wave randomization (set to true to enable)
+        const USE_WAVE_GROUPS = false;
+
+        // Wave groups: each inner array is a group; order across groups is fixed (1, 2, 3, ...)
+        // Waves inside a group are randomly ordered each session
+        const WAVE_GROUPS = [
+            // Group 1 (example: original waves 1-3)
+            [
+                { enemies: { cubes: 6, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+                { enemies: { cubes: 8, triangles: 0, octagons: 3, rhombuses: 0 }, spawnTime: 10000 },
+                { enemies: { cubes: 0, triangles: 15, octagons: 0, rhombuses: 0 }, spawnTime: 13000 }
+            ],
+            // Group 2 (example: original waves 4-6)
+            [
+                { enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+                { enemies: { cubes: 0, triangles: 10, octagons: 6, rhombuses: 0 }, spawnTime: 15000 },
+                { enemies: { cubes: 20, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 15000 }
+            ],
+            // Group 3 (example: original waves 7-9)
+            [
+                { enemies: { cubes: 5, triangles: 5, octagons: 5, rhombuses: 3 }, spawnTime: 15000 },
+                { enemies: { cubes: 0, triangles: 0, octagons: 15, rhombuses: 10 }, spawnTime: 25000 },
+                { enemies: { cubes: 0, triangles: 0, octagons: 35, rhombuses: 0 }, spawnTime: 25000 }
+            ],
+            // Group 4 (example: original waves 10-12)
+            [
+                { enemies: { cubes: 10, triangles: 10, octagons: 10, rhombuses: 10 }, spawnTime: 25000 },
+                { enemies: { cubes: 25, triangles: 25, octagons: 0, rhombuses: 0 }, spawnTime: 30000 },
+                { enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 25 }, spawnTime: 35000 }
+            ]
+        ];
+
+        function shuffleArray(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = a[i];
+                a[i] = a[j];
+                a[j] = tmp;
+            }
+            return a;
+        }
+
         // Shape renderer utility
         class ShapeRenderer {
             static drawShape(ctx, x, y, type, size, fillColor, strokeColor) {
@@ -1849,6 +1892,7 @@
                 this.inLobby = false;
                 document.getElementById('lobby').classList.add('hidden');
                 this.uiManager.showUI();
+                
                 this.reset();
                 
                 // Switch from lobby music to game music
@@ -1898,6 +1942,17 @@
                 this.spawnedEnemies = 0;
                 this.gameOver = false;
                 this.paused = false;
+                
+                // Grouped wave state
+                if (USE_WAVE_GROUPS) {
+                    this.waveGroupsPrepared = WAVE_GROUPS.map(group => shuffleArray(group));
+                    this.currentGroupIndex = 0;
+                    this.currentGroupQueue = this.waveGroupsPrepared.length > 0 ? this.waveGroupsPrepared[0].slice() : [];
+                } else {
+                    this.waveGroupsPrepared = [];
+                    this.currentGroupIndex = 0;
+                    this.currentGroupQueue = [];
+                }
                 this.pauseTime = 0;
                 this.gameOverTime = 0;
                 this.lastShot = 0;
@@ -2077,7 +2132,12 @@
             }
 
             startWave(waveConfig) {
-                this.currentWave = waveConfig.wave;
+                // For grouped waves, wave numbers aren't provided; increment sequentially
+                if (USE_WAVE_GROUPS) {
+                    this.currentWave += 1;
+                } else {
+                    this.currentWave = waveConfig.wave;
+                }
                 this.waveStarted = true;
                 this.waveStartTime = Date.now();
                 this.spawnedEnemies = 0;
@@ -2133,9 +2193,18 @@
                 
                 // Only check for next wave if not in wave pause
                 if (!this.inWavePause) {
-                    const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
-                    if (nextWave && !this.waveStarted) {
-                        this.startWave(nextWave);
+                    if (USE_WAVE_GROUPS) {
+                        if (!this.waveStarted) {
+                            const nextGrouped = this.getNextGroupedWave();
+                            if (nextGrouped) {
+                                this.startWave(nextGrouped);
+                            }
+                        }
+                    } else {
+                        const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
+                        if (nextWave && !this.waveStarted) {
+                            this.startWave(nextWave);
+                        }
                     }
                 }
                 
@@ -2426,6 +2495,30 @@
 
             start() {
                 requestAnimationFrame(t => this.loop(t));
+            }
+
+            prepareWaveGroups() {
+                // Shuffle waves inside each group; reset group indices
+                this.waveGroupsPrepared = WAVE_GROUPS.map(group => shuffleArray(group));
+                this.currentGroupIndex = 0;
+                this.currentGroupQueue = this.waveGroupsPrepared.length > 0 ? this.waveGroupsPrepared[0].slice() : [];
+                this.currentWave = 0;
+            }
+
+            getNextGroupedWave() {
+                // If no groups or finished all groups
+                if (!this.waveGroupsPrepared || this.currentGroupIndex >= this.waveGroupsPrepared.length) {
+                    return null;
+                }
+                // If current group exhausted, advance to next group
+                if (this.currentGroupQueue.length === 0) {
+                    this.currentGroupIndex++;
+                    if (this.currentGroupIndex >= this.waveGroupsPrepared.length) return null;
+                    this.currentGroupQueue = this.waveGroupsPrepared[this.currentGroupIndex].slice();
+                }
+                // Pop next wave from current group's randomized queue
+                const wave = this.currentGroupQueue.shift();
+                return wave || null;
             }
         }
 
