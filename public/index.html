@@ -1058,6 +1058,20 @@
             return a;
         }
 
+        // XP / Level configuration
+        const XP_LEVELS = [
+            100, // Level 1 -> 2
+            200, // Level 2 -> 3
+            300, // Level 3 -> 4
+            400, // Level 4 -> 5
+        ]; // Extendable; last value repeats for higher levels if needed
+
+        function getRequiredXpForLevel(level) {
+            if (level <= 0) return XP_LEVELS[0] || 100;
+            if (level - 1 < XP_LEVELS.length) return XP_LEVELS[level - 1];
+            return XP_LEVELS[XP_LEVELS.length - 1];
+        }
+
         // Shape renderer utility
         class ShapeRenderer {
             static drawShape(ctx, x, y, type, size, fillColor, strokeColor) {
@@ -2629,19 +2643,7 @@
         const game = new Game();
         game.start();
 
-        // XP / Level configuration
-        const XP_LEVELS = [
-            100, // Level 1 -> 2
-            200, // Level 2 -> 3
-            300, // Level 3 -> 4
-            400, // Level 4 -> 5
-        ]; // Extendable; last value repeats for higher levels if needed
 
-        function getRequiredXpForLevel(level) {
-            if (level <= 0) return XP_LEVELS[0] || 100;
-            if (level - 1 < XP_LEVELS.length) return XP_LEVELS[level - 1];
-            return XP_LEVELS[XP_LEVELS.length - 1];
-        }
     </script>
 </body>
 </html>
