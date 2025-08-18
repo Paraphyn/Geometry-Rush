@@ -120,6 +120,18 @@
             animation: logoGlow 2s ease-in-out infinite alternate;
             display: none; /* Hidden by default, shown when image loads */
         }
+
+        .lobby-best {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffffff;
+            font-size: 18px;
+            opacity: 0.8;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        }
         
         @keyframes logoGlow {
             from {
@@ -332,6 +344,7 @@
             START
             <div class="button-rain" id="buttonRain"></div>
         </button>
+        <div class="lobby-best" id="bestStats">Best Score: 0 / Max Wave: 0</div>
     </div>
     
     <!-- Music Toggle Button -->
@@ -1980,6 +1993,13 @@
                 this.setupAudio();
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                
+                // Persistent best stats
+                this.bestScore = 0;
+                this.maxWave = 0;
+                this.isNewBestScore = false;
+                this.isNewMaxWave = false;
+                this.loadBestStats();
                 this.setupLobby();
                 
                 // Upgrades state
@@ -2019,6 +2039,7 @@
                 const buttonRain = document.getElementById('buttonRain');
                 const lobbyTitle = document.getElementById('lobbyTitle');
                 const lobbyLogo = document.getElementById('lobbyLogo');
+                const bestStatsEl = document.getElementById('bestStats');
                 
                 // Handle logo loading
                 lobbyLogo.addEventListener('load', () => {
@@ -2094,6 +2115,9 @@
                 document.addEventListener('click', initAudio);
                 document.addEventListener('keydown', initAudio);
                 document.addEventListener('touchstart', initAudio);
+                
+                // Initialize best stats label
+                this.updateBestStatsLabel();
             }
             
             startButtonRain(container) {
@@ -2218,6 +2242,8 @@
                 
                 // Reset game state
                 this.reset();
+                // Update lobby best stats label when returning
+                this.updateBestStatsLabel();
             }
 
             reset() {
@@ -2238,6 +2264,10 @@
                 this.gameOver = false;
                 this.paused = false;
                 
+                // Reset best flags for new session
+                this.isNewBestScore = false;
+                this.isNewMaxWave = false;
+
                 // Player XP state
                 this.playerLevel = 1;
                 this.playerXp = 0;
@@ -2622,6 +2652,9 @@
                     // Stop all background music on game over
                     this.audio.stopGameMusic();
                     this.audio.stopLobbyMusic();
+                    // Update and persist best stats
+                    this.updateBestStatsIfNeeded(this.score, this.currentWave);
+                    this.updateBestStatsLabel();
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
@@ -2729,6 +2762,37 @@
                     this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
                     this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
+
+                    // Show best stats and mark NEW! if improved this session
+                    const centerX = this.canvas.width / 2;
+                    const bestScoreY = this.canvas.height / 2 + 110;
+                    const maxWaveY = this.canvas.height / 2 + 140;
+
+                    const bestScoreText = `Best Score: ${this.bestScore}`;
+                    const maxWaveText = `Max Wave: ${this.maxWave}`;
+
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.fillText(bestScoreText, centerX, bestScoreY);
+                    this.ctx.fillText(maxWaveText, centerX, maxWaveY);
+
+                    if (this.isNewBestScore) {
+                        const w = this.ctx.measureText(bestScoreText).width;
+                        this.ctx.save();
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillStyle = '#00ff00';
+                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.fillText('NEW!', centerX + w / 2 + 16, bestScoreY);
+                        this.ctx.restore();
+                    }
+                    if (this.isNewMaxWave) {
+                        const w2 = this.ctx.measureText(maxWaveText).width;
+                        this.ctx.save();
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillStyle = '#00ff00';
+                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.fillText('NEW!', centerX + w2 / 2 + 16, maxWaveY);
+                        this.ctx.restore();
+                    }
                     
                     // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
                     const blinkCycle = this.gameOverBlinkFrame % 90;
@@ -2746,8 +2810,8 @@
                     this.ctx.globalAlpha = opacity;
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
-                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 120);
-                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 150);
+                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 200);
+                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 230);
                     this.ctx.restore();
                 }
             }
@@ -2906,6 +2970,47 @@
                     return;
                 }
                 this.upgradeManager.renderOptions(options);
+            }
+            
+            // ---- Persistent Best Stats ----
+            loadBestStats() {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('geometry_rush_best') || '{}');
+                    this.bestScore = Number.isFinite(saved.bestScore) ? saved.bestScore : 0;
+                    this.maxWave = Number.isFinite(saved.maxWave) ? saved.maxWave : 0;
+                } catch (e) {
+                    this.bestScore = 0;
+                    this.maxWave = 0;
+                }
+            }
+
+            saveBestStats() {
+                try {
+                    localStorage.setItem('geometry_rush_best', JSON.stringify({ bestScore: this.bestScore, maxWave: this.maxWave }));
+                } catch (e) {
+                    // ignore storage errors
+                }
+            }
+
+            updateBestStatsIfNeeded(score, wave) {
+                let updated = false;
+                if (typeof score === 'number' && score > this.bestScore) {
+                    this.bestScore = score;
+                    this.isNewBestScore = true;
+                    updated = true;
+                }
+                if (typeof wave === 'number' && wave > this.maxWave) {
+                    this.maxWave = wave;
+                    this.isNewMaxWave = true;
+                    updated = true;
+                }
+                if (updated) this.saveBestStats();
+            }
+
+            updateBestStatsLabel() {
+                const el = document.getElementById('bestStats');
+                if (!el) return;
+                el.textContent = `Best Score: ${this.bestScore} / Max Wave: ${this.maxWave}`;
             }
         }
 
