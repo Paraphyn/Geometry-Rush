@@ -853,6 +853,9 @@
                 this.blinkState = true;
                 this.blinkFrame = 0;
                 this.railgunMaxChargeSoundPlayed = false;
+                if (typeof window !== 'undefined' && window.game && window.game.effects && window.game.effects.disableRailgunAura) {
+                    window.game.effects.disableRailgunAura();
+                }
             }
 
             update(input, effects, canvas, audio) {
@@ -880,6 +883,7 @@
                     }
                     const chargeMul = this.railgunChargeSpeedMultiplier || 1;
                     this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)));
+                    if (effects && effects.enableRailgunAura) { effects.enableRailgunAura(); }
                     if (this.railgunCharge === 1) {
                         // Stop charging sound and play max charge sound when fully charged (only once)
                         if (this.railgunCharging && audio) {
@@ -895,14 +899,7 @@
                     } else {
                         this.blinkState = true;
                         this.blinkFrame = 0;
-                        if (this.railgunParticles.length < 4) {
-                            const particleCount = Math.floor(Math.random() * 3) + 3;
-                            for (let i = this.railgunParticles.length; i < particleCount; i++) {
-                                effects.createRailgunParticle(this.x, this.y);
-                            }
-                        }
                     }
-                    this.railgunParticles.forEach(p => p.update(this.x, this.y));
                 } else if (this.railgunCharge > 0) {
                     if (this.railgunCharging && audio) {
                         audio.stopLoopingSound('railgunCharge');
@@ -918,6 +915,7 @@
                         }
                     }
                     if (audio) audio.playSound('railgunShoot');
+                    if (effects && effects.disableRailgunAura) { effects.disableRailgunAura(); }
                     this.railgunCharge = 0;
                     this.railgunParticles = [];
                     this.blinkState = true;
@@ -926,6 +924,7 @@
                 } else if (this.railgunCharging && audio) {
                     audio.stopLoopingSound('railgunCharge');
                     this.railgunCharging = false;
+                    if (effects && effects.disableRailgunAura) { effects.disableRailgunAura(); }
                 }
             }
 
@@ -1213,6 +1212,47 @@
                 this.playerX = 0;
                 this.playerY = 0;
             }
+
+            enableRailgunAura() {
+                const exists = this.effects.some(e => e.type === 'railgunAura');
+                if (exists) return;
+                this.effects.push(new Effect('railgunAura', this.playerX, this.playerY, {
+                    particleCount: 8,
+                    angle: 0,
+                    rotationSpeed: 0.12,
+                    baseRadius: 22,
+                    radiusOffset: 6,
+                    baseSize: 2.5,
+                    maxOpacity: 0.6,
+                    typeSpecificUpdate: function(playerX, playerY) {
+                        this.x = playerX;
+                        this.y = playerY;
+                        this.angle += this.rotationSpeed;
+                        this.renderRadius = (this.baseRadius || 22) + this.radiusOffset;
+                        return true;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        const step = Math.PI * 2 / this.particleCount;
+                        for (let i = 0; i < this.particleCount; i++) {
+                            const a = this.angle + i * step;
+                            const px = this.x + Math.cos(a) * this.renderRadius;
+                            const py = this.y + Math.sin(a) * this.renderRadius;
+                            ctx.save();
+                            ctx.globalAlpha = this.maxOpacity;
+                            ctx.fillStyle = '#00ffff';
+                            ctx.beginPath();
+                            ctx.arc(px, py, this.baseSize, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    }
+                }));
+            }
+
+            disableRailgunAura() {
+                this.effects = this.effects.filter(e => e.type !== 'railgunAura');
+            }
+
 
             createBulletTrail(x, y, color) {
                 this.effects.push(new Effect('bulletTrail', x, y, {
@@ -2280,6 +2320,7 @@
                                 this.audio.pauseMusic();
                                 this.player.stopRailgunCharge(this.audio);
                                 this.audio.playSound('pauseActivate');
+                                if (this.effects && this.effects.disableRailgunAura) this.effects.disableRailgunAura();
                                 quitButton.classList.add('visible');
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
