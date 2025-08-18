@@ -2816,12 +2816,12 @@
                     const blinkCycle = this.pauseBlinkFrame % 90;
                     let opacity;
                     
-                    if (blinkCycle < 45) {
+                    if (blinkCycle < 90) {
                         // Fade in during first half
-                        opacity = blinkCycle / 45;
+                        opacity = blinkCycle / 90;
                     } else {
                         // Fade out during second half
-                        opacity = (90 - blinkCycle) / 45;
+                        opacity = (180 - blinkCycle) / 90;
                     }
                     
                     this.ctx.save();
@@ -2840,21 +2840,25 @@
                     this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '28px Arial';
-                    this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
-                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
-                    this.ctx.fillText(`Survived Waves: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
-
-                    // Show best stats and mark NEW! if improved this session
+                                        // Center the stats block vertically with equal spacing
                     const centerX = this.canvas.width / 2;
-                    const bestScoreY = this.canvas.height / 2 + 110;
-                    const maxWaveY = this.canvas.height / 2 + 140;
+                    const lineHeight = 40;
+                    const gameOverY = this.canvas.height / 2 - 60;
+                    const minTopY = gameOverY + 50;
+                    const idealTopY = this.canvas.height / 2 - 2 * lineHeight;
+                    const statsStartY = Math.max(minTopY, idealTopY);
 
+                    const survivalTimeText = `Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`;
+                    const finalScoreText = `Final Score: ${this.score}`;
+                    const survivedWavesText = `Survived Waves: ${this.currentWave}`;
                     const bestScoreText = `Best Score: ${this.bestScore}`;
-                    const maxWaveText = `Best Wave: ${this.maxWave}`;
+                    const bestWaveText = `Best Wave: ${this.maxWave}`;
 
-                    this.ctx.fillStyle = '#ffffff';
-                    this.ctx.fillText(bestScoreText, centerX, bestScoreY);
-                    this.ctx.fillText(maxWaveText, centerX, maxWaveY);
+                    this.ctx.fillText(survivalTimeText, centerX, statsStartY + 0 * lineHeight);
+                    this.ctx.fillText(finalScoreText, centerX, statsStartY + 1 * lineHeight);
+                    this.ctx.fillText(survivedWavesText, centerX, statsStartY + 2 * lineHeight);
+                    this.ctx.fillText(bestScoreText, centerX, statsStartY + 3 * lineHeight);
+                    this.ctx.fillText(bestWaveText, centerX, statsStartY + 4 * lineHeight);
 
                     if (this.isNewBestScore) {
                         const w = this.ctx.measureText(bestScoreText).width;
@@ -2862,29 +2866,30 @@
                         this.ctx.textAlign = 'left';
                         this.ctx.fillStyle = '#00ff00';
                         this.ctx.font = 'bold 24px Arial';
-                        this.ctx.fillText('NEW!', centerX + w / 2 + 16, bestScoreY);
+                        this.ctx.fillText('NEW!', centerX + w / 2 + 16, statsStartY + 3 * lineHeight);
                         this.ctx.restore();
                     }
                     if (this.isNewMaxWave) {
-                        const w2 = this.ctx.measureText(maxWaveText).width;
+                        const w2 = this.ctx.measureText(bestWaveText).width;
                         this.ctx.save();
                         this.ctx.textAlign = 'left';
                         this.ctx.fillStyle = '#00ff00';
                         this.ctx.font = 'bold 24px Arial';
-                        this.ctx.fillText('NEW!', centerX + w2 / 2 + 16, maxWaveY);
+                        this.ctx.fillText('NEW!', centerX + w2 / 2 + 16, statsStartY + 4 * lineHeight);
                         this.ctx.restore();
                     }
+
                     
-                    // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
-                    const blinkCycle = this.gameOverBlinkFrame % 90;
+                    // Fast blinking restart text with fade (slowed 2x: 180 frames = 3 seconds at 60fps)
+                    const blinkCycle = this.gameOverBlinkFrame % 180;
                     let opacity;
                     
-                    if (blinkCycle < 45) {
+                    if (blinkCycle < 90) {
                         // Fade in during first half
-                        opacity = blinkCycle / 45;
+                        opacity = blinkCycle / 90;
                     } else {
                         // Fade out during second half
-                        opacity = (90 - blinkCycle) / 45;
+                        opacity = (180 - blinkCycle) / 90;
                     }
                     
                     this.ctx.save();
