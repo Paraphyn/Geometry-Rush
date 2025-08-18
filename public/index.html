@@ -2017,15 +2017,29 @@
                     if (musicEnabled) {
                         musicIcon.src = 'sound-on.png';
                         musicIcon.alt = 'Music On';
+                        // Ensure the correct track plays based on current state
+                        if (this.inLobby) {
+                            this.audio.stopGameMusic();
+                            this.audio.playLobbyMusic();
+                        } else if (this.gameOver) {
+                            // No music in game over
+                            this.audio.stopGameMusic();
+                            this.audio.stopLobbyMusic();
+                        } else if (!this.paused) {
+                            // In active gameplay
+                            this.audio.stopLobbyMusic();
+                            this.audio.playGameMusic();
+                        }
                     } else {
                         musicIcon.src = 'sound-off.png';
                         musicIcon.alt = 'Music Off';
+                        // toggleMusic already pauses all music
                     }
                 });
                 
-                // Auto-start audio on any interaction
+                // Auto-start audio on any interaction (only while in lobby)
                 const initAudio = async () => {
-                    if (this.audio.musicEnabled) {
+                    if (this.audio.musicEnabled && this.inLobby) {
                         await this.audio.playLobbyMusic();
                     }
                     document.removeEventListener('click', initAudio);
@@ -2545,7 +2559,9 @@
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
                     this.input.clear();
-                    // keep background music playing during upgrade selection
+                    // Stop all background music on game over
+                    this.audio.stopGameMusic();
+                    this.audio.stopLobbyMusic();
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
