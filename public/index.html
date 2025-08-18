@@ -282,7 +282,8 @@
         .upgrade-container {
             display: grid;
             grid-template-columns: repeat(3, 280px);
-            gap: 24px;
+            column-gap: 10px;
+            row-gap: 24px;
             padding: 24px;
         }
         .upgrade-card {
@@ -294,6 +295,7 @@
             align-items: center;
             text-align: center;
             width: 280px;
+            position: relative;
         }
         .upgrade-card img {
             width: 120px;
@@ -321,6 +323,26 @@
             color: #ffffff;
             font-weight: bold;
             cursor: pointer;
+        }
+        .upgrade-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .upgrade-overlay-title {
+            color: #00ffff;
+            font-weight: bold;
+            font-size: 28px;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        .upgrade-key-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            color: #00ffff;
+            font-weight: bold;
+            font-size: 18px;
         }
     </style>
 </head>
@@ -356,7 +378,10 @@
     <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
 
     <div class="upgrade-overlay" id="upgradeOverlay">
-        <div class="upgrade-container" id="upgradeContainer"></div>
+        <div class="upgrade-wrapper">
+            <div class="upgrade-overlay-title">SELECT UPGRADE</div>
+            <div class="upgrade-container" id="upgradeContainer"></div>
+        </div>
     </div>
 
     <script>
@@ -3081,6 +3106,8 @@
                     { key: 'railgun_charge_3', level: 3, title: 'RAILGUN CHARGE', desc: '10% Faster Railgun Charge', image: 'railgun_charge.png', apply: () => { this.game.player.railgunChargeSpeedMultiplier = (this.game.player.railgunChargeSpeedMultiplier || 1) * 1.10; } }
                 ];
                 this.taken = new Set();
+                this.currentOptions = [];
+                this.keyHandler = null;
             }
 
             getRandomOptions(maxLevel, count = 3) {
@@ -3093,9 +3120,13 @@
                 const overlay = document.getElementById('upgradeOverlay');
                 const container = document.getElementById('upgradeContainer');
                 container.innerHTML = '';
-                options.forEach(opt => {
+                this.currentOptions = options.slice();
+                options.forEach((opt, idx) => {
                     const card = document.createElement('div');
                     card.className = 'upgrade-card';
+                    const badge = document.createElement('div');
+                    badge.className = 'upgrade-key-badge';
+                    badge.textContent = String(idx + 1);
                     const img = document.createElement('img');
                     img.src = opt.image;
                     img.alt = opt.title;
@@ -3109,6 +3140,7 @@
                     btn.className = 'upgrade-select-btn';
                     btn.textContent = 'Select';
                     btn.onclick = () => this.selectUpgrade(opt);
+                    card.appendChild(badge);
                     card.appendChild(img);
                     card.appendChild(title);
                     card.appendChild(desc);
@@ -3116,6 +3148,25 @@
                     container.appendChild(card);
                 });
                 overlay.classList.add('visible');
+
+                // Setup key shortcuts 1/2/3
+                if (this.keyHandler) {
+                    document.removeEventListener('keydown', this.keyHandler);
+                }
+                this.keyHandler = (e) => {
+                    const ov = document.getElementById('upgradeOverlay');
+                    if (!ov || !ov.classList.contains('visible')) return;
+                    const code = e.code;
+                    let index = -1;
+                    if (code === 'Digit1' || code === 'Numpad1' || e.key === '1') index = 0;
+                    else if (code === 'Digit2' || code === 'Numpad2' || e.key === '2') index = 1;
+                    else if (code === 'Digit3' || code === 'Numpad3' || e.key === '3') index = 2;
+                    if (index >= 0 && index < this.currentOptions.length) {
+                        e.preventDefault();
+                        this.selectUpgrade(this.currentOptions[index]);
+                    }
+                };
+                document.addEventListener('keydown', this.keyHandler);
             }
 
             selectUpgrade(opt) {
@@ -3124,11 +3175,21 @@
                 opt.apply();
                 // Close overlay and resume
                 document.getElementById('upgradeOverlay').classList.remove('visible');
+                if (this.keyHandler) {
+                    document.removeEventListener('keydown', this.keyHandler);
+                    this.keyHandler = null;
+                }
+                this.currentOptions = [];
                 this.game.resumeAfterUpgrade();
             }
 
             reset() {
                 this.taken.clear();
+                if (this.keyHandler) {
+                    document.removeEventListener('keydown', this.keyHandler);
+                    this.keyHandler = null;
+                }
+                this.currentOptions = [];
             }
         }
 
