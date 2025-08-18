@@ -1997,6 +1997,8 @@
                 // Persistent best stats
                 this.bestScore = 0;
                 this.maxWave = 0;
+                this.isNewBestScore = false;
+                this.isNewMaxWave = false;
                 this.loadBestStats();
                 this.setupLobby();
                 
@@ -2262,6 +2264,10 @@
                 this.gameOver = false;
                 this.paused = false;
                 
+                // Reset best flags for new session
+                this.isNewBestScore = false;
+                this.isNewMaxWave = false;
+
                 // Player XP state
                 this.playerLevel = 1;
                 this.playerXp = 0;
@@ -2756,6 +2762,37 @@
                     this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
                     this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
+
+                    // Show best stats and mark NEW! if improved this session
+                    const centerX = this.canvas.width / 2;
+                    const bestScoreY = this.canvas.height / 2 + 110;
+                    const maxWaveY = this.canvas.height / 2 + 140;
+
+                    const bestScoreText = `Best Score: ${this.bestScore}`;
+                    const maxWaveText = `Max Wave: ${this.maxWave}`;
+
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.fillText(bestScoreText, centerX, bestScoreY);
+                    this.ctx.fillText(maxWaveText, centerX, maxWaveY);
+
+                    if (this.isNewBestScore) {
+                        const w = this.ctx.measureText(bestScoreText).width;
+                        this.ctx.save();
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillStyle = '#00ff00';
+                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.fillText('NEW!', centerX + w / 2 + 16, bestScoreY);
+                        this.ctx.restore();
+                    }
+                    if (this.isNewMaxWave) {
+                        const w2 = this.ctx.measureText(maxWaveText).width;
+                        this.ctx.save();
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillStyle = '#00ff00';
+                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.fillText('NEW!', centerX + w2 / 2 + 16, maxWaveY);
+                        this.ctx.restore();
+                    }
                     
                     // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
                     const blinkCycle = this.gameOverBlinkFrame % 90;
@@ -2773,8 +2810,8 @@
                     this.ctx.globalAlpha = opacity;
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '20px Arial';
-                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 120);
-                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 150);
+                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 200);
+                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 230);
                     this.ctx.restore();
                 }
             }
@@ -2959,10 +2996,12 @@
                 let updated = false;
                 if (typeof score === 'number' && score > this.bestScore) {
                     this.bestScore = score;
+                    this.isNewBestScore = true;
                     updated = true;
                 }
                 if (typeof wave === 'number' && wave > this.maxWave) {
                     this.maxWave = wave;
+                    this.isNewMaxWave = true;
                     updated = true;
                 }
                 if (updated) this.saveBestStats();
