@@ -501,6 +501,7 @@
                     buttonClick: { file: 'button-click.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
                     'Level_UP': { file: 'level-up.wav', loop: false },
+                    'Upgrade_Selected': { file: 'button-click.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
                     backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
                 };
@@ -3085,6 +3086,9 @@
                 if (!opt) return;
                 this.taken.add(opt.key);
                 opt.apply();
+                if (this.game && this.game.audio) {
+                    this.game.audio.playSound('Upgrade_Selected');
+                }
                 // Close overlay and resume
                 document.getElementById('upgradeOverlay').classList.remove('visible');
                 this.game.resumeAfterUpgrade();
