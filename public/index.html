@@ -360,6 +360,31 @@
     </div>
 
     <script>
+        // Global speed and scaling settings
+        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 1.0 };
+
+        function computeResolutionScale(width, height) {
+            return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
+        }
+
+        function getMotionScale() {
+            try {
+                return (typeof window !== 'undefined' && window.game && window.game.speedScale) ? window.game.speedScale : 1;
+            } catch (e) {
+                return 1;
+            }
+        }
+
+        function getTimeScale() {
+            return SPEED_SETTINGS.globalSpeed || 1;
+        }
+
+        // Optional helper to change global speed at runtime
+        function setGlobalSpeed(value) {
+            const v = Number(value);
+            SPEED_SETTINGS.globalSpeed = Number.isFinite(v) ? v : 1;
+        }
+
         // Falling numbers background effect for lobby
         class FallingNumbers {
             constructor(x, y, layer = 0) {
@@ -404,9 +429,11 @@
             }
 
             update(canvas) {
-                this.y += this.speed;
-                this.life++;
-                this.twinkle += 0.05;
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                this.y += this.speed * motion;
+                this.life += t;
+                this.twinkle += 0.05 * t;
                 
                 // Enhanced fade in/out with twinkling effect
                 if (this.life < 60) {
@@ -450,7 +477,7 @@
                 for (let layer = 0; layer < 5; layer++) {
                     this.layers[layer] = this.layers[layer].filter(number => number.update(this.canvas));
                     
-                    this.spawnTimers[layer]++;
+                    this.spawnTimers[layer] += getTimeScale();
                     if (this.spawnTimers[layer] >= this.spawnDelays[layer] && 
                         this.layers[layer].length < this.maxNumbers[layer]) {
                         this.spawnNumber(layer);
@@ -656,7 +683,8 @@
             }
 
             update() {
-                this.life--;
+                const t = getTimeScale();
+                this.life -= t;
                 if (this.life > this.maxLife - this.fadeInDuration) {
                     const fadeProgress = (this.maxLife - this.life) / this.fadeInDuration;
                     this.opacity = this.maxOpacity * fadeProgress;
@@ -700,8 +728,9 @@
             }
 
             update() {
+                const t = getTimeScale();
                 this.binaries = this.binaries.filter(binary => binary.update());
-                this.spawnTimer++;
+                this.spawnTimer += t;
                 if (this.spawnTimer >= this.spawnDelay && this.binaries.length < this.maxBinaries) {
                     this.spawnBinary();
                     this.spawnTimer = 0;
@@ -761,7 +790,7 @@
             }
 
             update() {
-                this.life--;
+                this.life -= getTimeScale();
                 this.opacity = 0.5 * (this.life / this.maxLife);
                 return this.life > 0;
             }
@@ -816,8 +845,9 @@
                 if (keys.d) dx += 1;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist === 0) return;
-                dx = (dx / dist) * this.dashDistance;
-                dy = (dy / dist) * this.dashDistance;
+                const motion = getMotionScale();
+                dx = (dx / dist) * this.dashDistance * motion;
+                dy = (dy / dist) * this.dashDistance * motion;
                 this.isDashing = true;
                 this.invulnerable = true;
                 this.dashProgress = 0;
@@ -833,11 +863,12 @@
             move(keys, canvas) {
                 if (this.isDashing) return;
                 const speedMul = this.speedMultiplier || 1;
+                const motion = getMotionScale();
                 let newX = this.x, newY = this.y;
-                if (keys.w) newY -= this.speed * speedMul;
-                if (keys.s) newY += this.speed * speedMul;
-                if (keys.a) newX -= this.speed * speedMul;
-                if (keys.d) newX += this.speed * speedMul;
+                if (keys.w) newY -= this.speed * speedMul * motion;
+                if (keys.s) newY += this.speed * speedMul * motion;
+                if (keys.a) newX -= this.speed * speedMul * motion;
+                if (keys.d) newX += this.speed * speedMul * motion;
                 this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
                 this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
                 this.canvas = canvas;
@@ -872,15 +903,16 @@
             }
 
             update(input, effects, canvas, audio) {
-                if (this.damageFlash > 0) this.damageFlash--;
+                const timeScale = getTimeScale();
+                if (this.damageFlash > 0) this.damageFlash -= timeScale;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
-                    this.invulnerabilityTime--;
+                    this.invulnerabilityTime -= timeScale;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
                 }
                 this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
 
                 if (this.isDashing) {
-                    this.dashProgress++;
+                    this.dashProgress += timeScale;
                     const t = this.dashProgress / this.dashDuration;
                     this.x = this.dashStartX + (this.dashEndX - this.dashStartX) * t;
                     this.y = this.dashStartY + (this.dashEndY - this.dashStartY) * t;
@@ -895,7 +927,7 @@
                         this.railgunCharging = true;
                     }
                     const chargeMul = this.railgunChargeSpeedMultiplier || 1;
-                    this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)));
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)) * timeScale);
                     if (effects && effects.enableRailgunAura) { effects.enableRailgunAura(); }
                     if (this.railgunCharge === 1) {
                         // Stop charging sound and play max charge sound when fully charged (only once)
@@ -907,7 +939,7 @@
                             audio.playSound('railgunChargeMax');
                             this.railgunMaxChargeSoundPlayed = true;
                         }
-                        this.blinkFrame = (this.blinkFrame + 1) % 30;
+                        this.blinkFrame = (this.blinkFrame + timeScale) % 30;
                         this.blinkState = this.blinkFrame < 15;
                     } else {
                         this.blinkState = true;
@@ -983,9 +1015,11 @@
 
             update(canvas, effects) {
                 effects.createBulletTrail(this.x, this.y, '#00ffff');
-                this.x += this.dx;
-                this.y += this.dy;
-                this.life--;
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                this.x += this.dx * motion;
+                this.y += this.dy * motion;
+                this.life -= t;
                 if (this.life <= 0) {
                     effects.createBulletExplosion(this.x, this.y, '#00ffff');
                     return false;
@@ -1018,9 +1052,11 @@
 
             update(canvas, effects) {
                 effects.createBulletTrail(this.x, this.y, '#FFC13B');
-                this.x += this.dx;
-                this.y += this.dy;
-                this.life--;
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                this.x += this.dx * motion;
+                this.y += this.dy * motion;
+                this.life -= t;
                 if (this.life <= 0) {
                     effects.createBulletExplosion(this.x, this.y, '#FFC13B');
                     return false;
@@ -1245,7 +1281,7 @@
                     typeSpecificUpdate: function(playerX, playerY) {
                         this.x = playerX;
                         this.y = playerY;
-                        this.angle += this.rotationSpeed;
+                        this.angle += this.rotationSpeed * getTimeScale();
                         this.renderRadius = (this.baseRadius || 25) + this.radiusOffset;
                         return true;
                     },
@@ -1279,9 +1315,10 @@
                     life: 6,
                     color,
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        const t = getTimeScale();
+                        this.life -= t;
                         this.opacity = this.life / 6;
-                        this.size *= 0.95;
+                        this.size *= Math.pow(0.95, t);
                         return this.life > 0;
                     },
                     typeSpecificDraw: function(ctx) {
@@ -1304,9 +1341,10 @@
                     maxLife: 20,
                     color,
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        const t = getTimeScale();
+                        this.life -= t;
                         this.opacity = this.life / this.maxLife;
-                        this.size += 0.5;
+                        this.size += 0.5 * getMotionScale();
                         return this.life > 0;
                     },
                     typeSpecificDraw: function(ctx) {
@@ -1332,13 +1370,15 @@
                         dx: Math.cos(angle) * speed,
                         dy: Math.sin(angle) * speed,
                         typeSpecificUpdate: function() {
-                            this.x += this.dx;
-                            this.y += this.dy;
-                            this.dx *= 0.9;
-                            this.dy *= 0.9;
-                            this.life--;
+                            const motion = getMotionScale();
+                            const t = getTimeScale();
+                            this.x += this.dx * motion;
+                            this.y += this.dy * motion;
+                            this.dx *= Math.pow(0.9, t);
+                            this.dy *= Math.pow(0.9, t);
+                            this.life -= t;
                             this.opacity = this.life / 25;
-                            this.size *= 0.98;
+                            this.size *= Math.pow(0.98, t);
                             return this.life > 0;
                         },
                         typeSpecificDraw: function(ctx) {
@@ -1369,11 +1409,13 @@
                     scale: 0.8,
                     isPlayerDamage,
                     typeSpecificUpdate: function() {
-                        this.x += this.dx;
-                        this.y += this.dy;
-                        this.dy += this.gravity;
-                        this.dx *= 0.99;
-                        this.life--;
+                        const motion = getMotionScale();
+                        const t = getTimeScale();
+                        this.x += this.dx * motion;
+                        this.y += this.dy * motion;
+                        this.dy += this.gravity * t;
+                        this.dx *= Math.pow(0.99, t);
+                        this.life -= t;
                         this.opacity = Math.max(0, this.life / this.maxLife);
                         this.scale = 1.0 + (1 - this.opacity) * 0.2;
                         return this.life > 0;
@@ -1413,11 +1455,13 @@
                         strokeColor: config.strokeColor,
                         shapeType: type,
                         typeSpecificUpdate: function() {
-                            this.x += this.dx;
-                            this.y += this.dy;
-                            this.dx *= 0.95;
-                            this.dy *= 0.95;
-                            this.life--;
+                            const motion = getMotionScale();
+                            const t = getTimeScale();
+                            this.x += this.dx * motion;
+                            this.y += this.dy * motion;
+                            this.dx *= Math.pow(0.95, t);
+                            this.dy *= Math.pow(0.95, t);
+                            this.life -= t;
                             this.opacity = this.life / 50;
                             return this.life > 0;
                         },
@@ -1439,9 +1483,10 @@
                     life: 60,
                     maxLife: 60,
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        const t = getTimeScale();
+                        this.life -= t;
                         this.opacity = this.opacity * (this.life / this.maxLife);
-                        this.size *= 0.98;
+                        this.size *= Math.pow(0.98, t);
                         return this.life > 0;
                     },
                     typeSpecificDraw: function(ctx) {
@@ -1476,14 +1521,16 @@
                     maxLife: 60,
                     speed: 1.3 + Math.random() * 1.3,
                     typeSpecificUpdate: function(playerX, playerY) {
-                        this.life--;
+                        const t = getTimeScale();
+                        const motion = getMotionScale();
+                        this.life -= t;
                         this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
                         const dx = playerX - this.x;
                         const dy = playerY - this.y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
                         if (dist > 0.1) {
-                            this.x += (dx / dist) * this.speed;
-                            this.y += (dy / dist) * this.speed;
+                            this.x += (dx / dist) * this.speed * motion;
+                            this.y += (dy / dist) * this.speed * motion;
                         }
                         return this.life > 0;
                     },
@@ -1514,7 +1561,8 @@
                     width: 8,
                     hitEnemies: new Set(),
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        const t = getTimeScale();
+                        this.life -= t;
                         this.opacity = this.life / this.maxLife;
                         return this.life > 0;
                     },
@@ -1565,7 +1613,7 @@
                     life: 20,
                     maxLife: 20,
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        this.life -= getTimeScale();
                         this.opacity = 0.5 * (this.life / this.maxLife);
                         return this.life > 0;
                     },
@@ -1605,14 +1653,16 @@
                     isBecomingInvul,
                     particles,
                     typeSpecificUpdate: function() {
-                        this.life--;
+                        const t = getTimeScale();
+                        const motion = getMotionScale();
+                        this.life -= t;
                         this.shockwaveRadius = (this.shockwaveMaxRadius * (1 - this.life / this.maxLife));
                         this.particles = this.particles.filter(p => {
-                            p.x += p.dx;
-                            p.y += p.dy;
-                            p.dx *= 0.95;
-                            p.dy *= 0.95;
-                            p.life--;
+                            p.x += p.dx * motion;
+                            p.y += p.dy * motion;
+                            p.dx *= Math.pow(0.95, t);
+                            p.dy *= Math.pow(0.95, t);
+                            p.life -= t;
                             p.opacity = p.life / 30;
                             return p.life > 0;
                         });
@@ -1798,10 +1848,12 @@
             }
 
             update(player, canvas, effects, enemyBullets, audio) {
-                if (this.damageFlash > 0) this.damageFlash--;
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                if (this.damageFlash > 0) this.damageFlash -= t;
                 if (this.type === 'rhombus') {
                     const now = Date.now();
-                    if (now - this.lastStateChange >= this.stateChangeDuration) {
+                    if (now - this.lastStateChange >= this.stateChangeDuration / Math.max(0.001, t)) {
                         const wasInvulnerable = this.invulnerable;
                         this.invulnerable = !this.invulnerable;
                         this.lastStateChange = now;
@@ -1812,28 +1864,28 @@
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
                 if (this.type === 'rhombus') {
-                    this.angleOffset += this.clockwise ? this.orbitSpeed : -this.orbitSpeed;
+                    this.angleOffset += (this.clockwise ? this.orbitSpeed : -this.orbitSpeed) * t;
                     const desiredX = player.x + Math.cos(this.angleOffset) * this.circleRadius;
                     const desiredY = player.y + Math.sin(this.angleOffset) * this.circleRadius;
                     const desiredDx = desiredX - this.x;
                     const desiredDy = desiredY - this.y;
                     const desiredDist = Math.sqrt(desiredDx * desiredDx + desiredDy * desiredDy) || 0.1;
-                    this.x += (desiredDx / desiredDist) * this.speed * this.approachSpeed;
-                    this.y += (desiredDy / desiredDist) * this.speed * this.approachSpeed;
+                    this.x += (desiredDx / desiredDist) * this.speed * this.approachSpeed * motion;
+                    this.y += (desiredDy / desiredDist) * this.speed * this.approachSpeed * motion;
                 } else {
-                    this.x += (dx / dist) * this.speed;
-                    this.y += (dy / dist) * this.speed;
+                    this.x += (dx / dist) * this.speed * motion;
+                    this.y += (dy / dist) * this.speed * motion;
                 }
                 if (this.type === 'octagon') {
                     const now = Date.now();
-                    if (now - this.lastShot >= this.shootDelay) {
+                    if (now - this.lastShot >= this.shootDelay / Math.max(0.001, t)) {
                         this.shoot(player, enemyBullets, audio);
                         this.lastShot = now;
                     }
                 }
                 if (this.type === 'triangle') {
                     const now = Date.now();
-                    if (now - this.lastTrailTime >= 50) {
+                    if (now - this.lastTrailTime >= 50 / Math.max(0.001, t)) {
                         const baseSize = this.radius * 0.8;
                         for (let i = 0; i < 5; i++) {
                             const size = baseSize * Math.pow(0.75, i);
@@ -1988,6 +2040,9 @@
                 this.lastShot = 0;
                 this.inLobby = true;
                 this.setupCanvas();
+                // Expose and initialize motion scale based on resolution
+                if (typeof window !== 'undefined') { window.game = this; }
+                this.speedScale = computeResolutionScale(this.canvas.width, this.canvas.height);
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
@@ -2328,6 +2383,7 @@
                 window.addEventListener('resize', () => {
                     this.canvas.width = window.innerWidth;
                     this.canvas.height = window.innerHeight;
+                    this.speedScale = computeResolutionScale(this.canvas.width, this.canvas.height);
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
@@ -2433,7 +2489,7 @@
 
             shoot() {
                 const now = Date.now();
-                if (now - this.lastShot < this.shootDelay) return;
+                if (now - this.lastShot < this.shootDelay / Math.max(0.001, getTimeScale())) return;
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
@@ -2509,7 +2565,7 @@
                 }
                 const totalEnemies = this.enemiesToSpawn.length;
                 if (totalEnemies > 0) {
-                    const spawnInterval = waveConfig.spawnTime / totalEnemies;
+                    const spawnInterval = (waveConfig.spawnTime / totalEnemies) / Math.max(0.001, getTimeScale());
                     let spawnIndex = 0;
                     const spawnNext = () => {
                         if (spawnIndex < this.enemiesToSpawn.length) {
@@ -2561,7 +2617,7 @@
                     // Wave completed, start pause before next wave
                     this.waveStarted = false;
                     this.inWavePause = true;
-                    this.wavePauseEndTime = Date.now() + 3000; // 3 second pause
+                    this.wavePauseEndTime = Date.now() + Math.round(3000 / Math.max(0.001, getTimeScale())); // 3 second pause
                 }
                 
                 // Continue all normal game mechanics regardless of wave pause
@@ -2891,12 +2947,12 @@
                 
                 // Update game over blink animation
                 if (this.gameOver) {
-                    this.gameOverBlinkFrame++;
+                    this.gameOverBlinkFrame += getTimeScale();
                 }
                 
                 // Update pause blink animation
                 if (this.paused) {
-                    this.pauseBlinkFrame++;
+                    this.pauseBlinkFrame += getTimeScale();
                 }
                 
                 // Update next wave timer display
