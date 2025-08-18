@@ -1930,8 +1930,8 @@
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.setupLobby();
                 
-                // Upgrades
-                this.upgradeManager = new UpgradeManager(this);
+                // Upgrades state
+                this.upgradeManager = null; // Initialized on first game start
                 this.upgradePause = false;
                 
                 // Grid movement for infinite background effect
@@ -2101,6 +2101,13 @@
                 document.getElementById('lobby').classList.add('hidden');
                 this.uiManager.showUI();
                 
+                // Initialize upgrades on first game start; reset afterwards
+                if (!this.upgradeManager) {
+                    this.upgradeManager = new UpgradeManager(this);
+                } else {
+                    this.upgradeManager.reset();
+                }
+
                 this.reset();
                 
                 // Switch from lobby music to game music
@@ -2813,10 +2820,6 @@
             }
         }
 
-        // Initialize and start the game
-        const game = new Game();
-        game.start();
-
         // Upgrade Manager
         class UpgradeManager {
             constructor(game) {
@@ -2878,6 +2881,10 @@
                 this.taken.clear();
             }
         }
+
+        // Initialize and start the game
+        const game = new Game();
+        game.start();
 
     </script>
 </body>
