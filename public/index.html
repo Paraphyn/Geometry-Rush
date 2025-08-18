@@ -1,0 +1,2876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circle Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            font-family: Roboto, sans-serif;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+        
+        canvas {
+            display: block;
+            background: #000000;
+            position: relative;
+            z-index: 10;
+            cursor: none;
+        }
+        
+        .ui {
+            position: absolute;
+            color: white;
+            font-weight: normal;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .ui.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        body * {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #000000 !important;
+        }
+        
+        .debug, .overlay, .watermark, .info, pre, code {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        body::before, body::after {
+            display: none !important;
+        }
+        
+        script {
+            display: none !important;
+        }
+        
+        .enemies { top: 20px; left: 20px; font-size: 25px; }
+        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
+        .next-wave { top: 85px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #00ffff; }
+        .score { top: 50px; left: 20px; font-size: 25px; }
+        .score-addition { color: #00ff00; }
+        .wave { top: 80px; left: 20px; font-size: 25px; }
+        .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
+        
+        /* XP Bar */
+        .xp-bar { top: 120px; left: 50%; transform: translateX(-50%); width: 400px; height: 16px; border: 2px solid #ffffff; }
+        .xp-bar-fill { height: 100%; width: 0%; background: #00ff00; }
+        .xp-label { top: 120px; left: calc(50% - 200px - 40px); font-size: 18px; }
+        .xp-level { top: 120px; left: calc(50% + 200px + 10px); font-size: 18px; }
+        
+        /* Lobby Screen Styles */
+        .lobby {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            transition: opacity 0.5s ease;
+        }
+        
+        .lobby.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        
+        .lobby-title {
+            font-size: 72px;
+            font-weight: bold;
+            color: #ffffff;
+            text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            margin-bottom: 50px;
+            animation: titleGlow 2s ease-in-out infinite alternate;
+            /* Hide text when logo image is loaded */
+            position: relative;
+        }
+        
+        .lobby-logo {
+            max-width: 1000px;
+            max-height: 400px;
+            width: auto;
+            height: auto;
+            filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #00ffff);
+            animation: logoGlow 2s ease-in-out infinite alternate;
+            display: none; /* Hidden by default, shown when image loads */
+        }
+        
+        @keyframes logoGlow {
+            from {
+                filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 40px #00ffff);
+            }
+            to {
+                filter: drop-shadow(0 0 30px #00ffff) drop-shadow(0 0 60px #00ffff) drop-shadow(0 0 80px #00ffff);
+            }
+        }
+        
+        @keyframes titleGlow {
+            from {
+                text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            }
+            to {
+                text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff, 0 0 80px #00ffff;
+            }
+        }
+        
+        .start-button {
+            padding: 12px 60px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffffff;
+            background: transparent;
+            border: 3px solid #00ffff;
+            border-radius: 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .start-button:hover {
+            color: #00ffff;
+            border-color: #ffffff;
+        }
+        
+        .start-button .button-rain {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        
+        .start-button:hover .button-rain {
+            height: 60px;
+        }
+        
+        .rain-digit {
+            position: absolute;
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 12px;
+            animation: rainFall 1s linear infinite;
+        }
+        
+        @keyframes rainFall {
+            from {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(60px);
+                opacity: 0;
+            }
+        }
+        
+        .start-button:active {
+            transform: scale(0.98);
+        }
+        
+        .music-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #ffffff;
+            transition: all 0.3s ease;
+            z-index: 300;
+        }
+        
+        .music-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .music-icon {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+        
+        /* Quit Button in Pause Menu */
+        .quit-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, 100px);
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 0, 0, 0.1);
+            border: 2px solid #ff0000;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #ff0000;
+            transition: all 0.3s ease;
+            z-index: 400;
+        }
+        
+        .quit-button:hover {
+            background: rgba(255, 0, 0, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            transform: translate(-50%, 100px) scale(1.1);
+        }
+        
+        .quit-button.visible {
+            display: flex;
+        }
+        
+        /* Upgrade Selection Overlay */
+        .upgrade-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+        .upgrade-overlay.visible { display: flex; }
+        .upgrade-container {
+            display: grid;
+            grid-template-columns: repeat(3, 280px);
+            gap: 24px;
+            padding: 24px;
+        }
+        .upgrade-card {
+            background: #000000;
+            border: 2px solid #ffffff;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 280px;
+        }
+        .upgrade-card img {
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 0 10px #00ffff33);
+        }
+        .upgrade-title {
+            color: #00ffff;
+            font-weight: bold;
+            font-size: 22px;
+            margin: 8px 0 6px;
+        }
+        .upgrade-desc {
+            color: #ffffff;
+            font-size: 16px;
+            min-height: 48px;
+            margin-bottom: 12px;
+        }
+        .upgrade-select-btn {
+            padding: 10px 18px;
+            border: 2px solid #ffffff;
+            background: #00aa00;
+            color: #ffffff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="ui enemies">Kills: <span id="enemies">0</span></div>
+    <div class="ui timer"><span id="timer">00:00</span></div>
+    <div class="ui next-wave" id="nextWave" style="display: none;"></div>
+    <div class="ui score">Score: <span id="score">0</span><span class="score-addition" id="scoreAddition"></span></div>
+    <div class="ui wave">Wave: <span id="wave">0</span></div>
+    <div class="ui xp-label">XP</div>
+    <div class="ui xp-bar"><div class="xp-bar-fill" id="xpFill"></div></div>
+    <div class="ui xp-level" id="xpLevel">Level 1</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
+    
+    <!-- Lobby Screen -->
+    <div class="lobby" id="lobby">
+        <div class="lobby-title" id="lobbyTitle">GEOMETRY RUSH</div>
+        <img class="lobby-logo" id="lobbyLogo" src="game-logo.png" alt="GEOMETRY RUSH" />
+        <button class="start-button" id="startButton">
+            START
+            <div class="button-rain" id="buttonRain"></div>
+        </button>
+    </div>
+    
+    <!-- Music Toggle Button -->
+    <div class="music-toggle" id="musicToggle" title="Toggle Music">
+        <img class="music-icon" id="musicIcon" src="sound-on.png" alt="Music On" />
+    </div>
+    
+    <!-- Quit Button for Pause Menu -->
+    <div class="quit-button" id="quitButton" title="Return to Lobby">✕</div>
+
+    <div class="upgrade-overlay" id="upgradeOverlay">
+        <div class="upgrade-container" id="upgradeContainer"></div>
+    </div>
+
+    <script>
+        // Falling numbers background effect for lobby
+        class FallingNumbers {
+            constructor(x, y, layer = 0) {
+                this.x = x;
+                this.y = y;
+                this.digit = Math.floor(Math.random() * 10).toString();
+                this.layer = layer;
+                
+                // Layer-based properties for depth effect (5 layers total)
+                switch(layer) {
+                    case 0: // Furthest background layer (smallest)
+                        this.speed = 0.3 + Math.random() * 0.5;
+                        this.baseOpacity = 0.2 + Math.random() * 0.1;
+                        this.size = 8 + Math.random() * 4;
+                        break;
+                    case 1: // Very far background layer
+                        this.speed = 0.4 + Math.random() * 0.7;
+                        this.baseOpacity = 0.3 + Math.random() * 0.15;
+                        this.size = 10 + Math.random() * 6;
+                        break;
+                    case 2: // Far background layer
+                        this.speed = 0.5 + Math.random() * 1;
+                        this.baseOpacity = 0.4 + Math.random() * 0.2;
+                        this.size = 12 + Math.random() * 8;
+                        break;
+                    case 3: // Middle layer
+                        this.speed = 1 + Math.random() * 2;
+                        this.baseOpacity = 0.6 + Math.random() * 0.2;
+                        this.size = 16 + Math.random() * 12;
+                        break;
+                    case 4: // Front layer
+                        this.speed = 2 + Math.random() * 3;
+                        this.baseOpacity = 0.8 + Math.random() * 0.2;
+                        this.size = 20 + Math.random() * 16;
+                        break;
+                }
+                
+                this.opacity = 0;
+                this.life = 0;
+                this.maxLife = 400 + Math.random() * 300;
+                this.twinkle = Math.random() * Math.PI * 2;
+            }
+
+            update(canvas) {
+                this.y += this.speed;
+                this.life++;
+                this.twinkle += 0.05;
+                
+                // Enhanced fade in/out with twinkling effect
+                if (this.life < 60) {
+                    this.opacity = (this.life / 60) * this.baseOpacity;
+                } else if (this.life > this.maxLife - 100) {
+                    this.opacity = ((this.maxLife - this.life) / 100) * this.baseOpacity;
+                } else {
+                    // Add subtle twinkling effect
+                    const twinkleMultiplier = 0.8 + 0.4 * Math.sin(this.twinkle);
+                    this.opacity = this.baseOpacity * twinkleMultiplier;
+                }
+                
+                return this.y < canvas.height + 100 && this.life < this.maxLife;
+            }
+
+            draw(ctx) {
+                if (this.opacity > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `${this.size}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.digit, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Falling numbers manager for lobby
+        class FallingNumbersManager {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.layers = [[], [], [], [], []]; // Five layers for enhanced depth
+                this.spawnTimers = [0, 0, 0, 0, 0];
+                this.spawnDelays = [18, 15, 12, 8, 5]; // Different spawn rates per layer (slower for smaller numbers)
+                this.maxNumbers = [80, 70, 60, 40, 25]; // Different max counts per layer (more smaller numbers)
+            }
+
+            update() {
+                // Update all layers
+                for (let layer = 0; layer < 5; layer++) {
+                    this.layers[layer] = this.layers[layer].filter(number => number.update(this.canvas));
+                    
+                    this.spawnTimers[layer]++;
+                    if (this.spawnTimers[layer] >= this.spawnDelays[layer] && 
+                        this.layers[layer].length < this.maxNumbers[layer]) {
+                        this.spawnNumber(layer);
+                        this.spawnTimers[layer] = 0;
+                    }
+                }
+            }
+
+            spawnNumber(layer) {
+                const x = Math.random() * this.canvas.width;
+                const y = -50;
+                this.layers[layer].push(new FallingNumbers(x, y, layer));
+            }
+
+            draw(ctx) {
+                // Draw layers from back to front for proper depth
+                for (let layer = 0; layer < 5; layer++) {
+                    this.layers[layer].forEach(number => number.draw(ctx));
+                }
+            }
+        }
+
+        // Audio Manager
+        class AudioManager {
+            constructor() {
+                this.audios = {};
+                this.initialized = false;
+                this.volume = 0.7;
+                this.musicVolume = 0.4;
+                this.loadingPromises = [];
+                this.musicEnabled = true;
+            }
+
+            async initialize() {
+                if (this.initialized) return;
+                const audioFiles = {
+                    bulletShoot: { file: 'bullet-shoot.wav', loop: false },
+                    railgunShoot: { file: 'railgun-shoot.wav', loop: false },
+                    railgunCharge: { file: 'railgun-charge.wav', loop: true },
+                    railgunChargeMax: { file: 'railgun-charge-max.wav', loop: false },
+                    dash: { file: 'dash.wav', loop: false },
+                    playerDamage: { file: 'player-damage.wav', loop: false },
+                    pauseActivate: { file: 'pause-activate.wav', loop: false },
+                    pauseDeactivate: { file: 'pause-deactivate.wav', loop: false },
+                    gameOver: { file: 'game-over.wav', loop: false },
+                    enemyHit: { file: 'enemy-hit.wav', loop: false },
+                    enemyDeath: { file: 'enemy-death.wav', loop: false },
+                    enemyShoot: { file: 'enemy-shoot.wav', loop: false },
+                    buttonClick: { file: 'button-click.wav', loop: false },
+                    XP_collect: { file: 'xp-collect.wav', loop: false },
+                    'Level_UP': { file: 'level-up.wav', loop: false },
+                    lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
+                    backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
+                };
+
+                Object.entries(audioFiles).forEach(([key, config]) => {
+                    const audio = new Audio(config.file);
+                    audio.volume = config.isMusic ? this.musicVolume : this.volume;
+                    audio.loop = config.loop;
+                    audio.preload = 'auto';
+                    this.audios[key] = audio;
+
+                    const loadPromise = new Promise((resolve) => {
+                        const onLoad = () => {
+                            console.log(`✓ Loaded: ${config.file}`);
+                            audio.removeEventListener('canplaythrough', onLoad);
+                            audio.removeEventListener('error', onError);
+                            resolve();
+                        };
+                        const onError = (e) => {
+                            console.warn(`✗ Failed to load ${config.file}:`, e);
+                            resolve();
+                        };
+                        audio.addEventListener('canplaythrough', onLoad);
+                        audio.addEventListener('error', onError);
+                        audio.load();
+                    });
+                    this.loadingPromises.push(loadPromise);
+                });
+
+                await Promise.all(this.loadingPromises);
+                this.initialized = true;
+                console.log('🎵 Audio initialized');
+            }
+
+            playSound(soundName) {
+                if (!this.initialized || !this.audios[soundName]) return;
+                
+                // Check if it's music and if music is disabled
+                if ((soundName === 'backgroundMusic' || soundName === 'lobbyMusic') && !this.musicEnabled) return;
+                
+                try {
+                    const audio = this.audios[soundName];
+                    audio.currentTime = 0;
+                    audio.volume = (audio === this.audios.backgroundMusic || audio === this.audios.lobbyMusic) ? 
+                        (this.musicEnabled ? this.musicVolume : 0) : this.volume;
+                    if (soundName === 'bulletShoot' || soundName === 'enemyHit') {
+                        const clone = audio.cloneNode();
+                        clone.volume = audio.volume;
+                        clone.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
+                    } else {
+                        audio.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
+                    }
+                } catch (e) {
+                    console.warn(`Error playing ${soundName}:`, e);
+                }
+            }
+
+            startLoopingSound(soundName) {
+                if (!this.initialized || !this.audios[soundName]) return;
+                this.audios[soundName].play().catch(e => console.warn(`Failed to start looping ${soundName}:`, e));
+            }
+
+            stopLoopingSound(soundName) {
+                if (!this.initialized || !this.audios[soundName]) return;
+                this.audios[soundName].pause();
+                this.audios[soundName].currentTime = 0;
+            }
+
+            pauseMusic() {
+                if (this.initialized && this.audios.backgroundMusic) {
+                    this.audios.backgroundMusic.pause();
+                }
+                if (this.initialized && this.audios.lobbyMusic) {
+                    this.audios.lobbyMusic.pause();
+                }
+            }
+
+            resumeMusic() {
+                if (this.initialized && this.audios.backgroundMusic && this.musicEnabled) {
+                    this.audios.backgroundMusic.play().catch(e => console.warn('Failed to resume music:', e));
+                }
+            }
+            
+            playLobbyMusic() {
+                if (this.initialized && this.audios.lobbyMusic && this.musicEnabled) {
+                    this.audios.lobbyMusic.play().catch(e => console.warn('Failed to play lobby music:', e));
+                }
+            }
+            
+            stopLobbyMusic() {
+                if (this.initialized && this.audios.lobbyMusic) {
+                    this.audios.lobbyMusic.pause();
+                    this.audios.lobbyMusic.currentTime = 0;
+                }
+            }
+            
+            playGameMusic() {
+                if (this.initialized && this.audios.backgroundMusic && this.musicEnabled) {
+                    this.audios.backgroundMusic.play().catch(e => console.warn('Failed to play game music:', e));
+                }
+            }
+            
+            stopGameMusic() {
+                if (this.initialized && this.audios.backgroundMusic) {
+                    this.audios.backgroundMusic.pause();
+                    this.audios.backgroundMusic.currentTime = 0;
+                }
+            }
+            
+            toggleMusic() {
+                this.musicEnabled = !this.musicEnabled;
+                if (this.initialized) {
+                    if (this.musicEnabled) {
+                        // Resume appropriate music based on current state
+                        if (this.audios.lobbyMusic && !this.audios.lobbyMusic.paused) {
+                            this.audios.lobbyMusic.volume = this.musicVolume;
+                            this.audios.lobbyMusic.play().catch(e => console.warn('Failed to enable lobby music:', e));
+                        }
+                        if (this.audios.backgroundMusic && !this.audios.backgroundMusic.paused) {
+                            this.audios.backgroundMusic.volume = this.musicVolume;
+                            this.audios.backgroundMusic.play().catch(e => console.warn('Failed to enable game music:', e));
+                        }
+                    } else {
+                        // Pause all music
+                        if (this.audios.lobbyMusic) {
+                            this.audios.lobbyMusic.pause();
+                        }
+                        if (this.audios.backgroundMusic) {
+                            this.audios.backgroundMusic.pause();
+                        }
+                    }
+                }
+                return this.musicEnabled;
+            }
+        }
+
+        // Background binary effect
+        class BackgroundBinary {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.baseX = x; // Store original position for parallax
+                this.baseY = y;
+                this.digit = Math.random() < 0.5 ? '0' : '1';
+                this.opacity = 0;
+                this.maxOpacity = 0.3;
+                this.life = 180 + Math.random() * 120;
+                this.maxLife = this.life;
+                this.fadeInDuration = 30;
+                this.fadeOutDuration = 60;
+                this.size = 12 + Math.random() * 8;
+            }
+
+            update() {
+                this.life--;
+                if (this.life > this.maxLife - this.fadeInDuration) {
+                    const fadeProgress = (this.maxLife - this.life) / this.fadeInDuration;
+                    this.opacity = this.maxOpacity * fadeProgress;
+                } else if (this.life < this.fadeOutDuration) {
+                    this.opacity = this.maxOpacity * (this.life / this.fadeOutDuration);
+                } else {
+                    this.opacity = this.maxOpacity;
+                }
+                return this.life > 0;
+            }
+            
+            updateParallax(playerDeltaX, playerDeltaY) {
+                // Move in opposite direction to player movement for parallax effect
+                this.baseX -= playerDeltaX * 0.3; // 30% parallax intensity
+                this.baseY -= playerDeltaY * 0.3;
+                this.x = this.baseX;
+                this.y = this.baseY;
+            }
+
+            draw(ctx) {
+                if (this.opacity > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity;
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = `${this.size}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.digit, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Background binary manager
+        class BackgroundBinaryManager {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.binaries = [];
+                this.spawnTimer = 0;
+                this.spawnDelay = 4; // Reduced from 8 to spawn twice as fast
+                this.maxBinaries = 100; // Increased from 50 to double the amount
+            }
+
+            update() {
+                this.binaries = this.binaries.filter(binary => binary.update());
+                this.spawnTimer++;
+                if (this.spawnTimer >= this.spawnDelay && this.binaries.length < this.maxBinaries) {
+                    this.spawnBinary();
+                    this.spawnTimer = 0;
+                }
+            }
+            
+            updateParallax(playerDeltaX, playerDeltaY) {
+                this.binaries.forEach(binary => {
+                    binary.updateParallax(playerDeltaX, playerDeltaY);
+                });
+            }
+
+            spawnBinary() {
+                const x = Math.random() * this.canvas.width;
+                const y = Math.random() * this.canvas.height;
+                this.binaries.push(new BackgroundBinary(x, y));
+            }
+
+            draw(ctx) {
+                this.binaries.forEach(binary => binary.draw(ctx));
+            }
+        }
+
+        // Input manager
+        class InputManager {
+            constructor() {
+                this.keys = {};
+                this.mouse = { x: 0, y: 0, down: false, rightDown: false };
+                this.lastActionTime = {};
+            }
+
+            preventSpam(action, delay = 100) {
+                const now = Date.now();
+                if (this.lastActionTime[action] && now - this.lastActionTime[action] < delay) return false;
+                this.lastActionTime[action] = now;
+                return true;
+            }
+
+            clear() {
+                this.keys = {};
+                this.mouse.down = false;
+                this.mouse.rightDown = false;
+                this.lastActionTime = {};
+            }
+        }
+
+        // Dash trail effect
+        class DashTrail {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.color = '#ffffff';
+                this.size = 20;
+                this.opacity = 0.9;
+                this.life = 20;
+                this.maxLife = 20;
+            }
+
+            update() {
+                this.life--;
+                this.opacity = 0.5 * (this.life / this.maxLife);
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Player management
+        class Player {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.radius = 20;
+                this.speed = 5;
+                this.health = 100;
+                this.maxHealth = 100;
+                this.damageFlash = 0;
+                this.invulnerable = false;
+                this.invulnerabilityTime = 0;
+                this.railgunCharge = 0;
+                this.railgunMaxChargeTime = 3000;
+                this.railgunParticles = [];
+                this.blinkState = true;
+                this.blinkFrame = 0;
+                this.isDashing = false;
+                this.dashProgress = 0;
+                this.dashDuration = 10;
+                this.dashDistance = 300;
+                this.dashStartX = 0;
+                this.dashStartY = 0;
+                this.dashEndX = 0;
+                this.dashEndY = 0;
+                this.railgunCharging = false;
+                this.railgunMaxChargeSoundPlayed = false;
+            }
+
+            startDash(keys, effects, audio) {
+                if (this.isDashing) return;
+                let dx = 0, dy = 0;
+                if (keys.w) dy -= 1;
+                if (keys.s) dy += 1;
+                if (keys.a) dx -= 1;
+                if (keys.d) dx += 1;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist === 0) return;
+                dx = (dx / dist) * this.dashDistance;
+                dy = (dy / dist) * this.dashDistance;
+                this.isDashing = true;
+                this.invulnerable = true;
+                this.dashProgress = 0;
+                this.dashStartX = this.x;
+                this.dashStartY = this.y;
+                this.dashEndX = this.x + dx;
+                this.dashEndY = this.y + dy;
+                this.dashEndX = Math.max(this.radius, Math.min(this.canvas.width - this.radius, this.dashEndX));
+                this.dashEndY = Math.max(this.radius, Math.min(this.canvas.height - this.radius, this.dashEndY));
+                if (audio) audio.playSound('dash');
+            }
+
+            move(keys, canvas) {
+                if (this.isDashing) return;
+                const speedMul = this.speedMultiplier || 1;
+                let newX = this.x, newY = this.y;
+                if (keys.w) newY -= this.speed * speedMul;
+                if (keys.s) newY += this.speed * speedMul;
+                if (keys.a) newX -= this.speed * speedMul;
+                if (keys.d) newX += this.speed * speedMul;
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, newX));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, newY));
+                this.canvas = canvas;
+            }
+
+            takeDamage(damage, sourceX, sourceY, effects, audio) {
+                if (this.health <= 0 || this.invulnerable) return false;
+                const actualDamage = Math.min(damage, this.health);
+                if (actualDamage <= 0) return false;
+                this.health = Math.max(0, this.health - actualDamage);
+                this.damageFlash = 20;
+                this.invulnerable = true;
+                this.invulnerabilityTime = 5;
+                effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
+                if (audio) audio.playSound('playerDamage');
+                return true;
+            }
+
+            stopRailgunCharge(audio) {
+                if (this.railgunCharging && audio) {
+                    audio.stopLoopingSound('railgunCharge');
+                    this.railgunCharging = false;
+                }
+                this.railgunCharge = 0;
+                this.railgunParticles = [];
+                this.blinkState = true;
+                this.blinkFrame = 0;
+                this.railgunMaxChargeSoundPlayed = false;
+            }
+
+            update(input, effects, canvas, audio) {
+                if (this.damageFlash > 0) this.damageFlash--;
+                if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
+                    this.invulnerabilityTime--;
+                    if (this.invulnerabilityTime <= 0) this.invulnerable = false;
+                }
+                this.health = Math.max(0, Math.min(this.maxHealth, Math.floor(this.health)));
+
+                if (this.isDashing) {
+                    this.dashProgress++;
+                    const t = this.dashProgress / this.dashDuration;
+                    this.x = this.dashStartX + (this.dashEndX - this.dashStartX) * t;
+                    this.y = this.dashStartY + (this.dashEndY - this.dashStartY) * t;
+                    effects.createDashTrail(this.x, this.y);
+                    if (this.dashProgress >= this.dashDuration) {
+                        this.isDashing = false;
+                        this.invulnerable = false;
+                    }
+                } else if (input.mouse.rightDown) {
+                    if (!this.railgunCharging && audio) {
+                        audio.startLoopingSound('railgunCharge');
+                        this.railgunCharging = true;
+                    }
+                    const chargeMul = this.railgunChargeSpeedMultiplier || 1;
+                    this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)));
+                    if (this.railgunCharge === 1) {
+                        // Stop charging sound and play max charge sound when fully charged (only once)
+                        if (this.railgunCharging && audio) {
+                            audio.stopLoopingSound('railgunCharge');
+                            this.railgunCharging = false;
+                        }
+                        if (!this.railgunMaxChargeSoundPlayed && audio) {
+                            audio.playSound('railgunChargeMax');
+                            this.railgunMaxChargeSoundPlayed = true;
+                        }
+                        this.blinkFrame = (this.blinkFrame + 1) % 30;
+                        this.blinkState = this.blinkFrame < 15;
+                    } else {
+                        this.blinkState = true;
+                        this.blinkFrame = 0;
+                        if (this.railgunParticles.length < 4) {
+                            const particleCount = Math.floor(Math.random() * 3) + 3;
+                            for (let i = this.railgunParticles.length; i < particleCount; i++) {
+                                effects.createRailgunParticle(this.x, this.y);
+                            }
+                        }
+                    }
+                    this.railgunParticles.forEach(p => p.update(this.x, this.y));
+                } else if (this.railgunCharge > 0) {
+                    if (this.railgunCharging && audio) {
+                        audio.stopLoopingSound('railgunCharge');
+                        this.railgunCharging = false;
+                    }
+                    // Apply bullet damage multiplier to railgun as well
+                    const dmgMul = this.bulletDamageMultiplier || 1;
+                    effects.createRailgunBeam(this.x, this.y, input.mouse.x, input.mouse.y, canvas, this.railgunCharge);
+                    if (effects && effects.effects.length > 0) {
+                        const last = effects.effects[effects.effects.length - 1];
+                        if (last && last.type === 'railgunBeam') {
+                            last.damage = Math.floor(last.damage * dmgMul);
+                        }
+                    }
+                    if (audio) audio.playSound('railgunShoot');
+                    this.railgunCharge = 0;
+                    this.railgunParticles = [];
+                    this.blinkState = true;
+                    this.blinkFrame = 0;
+                    this.railgunMaxChargeSoundPlayed = false;
+                } else if (this.railgunCharging && audio) {
+                    audio.stopLoopingSound('railgunCharge');
+                    this.railgunCharging = false;
+                }
+            }
+
+            draw(ctx) {
+                let fillColor = this.damageFlash > 0 ? '#ff0000' : this.invulnerable ? '#f0f0ff' : '#ffffff';
+                let strokeColor = this.damageFlash > 0 ? '#cc0000' : this.invulnerable ? '#a0a0ff' : '#cccccc';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
+                ctx.fillStyle = healthColor;
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
+
+                if (this.railgunCharge > 0 && this.blinkState) {
+                    const w = this.radius * 2;
+                    const h = 4;
+                    ctx.fillStyle = 'rgba(0, 100, 100, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * this.railgunCharge, h);
+                }
+            }
+        }
+
+        // Player bullet management
+        class Bullet {
+            constructor(x, y, dx, dy, damage = 50) {
+                this.x = x;
+                this.y = y;
+                this.dx = dx;
+                this.dy = dy;
+                this.radius = 4;
+                this.life = 100;
+                this.damage = damage;
+            }
+
+            update(canvas, effects) {
+                effects.createBulletTrail(this.x, this.y, '#00ffff');
+                this.x += this.dx;
+                this.y += this.dy;
+                this.life--;
+                if (this.life <= 0) {
+                    effects.createBulletExplosion(this.x, this.y, '#00ffff');
+                    return false;
+                }
+                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#00ffff';
+                ctx.fill();
+                ctx.strokeStyle = '#00cccc';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // Enemy bullet management
+        class EnemyBullet {
+            constructor(x, y, dx, dy) {
+                this.x = x;
+                this.y = y;
+                this.dx = dx;
+                this.dy = dy;
+                this.radius = 6;
+                this.life = 200;
+                this.damage = 15;
+            }
+
+            update(canvas, effects) {
+                effects.createBulletTrail(this.x, this.y, '#FFC13B');
+                this.x += this.dx;
+                this.y += this.dy;
+                this.life--;
+                if (this.life <= 0) {
+                    effects.createBulletExplosion(this.x, this.y, '#FFC13B');
+                    return false;
+                }
+                return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#FFC13B';
+                ctx.fill();
+                ctx.strokeStyle = '#FFC13B';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // Enemy configuration
+        const ENEMY_TYPES = {
+            square: { 
+                health: 200, 
+                speed: 3.5, 
+                size: 30, 
+                points: 5, 
+                damage: 10,
+                xp: 10,
+                fillColor: '#ff0000',
+                strokeColor: '#cc0000'
+            },
+            triangle: { 
+                health: 45, 
+                speed: 6, 
+                size: 15, 
+                points: 10, 
+                damage: 10,
+                xp: 15,
+                fillColor: '#ff6666',
+                strokeColor: '#cc3333'
+            },
+            octagon: { 
+                health: 800, 
+                speed: 2, 
+                size: 50, 
+                points: 15, 
+                damage: 20,
+                xp: 30,
+                fillColor: '#990000',
+                strokeColor: '#660000'
+            },
+            rhombus: {
+                health: 500,
+                speed: 3.5,
+                size: 45,
+                points: 30,
+                damage: 15,
+                xp: 25,
+                fillColor: '#ff9999',
+                strokeColor: '#ff6666'
+            }
+        };
+
+        // Wave configuration
+        const WAVE_CONFIG = [
+            { timer: 3000, wave: 1, enemies: { cubes: 6, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 18000, wave: 2, enemies: { cubes: 8, triangles: 0, octagons: 3, rhombuses: 0 }, spawnTime: 10000 },
+            { timer: 33000, wave: 3, enemies: { cubes: 0, triangles: 15, octagons: 0, rhombuses: 0 }, spawnTime: 13000 },
+            { timer: 48000, wave: 4, enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+            { timer: 63000, wave: 5, enemies: { cubes: 0, triangles: 10, octagons: 6, rhombuses: 0 }, spawnTime: 15000 },
+            { timer: 78000, wave: 6, enemies: { cubes: 20, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 15000 },
+            { timer: 93000, wave: 7, enemies: { cubes: 5, triangles: 5, octagons: 5, rhombuses: 3 }, spawnTime: 15000 },
+            { timer: 108000, wave: 8, enemies: { cubes: 0, triangles: 0, octagons: 15, rhombuses: 10 }, spawnTime: 25000 },
+            { timer: 123000, wave: 9, enemies: { cubes: 0, triangles: 0, octagons: 35, rhombuses: 0 }, spawnTime: 25000 },
+            { timer: 138000, wave: 10, enemies: { cubes: 10, triangles: 10, octagons: 10, rhombuses: 10 }, spawnTime: 25000 },
+            { timer: 153000, wave: 11, enemies: { cubes: 25, triangles: 25, octagons: 0, rhombuses: 0 }, spawnTime: 30000 },
+            { timer: 168000, wave: 12, enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 25 }, spawnTime: 35000 }
+        ];
+
+        // Option: use grouped wave randomization (set to true to enable)
+        const USE_WAVE_GROUPS = true;
+
+        // Wave groups: each inner array is a group; order across groups is fixed (1, 2, 3, ...)
+        // Waves inside a group are randomly ordered each session
+        const WAVE_GROUPS = [
+            // Group 1 (example: original waves 1-3)
+            [
+                { enemies: { cubes: 6, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
+                { enemies: { cubes: 8, triangles: 0, octagons: 3, rhombuses: 0 }, spawnTime: 10000 },
+                { enemies: { cubes: 0, triangles: 15, octagons: 0, rhombuses: 0 }, spawnTime: 13000 }
+            ],
+            // Group 2 (example: original waves 4-6)
+            [
+                { enemies: { cubes: 10, triangles: 0, octagons: 0, rhombuses: 3 }, spawnTime: 10000 },
+                { enemies: { cubes: 0, triangles: 10, octagons: 6, rhombuses: 0 }, spawnTime: 15000 },
+                { enemies: { cubes: 20, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 15000 }
+            ],
+            // Group 3 (example: original waves 7-9)
+            [
+                { enemies: { cubes: 5, triangles: 5, octagons: 5, rhombuses: 3 }, spawnTime: 15000 },
+                { enemies: { cubes: 0, triangles: 0, octagons: 15, rhombuses: 10 }, spawnTime: 25000 },
+                { enemies: { cubes: 0, triangles: 0, octagons: 35, rhombuses: 0 }, spawnTime: 25000 }
+            ],
+            // Group 4 (example: original waves 10-12)
+            [
+                { enemies: { cubes: 10, triangles: 10, octagons: 10, rhombuses: 10 }, spawnTime: 25000 },
+                { enemies: { cubes: 25, triangles: 25, octagons: 0, rhombuses: 0 }, spawnTime: 30000 },
+                { enemies: { cubes: 0, triangles: 25, octagons: 0, rhombuses: 25 }, spawnTime: 35000 }
+            ]
+        ];
+
+        function shuffleArray(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = a[i];
+                a[i] = a[j];
+                a[j] = tmp;
+            }
+            return a;
+        }
+
+        // XP / Level configuration
+        const XP_LEVELS = [
+            100, // Level 1 -> 2
+            200, // Level 2 -> 3
+            300, // Level 3 -> 4
+            400, // Level 4 -> 5
+        ]; // Extendable; last value repeats for higher levels if needed
+
+        function getRequiredXpForLevel(level) {
+            if (level <= 0) return XP_LEVELS[0] || 100;
+            if (level - 1 < XP_LEVELS.length) return XP_LEVELS[level - 1];
+            return XP_LEVELS[XP_LEVELS.length - 1];
+        }
+
+        // Shape renderer utility
+        class ShapeRenderer {
+            static drawShape(ctx, x, y, type, size, fillColor, strokeColor) {
+                ctx.fillStyle = fillColor;
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                if (type === 'square') {
+                    const s = size * 1.4;
+                    ctx.fillRect(x - s/2, y - s/2, s, s);
+                    ctx.strokeRect(x - s/2, y - s/2, s, s);
+                } else if (type === 'triangle') {
+                    ctx.beginPath();
+                    const h = size * 1.5;
+                    ctx.moveTo(x, y - h);
+                    ctx.lineTo(x - h * 0.866, y + h * 0.5);
+                    ctx.lineTo(x + h * 0.866, y + h * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (type === 'rhombus') {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - size);
+                    ctx.lineTo(x + size, y);
+                    ctx.lineTo(x, y + size);
+                    ctx.lineTo(x - size, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (type === 'octagon') {
+                    ctx.beginPath();
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (Math.PI * 2 * i) / 8;
+                        const px = x + size * Math.cos(angle);
+                        const py = y + size * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Effect base class
+        class Effect {
+            constructor(type, x, y, config) {
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                Object.assign(this, config);
+            }
+
+            update(...args) {
+                return this.typeSpecificUpdate(...args);
+            }
+
+            draw(ctx) {
+                this.typeSpecificDraw(ctx);
+            }
+        }
+
+        // Effects manager
+        class EffectsManager {
+            constructor() {
+                this.effects = [];
+                this.playerX = 0;
+                this.playerY = 0;
+            }
+
+            createBulletTrail(x, y, color) {
+                this.effects.push(new Effect('bulletTrail', x, y, {
+                    size: 5,
+                    opacity: 0.5,
+                    life: 6,
+                    color,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / 6;
+                        this.size *= 0.95;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createBulletExplosion(x, y, color) {
+                this.effects.push(new Effect('bulletExplosion', x, y, {
+                    size: 8,
+                    opacity: 0.8,
+                    life: 20,
+                    maxLife: 20,
+                    color,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / this.maxLife;
+                        this.size += 0.5;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createHitEffect(x, y) {
+                for (let i = 0; i < 8; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 2;
+                    this.effects.push(new Effect('hitEffect', x, y, {
+                        size: 2 + Math.random() * 2,
+                        opacity: 1,
+                        life: 15 + Math.random() * 10,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        typeSpecificUpdate: function() {
+                            this.x += this.dx;
+                            this.y += this.dy;
+                            this.dx *= 0.9;
+                            this.dy *= 0.9;
+                            this.life--;
+                            this.opacity = this.life / 25;
+                            this.size *= 0.98;
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ctx.fillStyle = '#00ffff';
+                            ctx.beginPath();
+                            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    }));
+                }
+            }
+
+            createDamageLabel(x, y, damage, isPlayerDamage) {
+                if (isPlayerDamage) {
+                    this.effects = this.effects.filter(e => e.type !== 'damageLabel' || e.life > 20);
+                }
+                this.effects.push(new Effect('damageLabel', x, y, {
+                    damage: Math.floor(damage),
+                    dx: isPlayerDamage ? (Math.random() - 0.5) * 4 : 0,
+                    dy: isPlayerDamage ? -2 - Math.random() * 1.5 : -0.5,
+                    gravity: isPlayerDamage ? 0 : 0,
+                    opacity: 1.0,
+                    life: isPlayerDamage ? 50 : 90,
+                    maxLife: isPlayerDamage ? 50 : 90,
+                    scale: 0.8,
+                    isPlayerDamage,
+                    typeSpecificUpdate: function() {
+                        this.x += this.dx;
+                        this.y += this.dy;
+                        this.dy += this.gravity;
+                        this.dx *= 0.99;
+                        this.life--;
+                        this.opacity = Math.max(0, this.life / this.maxLife);
+                        this.scale = 1.0 + (1 - this.opacity) * 0.2;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        if (this.opacity > 0.01 && !isNaN(this.damage)) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            const fontSize = Math.floor(24 * this.scale);
+                            ctx.font = `bold ${fontSize}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.fillStyle = this.isPlayerDamage ? '#ff0000' : '#00ffff';
+                            const text = `-${this.damage}`;
+                            ctx.strokeText(text, this.x, this.y);
+                            ctx.fillText(text, this.x, this.y);
+                            ctx.restore();
+                        }
+                    }
+                }));
+            }
+
+            createExplosion(x, y, type, size) {
+                const config = ENEMY_TYPES[type];
+                const count = 3 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 2 + Math.random() * 3;
+                    this.effects.push(new Effect('explosion', x, y, {
+                        size: size * (0.3 + Math.random() * 0.2),
+                        opacity: 1,
+                        life: 30 + Math.random() * 20,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        fillColor: config.fillColor,
+                        strokeColor: config.strokeColor,
+                        shapeType: type,
+                        typeSpecificUpdate: function() {
+                            this.x += this.dx;
+                            this.y += this.dy;
+                            this.dx *= 0.95;
+                            this.dy *= 0.95;
+                            this.life--;
+                            this.opacity = this.life / 50;
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ShapeRenderer.drawShape(ctx, this.x, this.y, this.shapeType, this.size, this.fillColor, this.strokeColor);
+                            ctx.restore();
+                        }
+                    }));
+                }
+            }
+
+            createTriangleTrail(x, y, size, opacity, fillColor) {
+                this.effects.push(new Effect('triangleTrail', x, y, {
+                    size,
+                    opacity,
+                    fillColor,
+                    life: 60,
+                    maxLife: 60,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.opacity * (this.life / this.maxLife);
+                        this.size *= 0.98;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.fillColor;
+                        ctx.beginPath();
+                        const h = this.size * 1.5;
+                        ctx.moveTo(this.x, this.y - h);
+                        ctx.lineTo(this.x - h * 0.866, this.y + h * 0.5);
+                        ctx.lineTo(this.x + h * 0.866, this.y + h * 0.5);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createScoreLabel(points, x, y, score, ctx) {
+                // No longer create visual effects - just trigger UI update
+                // The UI manager will handle showing the score addition
+            }
+
+            createRailgunParticle(playerX, playerY) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 150;
+                this.effects.push(new Effect('railgunParticle', playerX + Math.cos(angle) * distance, playerY + Math.sin(angle) * distance, {
+                    size: 2 + Math.random() * 2,
+                    opacity: 0,
+                    maxOpacity: 0.7,
+                    life: 60,
+                    maxLife: 60,
+                    speed: 1.3 + Math.random() * 1.3,
+                    typeSpecificUpdate: function(playerX, playerY) {
+                        this.life--;
+                        this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
+                        const dx = playerX - this.x;
+                        const dy = playerY - this.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > 0.1) {
+                            this.x += (dx / dist) * this.speed;
+                            this.y += (dy / dist) * this.speed;
+                        }
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = '#00ffff';
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
+                const dx = targetX - startX;
+                const dy = targetY - startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = Math.max(canvas.width, canvas.height) * 2;
+                this.effects.push(new Effect('railgunBeam', startX, startY, {
+                    endX: startX + (dx / dist) * maxDist,
+                    endY: startY + (dy / dist) * maxDist,
+                    damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * (this.playerDamageMultiplier || 1),
+                    life: 60,
+                    maxLife: 60,
+                    opacity: 1.0,
+                    width: 8,
+                    hitEnemies: new Set(),
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = this.life / this.maxLife;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        const gradient = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
+                        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+                        gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                        gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        ctx.strokeStyle = gradient;
+                        ctx.lineWidth = this.width;
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(this.endX, this.endY);
+                        ctx.stroke();
+                        ctx.restore();
+                    },
+                    intersectsEnemy: function(enemy) {
+                        if (this.hitEnemies.has(enemy)) return false;
+                        const p1 = { x: this.x, y: this.y };
+                        const p2 = { x: this.endX, y: this.endY };
+                        const p3 = { x: enemy.x, y: enemy.y };
+                        const radius = enemy.radius;
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
+                        const closestX = p1.x + dot * dx;
+                        const closestY = p1.y + dot * dy;
+                        const distX = p3.x - closestX;
+                        const distY = p3.y - closestY;
+                        const distance = Math.sqrt(distX * distX + distY * distY);
+                        if (distance <= radius && dot >= 0 && dot <= 1) {
+                            this.hitEnemies.add(enemy);
+                            return true;
+                        }
+                        return false;
+                    }
+                }));
+            }
+
+            createDashTrail(x, y) {
+                this.effects.push(new Effect('dashTrail', x, y, {
+                    color: '#ffffff',
+                    size: 20,
+                    opacity: 0.9,
+                    life: 20,
+                    maxLife: 20,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.opacity = 0.5 * (this.life / this.maxLife);
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRhombusEffect(x, y, isBecomingInvul) {
+                const particles = [];
+                const particleCount = 12;
+                for (let i = 0; i < particleCount; i++) {
+                    const angle = (Math.PI * 2 * i) / particleCount;
+                    const speed = 3 + Math.random() * 2;
+                    particles.push({
+                        x,
+                        y,
+                        dx: Math.cos(angle) * speed,
+                        dy: Math.sin(angle) * speed,
+                        size: 3 + Math.random() * 3,
+                        opacity: 1,
+                        life: 30
+                    });
+                }
+                this.effects.push(new Effect('rhombusEffect', x, y, {
+                    shockwaveRadius: 0,
+                    shockwaveMaxRadius: 80,
+                    life: 30,
+                    maxLife: 30,
+                    isBecomingInvul,
+                    particles,
+                    typeSpecificUpdate: function() {
+                        this.life--;
+                        this.shockwaveRadius = (this.shockwaveMaxRadius * (1 - this.life / this.maxLife));
+                        this.particles = this.particles.filter(p => {
+                            p.x += p.dx;
+                            p.y += p.dy;
+                            p.dx *= 0.95;
+                            p.dy *= 0.95;
+                            p.life--;
+                            p.opacity = p.life / 30;
+                            return p.life > 0;
+                        });
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        const opacity = this.life / this.maxLife;
+                        ctx.globalAlpha = opacity * 0.5;
+                        const color = this.isBecomingInvul ? '#000000' : '#ff9999';
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.shockwaveRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.globalAlpha = 1;
+                        this.particles.forEach(p => {
+                            ctx.globalAlpha = p.opacity;
+                            ctx.fillStyle = color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            update(playerX, playerY) {
+                this.playerX = playerX;
+                this.playerY = playerY;
+                this.effects = this.effects.filter(effect => effect.update(playerX, playerY));
+            }
+
+            draw(ctx, score, playerX, playerY, bullets) {
+                this.effects.forEach(effect => {
+                    if (effect.type === 'dashTrail') {
+                        const index = this.effects.filter(e => e.type === 'dashTrail').indexOf(effect);
+                        const maxOpacity = 0.3;
+                        const minOpacity = 0.05;
+                        const dashTrails = this.effects.filter(e => e.type === 'dashTrail');
+                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, dashTrails.length - 1));
+                        ctx.save();
+                        ctx.globalAlpha = effect.opacity * opacityScale;
+                        ctx.fillStyle = effect.color;
+                        ctx.beginPath();
+                        ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    } else {
+                        effect.draw(ctx);
+                    }
+                });
+                bullets.forEach(bullet => bullet.draw(ctx));
+                this.playerX = playerX;
+                this.playerY = playerY;
+            }
+
+            createXPRing(x, y, size, xpAmount) {
+                const fillColor = 'rgba(0, 255, 0, 0.25)';
+                const strokeColor = '#00ff00';
+                this.effects.push(new Effect('xpRing', x, y, {
+                    size,
+                    xpAmount,
+                    life: 360, // 6 seconds at 60fps
+                    maxLife: 360,
+                    pulse: 0,
+                    fadeOut: 0,
+                    typeSpecificUpdate: function() {
+                        if (this.life > 0) {
+                            this.life--;
+                        }
+                        // More visible blink during the last 2 seconds
+                        if (this.life > 0 && this.life < 120) {
+                            this.pulse += 0.6; // faster pulse for visibility
+                        } else {
+                            this.pulse += 0.25;
+                        }
+                        // After life ends, fade out for ~60 frames (1s), non-collectible
+                        if (this.life <= 0) {
+                            this.fadeOut = Math.min(1, this.fadeOut + 1/60);
+                            return this.fadeOut < 1;
+                        }
+                        return true;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        const blinkAlpha = this.life < 120 ? (0.2 + 0.6 * Math.abs(Math.sin(this.pulse))) : 0.5;
+                        ctx.save();
+                        // Fill with base 0.25 alpha and subtle blink modulation; apply fade when life <= 0
+                        ctx.fillStyle = fillColor;
+                        const renderAlpha = this.life > 0 ? 1.0 : Math.max(0, 1.0 - this.fadeOut);
+                        ctx.globalAlpha = renderAlpha;
+                        const renderSize = this.size; // no shrink on disappear now
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, renderSize, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Stroke with blink and fade
+                        ctx.strokeStyle = strokeColor;
+                        ctx.lineWidth = 3;
+                        const strokeAlpha = this.life > 0 ? blinkAlpha : Math.max(0, blinkAlpha * (1 - this.fadeOut));
+                        ctx.globalAlpha = strokeAlpha;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.globalAlpha = 1.0;
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createXPCollectEffect(x, y) {
+                const rings = 1;
+                const startRadius = 12;
+                const delayFrames = 30; // 0.5s at 60fps
+                for (let i = 0; i < rings; i++) {
+                    this.effects.push(new Effect('xpCollectRing', x, y, {
+                        radius: startRadius,
+                        opacity: 0.9,
+                        life: 40,
+                        maxLife: 40,
+                        lineWidth: 3,
+                        delay: i * delayFrames,
+                        typeSpecificUpdate: function() {
+                            if (this.delay > 0) { this.delay--; return true; }
+                            this.life--;
+                            const t = 1 - (this.life / this.maxLife);
+                            this.radius = startRadius + t * 40;
+                            this.opacity = Math.max(0, 0.9 * (1 - t));
+                            return this.life > 0;
+                        },
+                        typeSpecificDraw: function(ctx) {
+                            if (this.delay > 0) return;
+                            ctx.save();
+                            ctx.globalAlpha = this.opacity;
+                            ctx.strokeStyle = '#00ff00';
+                            ctx.lineWidth = this.lineWidth;
+                            ctx.beginPath();
+                            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }));
+                }
+            }
+        }
+
+        // Enemy management
+        class Enemy {
+            constructor(x, y, type, config) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.radius = config.size;
+                this.speed = config.speed;
+                this.health = config.health;
+                this.maxHealth = config.health;
+                this.points = config.points;
+                this.damage = config.damage;
+                this.fillColor = config.fillColor;
+                this.strokeColor = config.strokeColor;
+                this.damageFlash = 0;
+                this.lastShot = 0;
+                this.shootDelay = type === 'octagon' ? 4000 : Infinity;
+                this.lastTrailTime = 0;
+                this.spawnShieldUntil = 0;
+                if (type === 'rhombus') {
+                    this.invulnerable = false;
+                    this.lastStateChange = Date.now();
+                    this.stateChangeDuration = 2500;
+                    this.circleRadius = 150 + Math.random() * 100;
+                    this.angleOffset = Math.random() * Math.PI * 2;
+                    this.clockwise = Math.random() < 0.5;
+                    this.orbitSpeed = 0.02 + Math.random() * 0.02;
+                    this.approachSpeed = 0.8;
+                }
+            }
+
+            update(player, canvas, effects, enemyBullets, audio) {
+                if (this.damageFlash > 0) this.damageFlash--;
+                if (this.type === 'rhombus') {
+                    const now = Date.now();
+                    if (now - this.lastStateChange >= this.stateChangeDuration) {
+                        const wasInvulnerable = this.invulnerable;
+                        this.invulnerable = !this.invulnerable;
+                        this.lastStateChange = now;
+                        effects.createRhombusEffect(this.x, this.y, this.invulnerable);
+                    }
+                }
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                if (this.type === 'rhombus') {
+                    this.angleOffset += this.clockwise ? this.orbitSpeed : -this.orbitSpeed;
+                    const desiredX = player.x + Math.cos(this.angleOffset) * this.circleRadius;
+                    const desiredY = player.y + Math.sin(this.angleOffset) * this.circleRadius;
+                    const desiredDx = desiredX - this.x;
+                    const desiredDy = desiredY - this.y;
+                    const desiredDist = Math.sqrt(desiredDx * desiredDx + desiredDy * desiredDy) || 0.1;
+                    this.x += (desiredDx / desiredDist) * this.speed * this.approachSpeed;
+                    this.y += (desiredDy / desiredDist) * this.speed * this.approachSpeed;
+                } else {
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
+                }
+                if (this.type === 'octagon') {
+                    const now = Date.now();
+                    if (now - this.lastShot >= this.shootDelay) {
+                        this.shoot(player, enemyBullets, audio);
+                        this.lastShot = now;
+                    }
+                }
+                if (this.type === 'triangle') {
+                    const now = Date.now();
+                    if (now - this.lastTrailTime >= 50) {
+                        const baseSize = this.radius * 0.8;
+                        for (let i = 0; i < 5; i++) {
+                            const size = baseSize * Math.pow(0.75, i);
+                            const opacity = 0.5 - (i * 0.125);
+                            effects.createTriangleTrail(this.x, this.y, size, opacity, this.fillColor);
+                        }
+                        this.lastTrailTime = now;
+                    }
+                }
+                return dist;
+            }
+
+            shoot(player, enemyBullets, audio) {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                enemyBullets.push(new EnemyBullet(
+                    this.x,
+                    this.y,
+                    (dx / dist) * 8,
+                    (dy / dist) * 8
+                ));
+                if (audio) audio.playSound('enemyShoot');
+            }
+
+            takeDamage(damage, effects, score, ctx, audio) {
+                if ((this.spawnShieldUntil && Date.now() < this.spawnShieldUntil) || (this.type === 'rhombus' && this.invulnerable)) return true;
+                this.health -= damage;
+                this.damageFlash = 10;
+                effects.createHitEffect(this.x, this.y);
+                effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
+                if (this.health <= 0) {
+                    effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
+                    if (audio) audio.playSound('enemyDeath');
+                    return false;
+                } else {
+                    if (audio) audio.playSound('enemyHit');
+                    return true;
+                }
+            }
+
+            draw(ctx) {
+                let color, stroke;
+                if (this.type === 'rhombus' && this.invulnerable) {
+                    color = 'rgba(0, 0, 0, 0.5)';
+                    stroke = '#ff0000';
+                } else {
+                    color = this.damageFlash > 0 ? '#ffffff' : this.fillColor;
+                    stroke = this.damageFlash > 0 ? '#ffffff' : this.strokeColor;
+                }
+                ShapeRenderer.drawShape(ctx, this.x, this.y, this.type, this.radius, color, stroke);
+                if (this.maxHealth > 50) {
+                    const w = this.radius * 2, h = 4;
+                    ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * (this.health / this.maxHealth), h);
+                }
+            }
+        }
+
+        // UI Manager for handling UI visibility
+        class UIManager {
+            constructor() {
+                this.uiElements = [
+                    document.querySelector('.enemies'),
+                    document.querySelector('.timer'),
+                    document.querySelector('.score'),
+                    document.querySelector('.wave'),
+                    document.querySelector('.controls'),
+                    document.querySelector('.xp-label'),
+                    document.querySelector('.xp-bar'),
+                    document.querySelector('.xp-level')
+                ];
+                this.nextWaveElement = document.querySelector('#nextWave');
+                this.scoreAdditionElement = document.querySelector('#scoreAddition');
+                this.scoreAdditionTimeout = null;
+                this.xpFill = document.getElementById('xpFill');
+                this.xpLevel = document.getElementById('xpLevel');
+            }
+
+            hideUI() {
+                this.uiElements.forEach(element => {
+                    if (element) {
+                        element.classList.add('hidden');
+                    }
+                });
+                this.hideNextWaveTimer();
+            }
+
+            showUI() {
+                this.uiElements.forEach(element => {
+                    if (element) {
+                        element.classList.remove('hidden');
+                    }
+                });
+            }
+            
+            showNextWaveTimer(seconds) {
+                if (this.nextWaveElement) {
+                    this.nextWaveElement.textContent = `Next Wave in ${seconds}...`;
+                    this.nextWaveElement.style.display = 'block';
+                }
+            }
+            
+            hideNextWaveTimer() {
+                if (this.nextWaveElement) {
+                    this.nextWaveElement.style.display = 'none';
+                }
+            }
+            
+            showScoreAddition(points) {
+                if (this.scoreAdditionElement) {
+                    // Clear any existing timeout
+                    if (this.scoreAdditionTimeout) {
+                        clearTimeout(this.scoreAdditionTimeout);
+                    }
+                    
+                    // Show the addition
+                    this.scoreAdditionElement.textContent = ` +${points}`;
+                    
+                    // Hide after 2 seconds
+                    this.scoreAdditionTimeout = setTimeout(() => {
+                        this.scoreAdditionElement.textContent = '';
+                    }, 2000);
+                }
+            }
+
+            updateXPBar(currentXp, requiredXp, level) {
+                if (!this.xpFill || !this.xpLevel) return;
+                const pct = Math.max(0, Math.min(1, requiredXp > 0 ? currentXp / requiredXp : 0));
+                this.xpFill.style.width = `${pct * 100}%`;
+                this.xpLevel.textContent = `Level ${level}`;
+            }
+
+            resetXPBar() {
+                if (!this.xpFill || !this.xpLevel) return;
+                this.xpFill.style.width = '0%';
+                this.xpLevel.textContent = 'Level 1';
+            }
+        }
+
+        // Main game class
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.input = new InputManager();
+                this.audio = new AudioManager();
+                this.uiManager = new UIManager();
+                this.shootDelay = 250;
+                this.lastShot = 0;
+                this.inLobby = true;
+                this.setupCanvas();
+                this.reset();
+                this.setupEventListeners();
+                this.setupAudio();
+                this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
+                this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                this.setupLobby();
+                
+                // Upgrades
+                this.upgradeManager = new UpgradeManager(this);
+                this.upgradePause = false;
+                
+                // Grid movement for infinite background effect
+                this.gridOffsetX = 0;
+                this.gridOffsetY = 0;
+                this.gridSpeed = 0.5; // Speed of grid movement
+                
+                // Track player position for parallax effect
+                this.lastPlayerX = 0;
+                this.lastPlayerY = 0;
+                
+                // Initially hide UI since we start in lobby
+                this.uiManager.hideUI();
+            }
+
+            setupCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            async setupAudio() {
+                console.log('Initializing audio system...');
+                await this.audio.initialize();
+                console.log('✓ Audio preloading complete');
+            }
+            
+            setupLobby() {
+                const startButton = document.getElementById('startButton');
+                const musicToggle = document.getElementById('musicToggle');
+                const musicIcon = document.getElementById('musicIcon');
+                const quitButton = document.getElementById('quitButton');
+                const lobby = document.getElementById('lobby');
+                const buttonRain = document.getElementById('buttonRain');
+                const lobbyTitle = document.getElementById('lobbyTitle');
+                const lobbyLogo = document.getElementById('lobbyLogo');
+                
+                // Handle logo loading
+                lobbyLogo.addEventListener('load', () => {
+                    lobbyTitle.style.display = 'none';
+                    lobbyLogo.style.display = 'block';
+                });
+                
+                // Handle logo load error (fallback to text)
+                lobbyLogo.addEventListener('error', () => {
+                    lobbyTitle.style.display = 'block';
+                    lobbyLogo.style.display = 'none';
+                });
+                
+                let rainInterval;
+                
+                startButton.addEventListener('click', () => {
+                    this.audio.playSound('buttonClick');
+                    this.startGame();
+                });
+                
+                startButton.addEventListener('mouseenter', () => {
+                    this.startButtonRain(buttonRain);
+                    rainInterval = setInterval(() => {
+                        this.startButtonRain(buttonRain);
+                    }, 100);
+                });
+                
+                startButton.addEventListener('mouseleave', () => {
+                    clearInterval(rainInterval);
+                    setTimeout(() => {
+                        buttonRain.innerHTML = '';
+                    }, 1000);
+                });
+                
+                quitButton.addEventListener('click', () => {
+                    this.returnToLobby();
+                });
+                
+                musicToggle.addEventListener('click', () => {
+                    const musicEnabled = this.audio.toggleMusic();
+                    if (musicEnabled) {
+                        musicIcon.src = 'sound-on.png';
+                        musicIcon.alt = 'Music On';
+                    } else {
+                        musicIcon.src = 'sound-off.png';
+                        musicIcon.alt = 'Music Off';
+                    }
+                });
+                
+                // Auto-start audio on any interaction
+                const initAudio = async () => {
+                    if (this.audio.musicEnabled) {
+                        await this.audio.playLobbyMusic();
+                    }
+                    document.removeEventListener('click', initAudio);
+                    document.removeEventListener('keydown', initAudio);
+                    document.removeEventListener('touchstart', initAudio);
+                };
+                document.addEventListener('click', initAudio);
+                document.addEventListener('keydown', initAudio);
+                document.addEventListener('touchstart', initAudio);
+            }
+            
+            startButtonRain(container) {
+                const buttonWidth = 120; // Approximate button width
+                for (let i = 0; i < 3; i++) {
+                    const digit = document.createElement('div');
+                    digit.className = 'rain-digit';
+                    digit.textContent = Math.random() < 0.5 ? '0' : '1';
+                    digit.style.left = Math.random() * buttonWidth + 'px';
+                    digit.style.animationDelay = Math.random() * 0.5 + 's';
+                    container.appendChild(digit);
+                    
+                    // Remove digit after animation
+                    setTimeout(() => {
+                        if (digit.parentNode) {
+                            digit.parentNode.removeChild(digit);
+                        }
+                    }, 1500);
+                }
+            }
+            
+            updateGridMovement() {
+                // Move grid continuously for infinite scroll effect
+                this.gridOffsetX += this.gridSpeed * 0.7; // Slower horizontal movement
+                this.gridOffsetY += this.gridSpeed; // Normal vertical movement
+                
+                const gridSize = 40;
+                // Keep offsets within grid bounds to prevent overflow
+                this.gridOffsetX = this.gridOffsetX % gridSize;
+                this.gridOffsetY = this.gridOffsetY % gridSize;
+            }
+            
+            updateBackgroundParallax() {
+                // Calculate player movement delta
+                const playerDeltaX = this.player.x - this.lastPlayerX;
+                const playerDeltaY = this.player.y - this.lastPlayerY;
+                
+                // Only update background binary numbers with parallax (not the grid)
+                this.backgroundBinary.updateParallax(playerDeltaX, playerDeltaY);
+                
+                // Store current player position for next frame
+                this.lastPlayerX = this.player.x;
+                this.lastPlayerY = this.player.y;
+            }
+            
+            drawInfiniteGrid() {
+                const gridSize = 40;
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                
+                // Draw static grid (no movement during gameplay)
+                // Draw vertical lines
+                for (let x = 0; x <= this.canvas.width; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                
+                // Draw horizontal lines
+                for (let y = 0; y <= this.canvas.height; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            startGame() {
+                this.inLobby = false;
+                document.getElementById('lobby').classList.add('hidden');
+                this.uiManager.showUI();
+                
+                this.reset();
+                
+                // Switch from lobby music to game music
+                this.audio.stopLobbyMusic();
+                if (this.audio.musicEnabled) {
+                    this.audio.playGameMusic();
+                }
+            }
+            
+            returnToLobby() {
+                this.inLobby = true;
+                this.gameOver = false;
+                this.paused = false;
+                
+                // Hide quit button and show lobby
+                document.getElementById('quitButton').classList.remove('visible');
+                document.getElementById('lobby').classList.remove('hidden');
+                
+                // Hide game UI and clear input
+                this.uiManager.hideUI();
+                this.input.clear();
+                
+                // Stop game music and start lobby music
+                this.audio.stopGameMusic();
+                if (this.audio.musicEnabled) {
+                    this.audio.playLobbyMusic();
+                }
+                
+                // Reset game state
+                this.reset();
+            }
+
+            reset() {
+                this.input.clear();
+                this.player = new Player(this.canvas);
+                this.bullets = [];
+                this.enemyBullets = [];
+                this.enemies = [];
+                this.effects = new EffectsManager();
+                this.score = 0;
+                this.enemiesKilled = 0;
+                this.startTime = Date.now();
+                this.currentWave = 0;
+                this.waveStarted = false;
+                this.waveStartTime = 0;
+                this.enemiesToSpawn = [];
+                this.spawnedEnemies = 0;
+                this.gameOver = false;
+                this.paused = false;
+                
+                // Player XP state
+                this.playerLevel = 1;
+                this.playerXp = 0;
+                this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
+                if (this.uiManager && this.uiManager.resetXPBar) this.uiManager.resetXPBar();
+                // Reset upgrades
+                if (this.upgradeManager) this.upgradeManager.reset();
+                if (this.player) {
+                    this.player.maxHealth = 100;
+                    this.player.health = 100;
+                    this.player.speedMultiplier = 1;
+                    this.player.bulletDamageMultiplier = 1;
+                    this.player.railgunChargeSpeedMultiplier = 1;
+                }
+                
+                // Grouped wave state
+                if (USE_WAVE_GROUPS) {
+                    this.waveGroupsPrepared = WAVE_GROUPS.map(group => shuffleArray(group));
+                    this.currentGroupIndex = 0;
+                    this.currentGroupQueue = this.waveGroupsPrepared.length > 0 ? this.waveGroupsPrepared[0].slice() : [];
+                } else {
+                    this.waveGroupsPrepared = [];
+                    this.currentGroupIndex = 0;
+                    this.currentGroupQueue = [];
+                }
+                this.pauseTime = 0;
+                this.gameOverTime = 0;
+                this.lastShot = 0;
+                this.gameOverBlinkFrame = 0;
+                this.pauseBlinkFrame = 0;
+                this.player.stopRailgunCharge(this.audio);
+                this.wavePauseEndTime = 0;
+                this.inWavePause = false;
+                
+                // Reset grid position when game resets
+                this.gridOffsetX = 0;
+                this.gridOffsetY = 0;
+                
+                // Reset player tracking for parallax
+                if (!this.inLobby) {
+                    this.lastPlayerX = this.player.x;
+                    this.lastPlayerY = this.player.y;
+                }
+                
+                // Hide UI when in lobby, show when in game
+                if (this.inLobby) {
+                    this.uiManager.hideUI();
+                } else {
+                    this.uiManager.showUI();
+                }
+            }
+
+            setupEventListeners() {
+                window.addEventListener('resize', () => {
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                    this.backgroundBinary.canvas = this.canvas;
+                    this.fallingNumbers.canvas = this.canvas;
+                    if (this.player.health === 100 && this.score === 0) {
+                        this.player.x = this.canvas.width / 2;
+                        this.player.y = this.canvas.height / 2;
+                    }
+                });
+
+                document.addEventListener('keydown', e => {
+                    const code = e.code;
+                    if (['Escape', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(code)) {
+                        e.preventDefault();
+                    }
+                    if (code === 'Escape' && this.input.preventSpam('pause', 200)) {
+                        if (this.gameOver) {
+                            // ESC in game over screen returns to lobby
+                            this.returnToLobby();
+                        } else if (!this.inLobby) {
+                            // ESC in game toggles pause
+                            this.paused = !this.paused;
+                            const quitButton = document.getElementById('quitButton');
+                            if (this.paused) {
+                                this.pauseTime = Date.now();
+                                this.input.clear();
+                                this.audio.pauseMusic();
+                                this.player.stopRailgunCharge(this.audio);
+                                this.audio.playSound('pauseActivate');
+                                quitButton.classList.add('visible');
+                            } else {
+                                this.startTime += Date.now() - this.pauseTime;
+                                this.waveStartTime += Date.now() - this.pauseTime;
+                                this.audio.resumeMusic();
+                                this.audio.playSound('pauseDeactivate');
+                                quitButton.classList.remove('visible');
+                            }
+                        }
+                    }
+                    if (code === 'Space' && this.input.preventSpam('restart', 100)) {
+                        if (this.gameOver) {
+                            this.reset();
+                            if (this.audio.musicEnabled) {
+                                this.audio.playGameMusic();
+                            }
+                        }
+                    }
+                    if (!this.gameOver && !this.paused && !this.inLobby) {
+                        const moveKeys = {
+                            'KeyW': 'w', 'ArrowUp': 'w',
+                            'KeyS': 's', 'ArrowDown': 's',
+                            'KeyA': 'a', 'ArrowLeft': 'a',
+                            'KeyD': 'd', 'ArrowRight': 'd',
+                            'ShiftLeft': 'shift', 'ShiftRight': 'shift'
+                        };
+                        if (moveKeys[code]) this.input.keys[moveKeys[code]] = true;
+                        if (code === 'ShiftLeft' || code === 'ShiftRight') {
+                            if (this.input.preventSpam('dash', 500)) {
+                                this.player.startDash(this.input.keys, this.effects, this.audio);
+                            }
+                        }
+                    }
+                });
+
+                document.addEventListener('keyup', e => {
+                    const moveKeys = {
+                        'KeyW': 'w', 'ArrowUp': 'w',
+                        'KeyS': 's', 'ArrowDown': 's',
+                        'KeyA': 'a', 'ArrowLeft': 'a',
+                        'KeyD': 'd', 'ArrowRight': 'd',
+                        'ShiftLeft': 'shift', 'ShiftRight': 'shift'
+                    };
+                    if (moveKeys[e.code]) {
+                        e.preventDefault();
+                        this.input.keys[moveKeys[e.code]] = false;
+                    }
+                });
+
+                this.canvas.addEventListener('mousemove', e => {
+                    if (this.gameOver || this.inLobby) return;
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.input.mouse.x = e.clientX - rect.left;
+                    this.input.mouse.y = e.clientY - rect.top;
+                });
+
+                this.canvas.addEventListener('mousedown', e => {
+                    if (this.gameOver || this.inLobby) return;
+                    if (!this.paused) {
+                        if (e.button === 0) this.input.mouse.down = true;
+                        else if (e.button === 2) this.input.mouse.rightDown = true;
+                    }
+                });
+
+                this.canvas.addEventListener('mouseup', e => {
+                    if (e.button === 0) this.input.mouse.down = false;
+                    else if (e.button === 2) this.input.mouse.rightDown = false;
+                });
+
+                this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+                window.addEventListener('blur', () => this.input.clear());
+                window.addEventListener('focus', () => this.input.clear());
+            }
+
+            shoot() {
+                const now = Date.now();
+                if (now - this.lastShot < this.shootDelay) return;
+                const dx = this.input.mouse.x - this.player.x;
+                const dy = this.input.mouse.y - this.player.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+                const baseDamage = 50;
+                const dmgMul = this.player.bulletDamageMultiplier || 1;
+                this.bullets.push(new Bullet(
+                    this.player.x,
+                    this.player.y,
+                    (dx / dist) * 8,
+                    (dy / dist) * 8,
+                    Math.floor(baseDamage * dmgMul)
+                ));
+                this.lastShot = now;
+                this.audio.playSound('bulletShoot');
+            }
+
+            spawnEnemy(type) {
+                const side = Math.floor(Math.random() * 4);
+                const margin = 30;
+                let x, y;
+                switch (side) {
+                    case 0: x = Math.random() * this.canvas.width; y = -margin; break;
+                    case 1: x = this.canvas.width + margin; y = Math.random() * this.canvas.height; break;
+                    case 2: x = Math.random() * this.canvas.width; y = this.canvas.height + margin; break;
+                    case 3: x = -margin; y = Math.random() * this.canvas.height; break;
+                }
+                this.enemies.push(new Enemy(x, y, type, ENEMY_TYPES[type]));
+            }
+
+            spawnTrianglesAround(cx, cy) {
+                const count = 3;
+                const minRadius = 70;
+                const extraRadius = 40; // spawn a bit further out for spacing
+                const now = Date.now();
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4; // slight randomization
+                    const distance = minRadius + extraRadius + Math.random() * 30;
+                    const x = cx + Math.cos(angle) * distance;
+                    const y = cy + Math.sin(angle) * distance;
+                    const enemy = new Enemy(x, y, 'triangle', ENEMY_TYPES['triangle']);
+                    enemy.spawnShieldUntil = now + 1500;
+                    this.enemies.push(enemy);
+                }
+            }
+
+            startWave(waveConfig) {
+                // For grouped waves, wave numbers aren't provided; increment sequentially
+                if (USE_WAVE_GROUPS) {
+                    this.currentWave += 1;
+                } else {
+                    this.currentWave = waveConfig.wave;
+                }
+                this.waveStarted = true;
+                this.waveStartTime = Date.now();
+                this.spawnedEnemies = 0;
+                this.enemiesToSpawn = [];
+                this.inWavePause = false;
+                
+                const enemyCounts = {
+                    square: waveConfig.enemies.cubes || 0,
+                    triangle: waveConfig.enemies.triangles || 0,
+                    octagon: waveConfig.enemies.octagons || 0,
+                    rhombus: waveConfig.enemies.rhombuses || 0
+                };
+                for (const [type, count] of Object.entries(enemyCounts)) {
+                    for (let i = 0; i < count; i++) {
+                        this.enemiesToSpawn.push(type);
+                    }
+                }
+                for (let i = this.enemiesToSpawn.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.enemiesToSpawn[i], this.enemiesToSpawn[j]] = [this.enemiesToSpawn[j], this.enemiesToSpawn[i]];
+                }
+                const totalEnemies = this.enemiesToSpawn.length;
+                if (totalEnemies > 0) {
+                    const spawnInterval = waveConfig.spawnTime / totalEnemies;
+                    let spawnIndex = 0;
+                    const spawnNext = () => {
+                        if (spawnIndex < this.enemiesToSpawn.length) {
+                            this.spawnEnemy(this.enemiesToSpawn[spawnIndex]);
+                            this.spawnedEnemies++;
+                            spawnIndex++;
+                            if (spawnIndex < this.enemiesToSpawn.length) {
+                                setTimeout(spawnNext, spawnInterval);
+                            }
+                        }
+                    };
+                    spawnNext();
+                }
+            }
+
+            update(timestamp) {
+                if (this.inLobby) return;  // Don't update game logic in lobby
+                if (this.gameOver || this.paused) return;
+                if (this.upgradePause) return;
+                
+                const gameTime = Date.now() - this.startTime;
+                
+                // Handle wave pause - only affects wave spawning, not gameplay
+                if (this.inWavePause) {
+                    if (Date.now() >= this.wavePauseEndTime) {
+                        this.inWavePause = false;
+                    }
+                    // Continue with all normal gameplay during wave pause
+                }
+                
+                // Only check for next wave if not in wave pause
+                if (!this.inWavePause) {
+                    if (USE_WAVE_GROUPS) {
+                        if (!this.waveStarted) {
+                            const nextGrouped = this.getNextGroupedWave();
+                            if (nextGrouped) {
+                                this.startWave(nextGrouped);
+                            }
+                        }
+                    } else {
+                        const nextWave = WAVE_CONFIG.find(w => w.timer <= gameTime && w.wave > this.currentWave);
+                        if (nextWave && !this.waveStarted) {
+                            this.startWave(nextWave);
+                        }
+                    }
+                }
+                
+                if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
+                    // Wave completed, start pause before next wave
+                    this.waveStarted = false;
+                    this.inWavePause = true;
+                    this.wavePauseEndTime = Date.now() + 3000; // 3 second pause
+                }
+                
+                // Continue all normal game mechanics regardless of wave pause
+                this.player.move(this.input.keys, this.canvas);
+                this.player.update(this.input, this.effects, this.canvas, this.audio);
+                
+                // Update background parallax based on player movement
+                this.updateBackgroundParallax();
+                
+                if (this.input.mouse.down) this.shoot();
+                this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                
+                for (let i = this.enemies.length - 1; i >= 0; i--) {
+                    const enemy = this.enemies[i];
+                    const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
+                    if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
+                        this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                        // Spawn XP ring on death
+                        { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+                        if (enemy.type === 'rhombus') {
+                            this.spawnTrianglesAround(enemy.x, enemy.y);
+                        }
+                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+                        this.enemies.splice(i, 1);
+                        this.enemiesKilled++;
+                        // No score addition for collision deaths
+                        continue;
+                    }
+                    if (!this.player.isDashing) {
+                        for (let j = this.bullets.length - 1; j >= 0; j--) {
+                            const bullet = this.bullets[j];
+                            const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
+                            if (bulletDist < bullet.radius + enemy.radius) {
+                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+                                this.bullets.splice(j, 1);
+                                if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                    this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    // Spawn XP ring on death
+                                    { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+                                    if (enemy.type === 'rhombus') {
+                                        this.spawnTrianglesAround(enemy.x, enemy.y);
+                                    }
+                                    this.enemies.splice(i, 1);
+                                    this.score += enemy.points;
+                                    this.enemiesKilled++;
+                                    this.uiManager.showScoreAddition(enemy.points);
+                                }
+                                break;
+                            }
+                        }
+                        for (let j = this.effects.effects.length - 1; j >= 0; j--) {
+                            const effect = this.effects.effects[j];
+                            if (effect.type === 'railgunBeam' && effect.intersectsEnemy(enemy)) {
+                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+                                if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                    this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                    // Spawn XP ring on death
+                                    { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+                                    if (enemy.type === 'rhombus') {
+                                        this.spawnTrianglesAround(enemy.x, enemy.y);
+                                    }
+                                    this.enemies.splice(i, 1);
+                                    this.score += enemy.points;
+                                    this.enemiesKilled++;
+                                    this.uiManager.showScoreAddition(enemy.points);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!this.player.isDashing) {
+                    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+                        const bullet = this.enemyBullets[i];
+                        const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
+                        if (dist < bullet.radius + this.player.radius) {
+                            this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.audio);
+                            this.enemyBullets.splice(i, 1);
+                        }
+                    }
+                }
+                this.effects.update(this.player.x, this.player.y);
+                
+                if (this.player.health <= 0 && !this.gameOver) {
+                    this.gameOver = true;
+                    this.gameOverTime = Date.now();
+                    this.input.clear();
+                    this.audio.pauseMusic();
+                    this.player.stopRailgunCharge(this.audio);
+                    this.audio.playSound('gameOver');
+                    this.uiManager.hideUI(); // Hide UI when game over
+                }
+
+                // Collect XP rings
+                for (let k = this.effects.effects.length - 1; k >= 0; k--) {
+                    const eff = this.effects.effects[k];
+                    if (eff.type === 'xpRing') {
+                        // Only collectible while life > 0 (pre-shrink phase)
+                        const distToPlayer = Math.hypot(eff.x - this.player.x, eff.y - this.player.y);
+                        if (eff.life > 0 && distToPlayer < eff.size + this.player.radius) {
+                            // Collect
+                            const add = eff.xpAmount || 0;
+                            this.playerXp += add;
+                            // Level-up loop
+                            while (this.playerXp >= this.playerXpRequired) {
+                                this.playerXp -= this.playerXpRequired;
+                                this.playerLevel += 1;
+                                if (this.audio) this.audio.playSound('Level_UP');
+                                this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
+                                this.triggerLevelUpSelection();
+                            }
+                            if (this.audio) this.audio.playSound('XP_collect');
+                            // Visual collect effect
+                            this.effects.createXPCollectEffect(eff.x, eff.y);
+                            // Update UI
+                            this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
+                            // Remove the ring
+                            this.effects.effects.splice(k, 1);
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (this.inLobby) {
+                    // Draw falling numbers background in lobby (above black background, below UI)
+                    this.fallingNumbers.draw(this.ctx);
+                    return;
+                }
+                
+                this.backgroundBinary.draw(this.ctx);
+                this.drawInfiniteGrid();
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.player.x, this.player.y);
+                this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+                this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
+                this.enemies.forEach(enemy => enemy.draw(this.ctx));
+                this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
+                this.player.draw(this.ctx);
+                
+                // Draw custom crosshair
+                this.drawCrosshair();
+                
+                if (this.paused) {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2 - 20);
+                    
+                    // Fast blinking continue text with fade (90 frames = 1.5 seconds at 60fps)
+                    const blinkCycle = this.pauseBlinkFrame % 90;
+                    let opacity;
+                    
+                    if (blinkCycle < 45) {
+                        // Fade in during first half
+                        opacity = blinkCycle / 45;
+                    } else {
+                        // Fade out during second half
+                        opacity = (90 - blinkCycle) / 45;
+                    }
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = opacity;
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '20px Arial';
+                    this.ctx.fillText('Press ESC to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.restore();
+                }
+                if (this.gameOver) {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.ctx.fillStyle = '#ff4444';
+                    this.ctx.font = '48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '28px Arial';
+                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
+                    this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
+                    
+                    // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
+                    const blinkCycle = this.gameOverBlinkFrame % 90;
+                    let opacity;
+                    
+                    if (blinkCycle < 45) {
+                        // Fade in during first half
+                        opacity = blinkCycle / 45;
+                    } else {
+                        // Fade out during second half
+                        opacity = (90 - blinkCycle) / 45;
+                    }
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = opacity;
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '20px Arial';
+                    this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 120);
+                    this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 150);
+                    this.ctx.restore();
+                }
+            }
+
+            formatTime(ms) {
+                const seconds = Math.floor(ms / 1000);
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            drawCrosshair() {
+                if (this.inLobby || this.gameOver) return;
+                
+                const crosshairSize = 20;
+                const centerX = this.input.mouse.x;
+                const centerY = this.input.mouse.y;
+                const gap = 4; // Gap between center and crosshair lines
+                const thickness = 2;
+                
+                this.ctx.strokeStyle = '#00ffff';
+                this.ctx.lineWidth = thickness;
+                this.ctx.lineCap = 'round';
+                
+                // Draw crosshair lines
+                this.ctx.beginPath();
+                
+                // Horizontal line (left)
+                this.ctx.moveTo(centerX - crosshairSize/2, centerY);
+                this.ctx.lineTo(centerX - gap, centerY);
+                
+                // Horizontal line (right)
+                this.ctx.moveTo(centerX + gap, centerY);
+                this.ctx.lineTo(centerX + crosshairSize/2, centerY);
+                
+                // Vertical line (top)
+                this.ctx.moveTo(centerX, centerY - crosshairSize/2);
+                this.ctx.lineTo(centerX, centerY - gap);
+                
+                // Vertical line (bottom)
+                this.ctx.moveTo(centerX, centerY + gap);
+                this.ctx.lineTo(centerX, centerY + crosshairSize/2);
+                
+                this.ctx.stroke();
+                
+                // Draw center dot
+                this.ctx.fillStyle = '#00ffff';
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, 1, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            loop(timestamp) {
+                // Always update falling numbers in lobby
+                if (this.inLobby) {
+                    this.fallingNumbers.update();
+                } else {
+                    this.backgroundBinary.update();
+                }
+                
+                let gameTime;
+                if (this.gameOver) {
+                    gameTime = this.gameOverTime - this.startTime;
+                } else if (this.paused) {
+                    gameTime = this.pauseTime - this.startTime;
+                } else if (!this.inLobby) {
+                    gameTime = Date.now() - this.startTime;
+                } else {
+                    gameTime = 0;
+                }
+                
+                if (!this.paused && !this.gameOver && !this.inLobby) {
+                    this.update(timestamp);
+                }
+                
+                this.draw();
+                
+                // Update game over blink animation
+                if (this.gameOver) {
+                    this.gameOverBlinkFrame++;
+                }
+                
+                // Update pause blink animation
+                if (this.paused) {
+                    this.pauseBlinkFrame++;
+                }
+                
+                // Update next wave timer display
+                if (this.inWavePause) {
+                    const remainingTime = Math.max(0, this.wavePauseEndTime - Date.now());
+                    const seconds = Math.ceil(remainingTime / 1000);
+                    this.uiManager.showNextWaveTimer(seconds);
+                } else {
+                    this.uiManager.hideNextWaveTimer();
+                }
+                
+                // Only update UI if not in lobby
+                if (!this.inLobby) {
+                    document.getElementById('score').textContent = this.score;
+                    document.getElementById('enemies').textContent = this.enemiesKilled;
+                    document.getElementById('timer').textContent = this.formatTime(gameTime);
+                    document.getElementById('wave').textContent = this.currentWave;
+                    // Keep XP bar in sync
+                    this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
+                }
+                
+                requestAnimationFrame(t => this.loop(t));
+            }
+
+            start() {
+                requestAnimationFrame(t => this.loop(t));
+            }
+
+            prepareWaveGroups() {
+                // Shuffle waves inside each group; reset group indices
+                this.waveGroupsPrepared = WAVE_GROUPS.map(group => shuffleArray(group));
+                this.currentGroupIndex = 0;
+                this.currentGroupQueue = this.waveGroupsPrepared.length > 0 ? this.waveGroupsPrepared[0].slice() : [];
+                this.currentWave = 0;
+            }
+
+            getNextGroupedWave() {
+                // If no groups or finished all groups
+                if (!this.waveGroupsPrepared || this.currentGroupIndex >= this.waveGroupsPrepared.length) {
+                    return null;
+                }
+                // If current group exhausted, advance to next group
+                if (this.currentGroupQueue.length === 0) {
+                    this.currentGroupIndex++;
+                    if (this.currentGroupIndex >= this.waveGroupsPrepared.length) return null;
+                    this.currentGroupQueue = this.waveGroupsPrepared[this.currentGroupIndex].slice();
+                }
+                // Pop next wave from current group's randomized queue
+                const wave = this.currentGroupQueue.shift();
+                return wave || null;
+            }
+
+            resumeAfterUpgrade() {
+                this.upgradePause = false;
+                this.paused = false;
+                this.startTime += Date.now() - this.pauseTime;
+                this.waveStartTime += Date.now() - this.pauseTime;
+                this.audio.resumeMusic();
+            }
+
+            triggerLevelUpSelection() {
+                // Pause game and show upgrade UI
+                this.paused = true;
+                this.upgradePause = true;
+                this.pauseTime = Date.now();
+                this.input.clear();
+                this.audio.pauseMusic();
+                const options = this.upgradeManager.getRandomOptions(this.playerLevel, 3);
+                this.upgradeManager.renderOptions(options);
+            }
+        }
+
+        // Initialize and start the game
+        const game = new Game();
+        game.start();
+
+        // Upgrade Manager
+        class UpgradeManager {
+            constructor(game) {
+                this.game = game;
+                this.upgrades = [
+                    { key: 'health_1', level: 1, title: 'HEALTH', desc: 'Add 15 Health Points', image: 'upgrade_health.png', apply: () => { this.game.player.maxHealth += 15; this.game.player.health = Math.min(this.game.player.maxHealth, this.game.player.health + 15); } },
+                    { key: 'speed_1', level: 1, title: 'SPEED', desc: '+5% Speed', image: 'upgrade_speed.png', apply: () => { this.game.player.speedMultiplier = (this.game.player.speedMultiplier || 1) * 1.05; } },
+                    { key: 'damage_1', level: 1, title: 'DAMAGE', desc: '+10% of Bullets Damage', image: 'upgrade_damage.png', apply: () => { this.game.player.bulletDamageMultiplier = (this.game.player.bulletDamageMultiplier || 1) * 1.10; } },
+                    { key: 'railgun_charge_2', level: 2, title: 'RAILGUN CHARGE', desc: '10% Faster Railgun Charge', image: 'upgrade_railgun.png', apply: () => { this.game.player.railgunChargeSpeedMultiplier = (this.game.player.railgunChargeSpeedMultiplier || 1) * 1.10; } }
+                ];
+                this.taken = new Set();
+            }
+
+            getRandomOptions(maxLevel, count = 3) {
+                const pool = this.upgrades.filter(u => u.level <= maxLevel && !this.taken.has(u.key));
+                const shuffled = shuffleArray(pool);
+                return shuffled.slice(0, Math.min(count, shuffled.length));
+            }
+
+            renderOptions(options) {
+                const overlay = document.getElementById('upgradeOverlay');
+                const container = document.getElementById('upgradeContainer');
+                container.innerHTML = '';
+                options.forEach(opt => {
+                    const card = document.createElement('div');
+                    card.className = 'upgrade-card';
+                    const img = document.createElement('img');
+                    img.src = opt.image;
+                    img.alt = opt.title;
+                    const title = document.createElement('div');
+                    title.className = 'upgrade-title';
+                    title.textContent = opt.title;
+                    const desc = document.createElement('div');
+                    desc.className = 'upgrade-desc';
+                    desc.textContent = opt.desc;
+                    const btn = document.createElement('button');
+                    btn.className = 'upgrade-select-btn';
+                    btn.textContent = 'Select';
+                    btn.onclick = () => this.selectUpgrade(opt);
+                    card.appendChild(img);
+                    card.appendChild(title);
+                    card.appendChild(desc);
+                    card.appendChild(btn);
+                    container.appendChild(card);
+                });
+                overlay.classList.add('visible');
+            }
+
+            selectUpgrade(opt) {
+                if (!opt) return;
+                this.taken.add(opt.key);
+                opt.apply();
+                // Close overlay and resume
+                document.getElementById('upgradeOverlay').classList.remove('visible');
+                this.game.resumeAfterUpgrade();
+            }
+
+            reset() {
+                this.taken.clear();
+            }
+        }
+
+    </script>
+</body>
+</html>
