@@ -1633,7 +1633,7 @@
                         } else {
                             this.pulse += 0.25;
                         }
-                        // After life ends, fade out for ~60 frames (1s), non-collectible
+                        // After life ends, fade out for ~60 frames (1s); still collectible while visible
                         if (this.life <= 0) {
                             this.fadeOut = Math.min(1, this.fadeOut + 1/60);
                             return this.fadeOut < 1;
@@ -1647,7 +1647,14 @@
                         ctx.fillStyle = fillColor;
                         const renderAlpha = this.life > 0 ? 1.0 : Math.max(0, 1.0 - this.fadeOut);
                         ctx.globalAlpha = renderAlpha;
-                        const renderSize = this.size; // no shrink on disappear now
+                        // Slight pre-expire shrink during last 2 seconds; shrink fully during fade out
+                        const preExpireDuration = 120;
+                        const preExpireScale = (this.life > 0 && this.life < preExpireDuration)
+                            ? (1 - 0.2 * (1 - (this.life / preExpireDuration)))
+                            : 1;
+                        const renderSize = this.life > 0
+                            ? (this.size * preExpireScale)
+                            : Math.max(0, this.size * (1 - this.fadeOut));
                         ctx.beginPath();
                         ctx.arc(this.x, this.y, renderSize, 0, Math.PI * 2);
                         ctx.fill();
@@ -1657,7 +1664,7 @@
                         const strokeAlpha = this.life > 0 ? blinkAlpha : Math.max(0, blinkAlpha * (1 - this.fadeOut));
                         ctx.globalAlpha = strokeAlpha;
                         ctx.beginPath();
-                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.arc(this.x, this.y, renderSize, 0, Math.PI * 2);
                         ctx.globalAlpha = 1.0;
                         ctx.stroke();
                         ctx.restore();
@@ -2548,9 +2555,15 @@
                 for (let k = this.effects.effects.length - 1; k >= 0; k--) {
                     const eff = this.effects.effects[k];
                     if (eff.type === 'xpRing') {
-                        // Only collectible while life > 0 (pre-shrink phase)
+                        // Collectible while visible; use same render radius as draw for accurate pickup window
                         const distToPlayer = Math.hypot(eff.x - this.player.x, eff.y - this.player.y);
-                        if (eff.life > 0 && distToPlayer < eff.size + this.player.radius) {
+                        const preExpireDuration = 120;
+                        const preExpireScale = (eff.life > 0 && eff.life < preExpireDuration)
+                            ? (1 - 0.2 * (1 - (eff.life / preExpireDuration)))
+                            : 1;
+                        const visibleScale = eff.life > 0 ? preExpireScale : Math.max(0, 1 - eff.fadeOut);
+                        const renderSize = eff.size * visibleScale;
+                        if (distToPlayer < renderSize + this.player.radius && (eff.life > 0 || eff.fadeOut < 1)) {
                             // Collect
                             const add = eff.xpAmount || 0;
                             this.playerXp += add;
