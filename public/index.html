@@ -2158,6 +2158,10 @@
                 if (this.uiManager && this.uiManager.resetXPBar) this.uiManager.resetXPBar();
                 // Reset upgrades
                 if (this.upgradeManager) this.upgradeManager.reset();
+                // Reset upgrade multipliers
+                this.player.speedMultiplier = 1;
+                this.player.bulletDamageMultiplier = 1;
+                this.player.railgunChargeSpeedMultiplier = 1;
                 if (this.player) {
                     this.player.maxHealth = 100;
                     this.player.health = 100;
@@ -2527,7 +2531,7 @@
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
                     this.input.clear();
-                    this.audio.pauseMusic();
+                    // keep background music playing during upgrade selection
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
@@ -2799,8 +2803,12 @@
                 this.upgradePause = true;
                 this.pauseTime = Date.now();
                 this.input.clear();
-                this.audio.pauseMusic();
                 const options = this.upgradeManager.getRandomOptions(this.playerLevel, 3);
+                // If nothing to show, skip selection
+                if (!options || options.length === 0) {
+                    this.resumeAfterUpgrade();
+                    return;
+                }
                 this.upgradeManager.renderOptions(options);
             }
         }
@@ -2814,10 +2822,10 @@
             constructor(game) {
                 this.game = game;
                 this.upgrades = [
-                    { key: 'health_1', level: 1, title: 'HEALTH', desc: 'Add 15 Health Points', image: 'upgrade_health.png', apply: () => { this.game.player.maxHealth += 15; this.game.player.health = Math.min(this.game.player.maxHealth, this.game.player.health + 15); } },
-                    { key: 'speed_1', level: 1, title: 'SPEED', desc: '+5% Speed', image: 'upgrade_speed.png', apply: () => { this.game.player.speedMultiplier = (this.game.player.speedMultiplier || 1) * 1.05; } },
-                    { key: 'damage_1', level: 1, title: 'DAMAGE', desc: '+10% of Bullets Damage', image: 'upgrade_damage.png', apply: () => { this.game.player.bulletDamageMultiplier = (this.game.player.bulletDamageMultiplier || 1) * 1.10; } },
-                    { key: 'railgun_charge_2', level: 2, title: 'RAILGUN CHARGE', desc: '10% Faster Railgun Charge', image: 'upgrade_railgun.png', apply: () => { this.game.player.railgunChargeSpeedMultiplier = (this.game.player.railgunChargeSpeedMultiplier || 1) * 1.10; } }
+                    { key: 'health_1', level: 1, title: 'HEALTH', desc: 'Add 15 Health Points', image: 'health.png', apply: () => { this.game.player.maxHealth += 15; this.game.player.health = Math.min(this.game.player.maxHealth, this.game.player.health + 15); } },
+                    { key: 'speed_1', level: 1, title: 'SPEED', desc: '+5% Speed', image: 'speed.png', apply: () => { this.game.player.speedMultiplier = (this.game.player.speedMultiplier || 1) * 1.05; } },
+                    { key: 'damage_1', level: 1, title: 'DAMAGE', desc: '+10% of Bullets Damage', image: 'damage.png', apply: () => { this.game.player.bulletDamageMultiplier = (this.game.player.bulletDamageMultiplier || 1) * 1.10; } },
+                    { key: 'railgun_charge_3', level: 3, title: 'RAILGUN CHARGE', desc: '10% Faster Railgun Charge', image: 'railgun_charge.png', apply: () => { this.game.player.railgunChargeSpeedMultiplier = (this.game.player.railgunChargeSpeedMultiplier || 1) * 1.10; } }
                 ];
                 this.taken = new Set();
             }
