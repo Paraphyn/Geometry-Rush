@@ -2096,8 +2096,21 @@
             
             drawInfiniteGrid() {
                 const gridSize = 40;
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                // Small, pulsing red glow on the grid using current transparency
+                const timeMs = Date.now();
+                const periodMs = 3000; // ~3s slow fade in/out
+                const phase = (timeMs % periodMs) / periodMs;
+                const pulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2); // 0..1
+
+                this.ctx.save();
+                // Light red grid lines with the existing transparency
+                this.ctx.strokeStyle = 'rgba(255, 180, 180, 0.1)';
                 this.ctx.lineWidth = 1;
+                // Red glow that slowly fades in/out
+                this.ctx.shadowColor = `rgba(255, 80, 80, ${0.1 * pulse})`;
+                this.ctx.shadowBlur = 6;
+                this.ctx.shadowOffsetX = 0;
+                this.ctx.shadowOffsetY = 0;
                 
                 // Draw static grid (no movement during gameplay)
                 // Draw vertical lines
@@ -2115,6 +2128,7 @@
                     this.ctx.lineTo(this.canvas.width, y);
                     this.ctx.stroke();
                 }
+                this.ctx.restore();
             }
             
             startGame() {
