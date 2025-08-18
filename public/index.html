@@ -120,6 +120,18 @@
             animation: logoGlow 2s ease-in-out infinite alternate;
             display: none; /* Hidden by default, shown when image loads */
         }
+
+        .lobby-best {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffffff;
+            font-size: 18px;
+            opacity: 0.8;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        }
         
         @keyframes logoGlow {
             from {
@@ -332,6 +344,7 @@
             START
             <div class="button-rain" id="buttonRain"></div>
         </button>
+        <div class="lobby-best" id="bestStats">Best Score: 0 / Max Wave: 0</div>
     </div>
     
     <!-- Music Toggle Button -->
@@ -1980,6 +1993,11 @@
                 this.setupAudio();
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                
+                // Persistent best stats
+                this.bestScore = 0;
+                this.maxWave = 0;
+                this.loadBestStats();
                 this.setupLobby();
                 
                 // Upgrades state
@@ -2019,6 +2037,7 @@
                 const buttonRain = document.getElementById('buttonRain');
                 const lobbyTitle = document.getElementById('lobbyTitle');
                 const lobbyLogo = document.getElementById('lobbyLogo');
+                const bestStatsEl = document.getElementById('bestStats');
                 
                 // Handle logo loading
                 lobbyLogo.addEventListener('load', () => {
@@ -2094,6 +2113,9 @@
                 document.addEventListener('click', initAudio);
                 document.addEventListener('keydown', initAudio);
                 document.addEventListener('touchstart', initAudio);
+                
+                // Initialize best stats label
+                this.updateBestStatsLabel();
             }
             
             startButtonRain(container) {
@@ -2218,6 +2240,8 @@
                 
                 // Reset game state
                 this.reset();
+                // Update lobby best stats label when returning
+                this.updateBestStatsLabel();
             }
 
             reset() {
@@ -2622,6 +2646,9 @@
                     // Stop all background music on game over
                     this.audio.stopGameMusic();
                     this.audio.stopLobbyMusic();
+                    // Update and persist best stats
+                    this.updateBestStatsIfNeeded(this.score, this.currentWave);
+                    this.updateBestStatsLabel();
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
@@ -2906,6 +2933,45 @@
                     return;
                 }
                 this.upgradeManager.renderOptions(options);
+            }
+            
+            // ---- Persistent Best Stats ----
+            loadBestStats() {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('geometry_rush_best') || '{}');
+                    this.bestScore = Number.isFinite(saved.bestScore) ? saved.bestScore : 0;
+                    this.maxWave = Number.isFinite(saved.maxWave) ? saved.maxWave : 0;
+                } catch (e) {
+                    this.bestScore = 0;
+                    this.maxWave = 0;
+                }
+            }
+
+            saveBestStats() {
+                try {
+                    localStorage.setItem('geometry_rush_best', JSON.stringify({ bestScore: this.bestScore, maxWave: this.maxWave }));
+                } catch (e) {
+                    // ignore storage errors
+                }
+            }
+
+            updateBestStatsIfNeeded(score, wave) {
+                let updated = false;
+                if (typeof score === 'number' && score > this.bestScore) {
+                    this.bestScore = score;
+                    updated = true;
+                }
+                if (typeof wave === 'number' && wave > this.maxWave) {
+                    this.maxWave = wave;
+                    updated = true;
+                }
+                if (updated) this.saveBestStats();
+            }
+
+            updateBestStatsLabel() {
+                const el = document.getElementById('bestStats');
+                if (!el) return;
+                el.textContent = `Best Score: ${this.bestScore} / Max Wave: ${this.maxWave}`;
             }
         }
 
