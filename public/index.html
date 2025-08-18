@@ -94,6 +94,17 @@
             transition: opacity 0.5s ease;
         }
         
+        /* Best records label in lobby */
+        .best-records {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffffff;
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
         .lobby.hidden {
             opacity: 0;
             visibility: hidden;
@@ -332,6 +343,7 @@
             START
             <div class="button-rain" id="buttonRain"></div>
         </button>
+        <div class="best-records" id="bestRecords">Best score: 0 / Best Wave: 0</div>
     </div>
     
     <!-- Music Toggle Button -->
@@ -1969,6 +1981,15 @@
                 this.shootDelay = 250;
                 this.lastShot = 0;
                 this.inLobby = true;
+                
+                // Best records state
+                this.bestScore = 0;
+                this.bestWave = 0;
+                this.lastGameScore = 0;
+                this.lastGameWave = 0;
+                this.newScoreRecord = false;
+                this.newWaveRecord = false;
+                this.pendingRecordSave = false;
                 this.setupCanvas();
                 this.reset();
                 this.setupEventListeners();
@@ -1992,6 +2013,8 @@
                 
                 // Initially hide UI since we start in lobby
                 this.uiManager.hideUI();
+                this.loadBestRecords();
+                this.updateBestRecordsLabel();
             }
 
             setupCanvas() {
@@ -2089,6 +2112,42 @@
                 document.addEventListener('click', initAudio);
                 document.addEventListener('keydown', initAudio);
                 document.addEventListener('touchstart', initAudio);
+            }
+            
+            loadBestRecords() {
+                try {
+                    const storedBestScore = parseInt(localStorage.getItem('bestScore') || '0', 10);
+                    const storedBestWave = parseInt(localStorage.getItem('bestWave') || '0', 10);
+                    this.bestScore = Number.isFinite(storedBestScore) ? storedBestScore : 0;
+                    this.bestWave = Number.isFinite(storedBestWave) ? storedBestWave : 0;
+                } catch (e) {
+                    this.bestScore = 0;
+                    this.bestWave = 0;
+                }
+            }
+            
+            saveBestRecords() {
+                try {
+                    localStorage.setItem('bestScore', String(this.bestScore));
+                    localStorage.setItem('bestWave', String(this.bestWave));
+                } catch (e) {
+                    // Ignore storage errors
+                }
+            }
+            
+            updateBestRecordsLabel() {
+                const bestEl = document.getElementById('bestRecords');
+                if (bestEl) {
+                    bestEl.textContent = `Best score: ${this.bestScore} / Best Wave: ${this.bestWave}`;
+                }
+            }
+            
+            persistBestRecordsIfNeeded() {
+                if (this.pendingRecordSave) {
+                    this.saveBestRecords();
+                    this.updateBestRecordsLabel();
+                    this.pendingRecordSave = false;
+                }
             }
             
             startButtonRain(container) {
@@ -2211,6 +2270,10 @@
                     this.audio.playLobbyMusic();
                 }
                 
+                // Persist any new records and update lobby label before resetting
+                this.persistBestRecordsIfNeeded();
+                this.updateBestRecordsLabel();
+                
                 // Reset game state
                 this.reset();
             }
@@ -2232,6 +2295,8 @@
                 this.spawnedEnemies = 0;
                 this.gameOver = false;
                 this.paused = false;
+                this.newScoreRecord = false;
+                this.newWaveRecord = false;
                 
                 // Player XP state
                 this.playerLevel = 1;
@@ -2333,6 +2398,8 @@
                     }
                     if (code === 'Space' && this.input.preventSpam('restart', 100)) {
                         if (this.gameOver) {
+                            // Save any new best records before restarting
+                            this.persistBestRecordsIfNeeded();
                             this.reset();
                             if (this.audio.musicEnabled) {
                                 this.audio.playGameMusic();
@@ -2620,6 +2687,15 @@
                     this.player.stopRailgunCharge(this.audio);
                     this.audio.playSound('gameOver');
                     this.uiManager.hideUI(); // Hide UI when game over
+                    
+                    // Record results and check for new records
+                    this.lastGameScore = this.score;
+                    this.lastGameWave = this.currentWave;
+                    this.newScoreRecord = this.lastGameScore > this.bestScore;
+                    this.newWaveRecord = this.lastGameWave > this.bestWave;
+                    if (this.newScoreRecord) this.bestScore = this.lastGameScore;
+                    if (this.newWaveRecord) this.bestWave = this.lastGameWave;
+                    this.pendingRecordSave = this.newScoreRecord || this.newWaveRecord;
                 }
 
                 // Collect XP rings
@@ -2721,9 +2797,31 @@
                     this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '28px Arial';
-                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
+                    const centerX = this.canvas.width / 2;
+                    const scoreY = this.canvas.height / 2 - 10;
+                    const timeY = this.canvas.height / 2 + 30;
+                    const waveY = this.canvas.height / 2 + 70;
+                    const scoreText = `Final Score: ${this.score}`;
+                    this.ctx.fillText(scoreText, centerX, scoreY);
                     this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
-                    this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
+                    const waveText = `Waves Survived: ${this.currentWave}`;
+                    this.ctx.fillText(waveText, centerX, waveY);
+                    
+                    // Show NEW RECORD! labels near score and wave if applicable
+                    this.ctx.save();
+                    this.ctx.fillStyle = '#00ff00';
+                    this.ctx.font = '20px Arial';
+                    if (this.newScoreRecord) {
+                        const scoreWidth = this.ctx.measureText(scoreText).width;
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillText('NEW RECORD!', centerX + scoreWidth / 2 + 15, scoreY);
+                    }
+                    if (this.newWaveRecord) {
+                        const waveWidth = this.ctx.measureText(waveText).width;
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillText('NEW RECORD!', centerX + waveWidth / 2 + 15, waveY);
+                    }
+                    this.ctx.restore();
                     
                     // Fast blinking restart text with fade (90 frames = 1.5 seconds at 60fps)
                     const blinkCycle = this.gameOverBlinkFrame % 90;
