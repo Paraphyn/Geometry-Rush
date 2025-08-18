@@ -2840,9 +2840,9 @@
                     this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.font = '28px Arial';
-                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
-                    this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
-                    this.ctx.fillText(`Waves Survived: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
+                    this.ctx.fillText(`Survival Time: ${this.formatTime(this.gameOverTime - this.startTime)}`, this.canvas.width / 2, this.canvas.height / 2 - 10);
+                    this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
+                    this.ctx.fillText(`Survived Waves: ${this.currentWave}`, this.canvas.width / 2, this.canvas.height / 2 + 70);
 
                     // Show best stats and mark NEW! if improved this session
                     const centerX = this.canvas.width / 2;
@@ -2850,7 +2850,7 @@
                     const maxWaveY = this.canvas.height / 2 + 140;
 
                     const bestScoreText = `Best Score: ${this.bestScore}`;
-                    const maxWaveText = `Max Wave: ${this.maxWave}`;
+                    const maxWaveText = `Best Wave: ${this.maxWave}`;
 
                     this.ctx.fillStyle = '#ffffff';
                     this.ctx.fillText(bestScoreText, centerX, bestScoreY);
