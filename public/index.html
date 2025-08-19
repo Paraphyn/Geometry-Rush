@@ -282,7 +282,7 @@
         .upgrade-container {
             display: grid;
             grid-template-columns: repeat(3, 280px);
-            column-gap: 10px;
+            column-gap: var(--upgrade-card-gap, 10px);
             row-gap: 24px;
             padding: 24px;
         }
@@ -344,6 +344,13 @@
             font-weight: bold;
             font-size: 18px;
         }
+        .upgrade-hint {
+            color: #ffffff;
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
@@ -381,6 +388,7 @@
         <div class="upgrade-wrapper">
             <div class="upgrade-overlay-title">SELECT UPGRADE</div>
             <div class="upgrade-container" id="upgradeContainer"></div>
+            <div class="upgrade-hint">Press numbers [1], [2], [3] to select the Upgrade.</div>
         </div>
     </div>
 
@@ -552,6 +560,7 @@
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
+                    UpgradeSelected: { file: 'button-click.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
                     'Level_UP': { file: 'level-up.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
@@ -3178,6 +3187,9 @@
                 if (!opt) return;
                 this.taken.add(opt.key);
                 opt.apply();
+                if (this.game && this.game.audio) {
+                    this.game.audio.playSound('UpgradeSelected');
+                }
                 // Close overlay and resume
                 document.getElementById('upgradeOverlay').classList.remove('visible');
                 if (this.keyHandler) {
