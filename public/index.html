@@ -2397,6 +2397,9 @@
                 this.spawnBelowUiY = this.y;
                 this.lastSpawn = 0;
                 this.active = true;
+                this.damageFlash = 0;
+                this.lastShoot = 0;
+                this.shootCooldownMs = 3000;
             }
 
             update() {
@@ -2406,18 +2409,38 @@
                 const desired = this.targetVx * motion;
                 this.vx += (desired - this.vx) * Math.min(1, this.inertia * t);
                 this.x += this.vx * t;
+                // Damage flash decay
+                if (this.damageFlash > 0) this.damageFlash -= t;
                 // Bounce softly at margins
                 const left = this.margin;
                 const right = this.game.canvas.width - this.margin;
                 if (this.x < left) { this.x = left; this.targetVx = Math.abs(this.targetVx); }
                 if (this.x > right) { this.x = right; this.targetVx = -Math.abs(this.targetVx); }
                 // Spawn pieces handled by game.tetrisManager
+                // Boss shoots enemy bullets toward player every 3 seconds
+                const now = Date.now();
+                if (now - this.lastShoot >= this.shootCooldownMs / Math.max(0.001, getTimeScale())) {
+                    const player = this.game.player;
+                    if (player) {
+                        const baseAngle = Math.atan2(player.y - this.y, player.x - this.x);
+                        for (let i = 0; i < 3; i++) {
+                            const angle = baseAngle + (Math.random() - 0.5) * (Math.PI / 12); // ~±15°
+                            const speed = 8 + Math.random() * 1.5;
+                            const dx = Math.cos(angle) * speed;
+                            const dy = Math.sin(angle) * speed;
+                            this.game.enemyBullets.push(new EnemyBullet(this.x, this.y, dx, dy));
+                        }
+                        if (this.game.audio) this.game.audio.playSound('enemyShoot');
+                    }
+                    this.lastShoot = now;
+                }
                 return true;
             }
 
             takeRailgunDamage(damage, fullCharge) {
                 // Only fully charged railgun can penetrate shield
                 if (!fullCharge) return true; // no effect
+                this.damageFlash = 12;
                 this.hp -= damage;
                 if (this.hp <= 0) {
                     this.active = false;
@@ -2482,8 +2505,8 @@
                 const halfH = Math.floor(this.height / s / 2) * s;
                 // Horizontal bar
                 for (let x = -halfW; x <= halfW; x += s) {
-                    ctx.fillStyle = 'rgba(255, 80, 80, 0.95)';
-                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
+                    ctx.fillStyle = this.damageFlash > 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255, 80, 80, 0.95)';
+                    ctx.strokeStyle = this.damageFlash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255, 30, 30, 1)';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
                     ctx.rect(this.x + x - s/2, this.y - s/2, s, s);
@@ -2492,8 +2515,8 @@
                 }
                 // Vertical bar
                 for (let y = -halfH; y <= halfH; y += s) {
-                    ctx.fillStyle = 'rgba(255, 80, 80, 0.95)';
-                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
+                    ctx.fillStyle = this.damageFlash > 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255, 80, 80, 0.95)';
+                    ctx.strokeStyle = this.damageFlash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255, 30, 30, 1)';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
                     ctx.rect(this.x - s/2, this.y + y - s/2, s, s);
@@ -2509,10 +2532,10 @@
                 // HP bar
                 const w = 120, h = 6;
                 ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
-                ctx.fillRect(this.x - w/2, this.y - 64, w, h);
+                ctx.fillRect(this.x - w/2, this.y - 74, w, h);
                 ctx.fillStyle = 'rgba(255, 60, 60, 0.95)';
                 const pct = Math.max(0, Math.min(1, this.hp / this.maxHp));
-                ctx.fillRect(this.x - w/2, this.y - 64, w * pct, h);
+                ctx.fillRect(this.x - w/2, this.y - 74, w * pct, h);
                 ctx.restore();
             }
         }
@@ -3390,6 +3413,14 @@
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
                     outerBullet: for (let j = this.bullets.length - 1; j >= 0; j--) {
                         const b = this.bullets[j];
+                        // First, check collision with Cross shield and remove bullet
+                        const distToBoss = Math.hypot(b.x - this.activeBoss.x, b.y - this.activeBoss.y);
+                        if (distToBoss <= 63 + b.radius) {
+                            // Collides with shield; bullet disappears with small effect
+                            this.effects.createBulletExplosion(b.x, b.y, '#00ffff');
+                            this.bullets.splice(j, 1);
+                            continue;
+                        }
                         for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
                             const piece = this.tetrisManager.activePieces[p];
                             const cells = piece.getCells();
