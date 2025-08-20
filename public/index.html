@@ -1197,7 +1197,7 @@
             // Toggle: force Tetris Cross as the first boss with 100% spawn chance
             forceFirstBoss: true,
             // Playfield
-            cols: 12,
+            cols: 36,
             cellSize: null, // computed from canvas width
             // Piece/boss stats
             pieceHp: 500,
@@ -1207,7 +1207,7 @@
             spawnIntervalMs: 1200,
             minSpawnIntervalMs: 650,
             spawnAccelerationMsPerSec: 4, // decreases interval slowly
-            fallSpeedPxPerSec: 120,
+            fallSpeedPxPerSec: 60,
             enrageSpeedPxPerSec2: 6 // adds per second
         };
 
@@ -2409,14 +2409,14 @@
                 // Draw cross: vertical and horizontal bars made of squares
                 ctx.save();
                 ctx.shadowBlur = 18;
-                ctx.shadowColor = 'rgba(255,140,0,0.9)';
+                ctx.shadowColor = 'rgba(255, 80, 80, 0.9)';
                 const s = 18; // square size
                 const halfW = Math.floor(this.width / s / 2) * s;
                 const halfH = Math.floor(this.height / s / 2) * s;
                 // Horizontal bar
                 for (let x = -halfW; x <= halfW; x += s) {
-                    ctx.fillStyle = 'rgba(255,120,0,0.9)';
-                    ctx.strokeStyle = 'rgba(255,180,30,1)';
+                    ctx.fillStyle = 'rgba(255, 80, 80, 0.95)';
+                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
                     ctx.rect(this.x + x - s/2, this.y - s/2, s, s);
@@ -2425,8 +2425,8 @@
                 }
                 // Vertical bar
                 for (let y = -halfH; y <= halfH; y += s) {
-                    ctx.fillStyle = 'rgba(255,120,0,0.9)';
-                    ctx.strokeStyle = 'rgba(255,180,30,1)';
+                    ctx.fillStyle = 'rgba(255, 80, 80, 0.95)';
+                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
                     ctx.rect(this.x - s/2, this.y + y - s/2, s, s);
@@ -2437,13 +2437,13 @@
                 ctx.beginPath();
                 ctx.strokeStyle = 'rgba(255,140,0,0.9)';
                 ctx.lineWidth = 4;
-                ctx.arc(this.x, this.y, 48, 0, Math.PI * 2);
+                ctx.arc(this.x, this.y, 63, 0, Math.PI * 2);
                 ctx.stroke();
                 // HP bar
                 const w = 120, h = 6;
-                ctx.fillStyle = 'rgba(140, 40, 0, 0.7)';
+                ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
                 ctx.fillRect(this.x - w/2, this.y - 64, w, h);
-                ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+                ctx.fillStyle = 'rgba(255, 60, 60, 0.95)';
                 const pct = Math.max(0, Math.min(1, this.hp / this.maxHp));
                 ctx.fillRect(this.x - w/2, this.y - 64, w * pct, h);
                 ctx.restore();
@@ -2503,7 +2503,7 @@
             
             showBossWarning() {
                 if (!this.nextWaveElement) return;
-                this.nextWaveElement.textContent = 'BOSS IS APROACHING!!!';
+                this.nextWaveElement.textContent = 'Boss is Approaching';
                 this.nextWaveElement.classList.add('boss-warning');
                 this.nextWaveElement.style.display = 'block';
                 if (!this.bossWarningShown && typeof window !== 'undefined' && window.game && window.game.audio) { window.game.audio.playSound('BossAlarm'); this.bossWarningShown = true; }
@@ -3382,8 +3382,8 @@
                     for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                         const effect = this.effects.effects[j];
                         if (effect.type !== 'railgunBeam') continue;
-                        // approximate boss as circle radius 48 around center
-                        const hit = effect.intersectsCircle(this.activeBoss.x, this.activeBoss.y, 48, null);
+                        // approximate boss as circle radius 63 around center (matches shield visual)
+                        const hit = effect.intersectsCircle(this.activeBoss.x, this.activeBoss.y, 63, null);
                         if (hit) {
                             const alive = this.activeBoss.takeRailgunDamage(effect.damage, effect.charge >= 1);
                             if (!alive) {
