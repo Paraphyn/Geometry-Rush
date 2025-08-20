@@ -77,8 +77,8 @@
         /* XP Bar */
         .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; }
         .xp-bar-fill { height: 100%; width: 0%; background: #00ff00; }
-        .xp-label { top: 80px; left: calc(50% - 150px - 10px); font-size: 20px; }
-        .xp-level { top: 80px; left: calc(50% + 150px - 10px); font-size: 20px; }
+        .xp-label { top: 80px; left: calc(50% - 180px - 10px); font-size: 20px; }
+        .xp-level { top: 80px; left: calc(50% + 180px - 10px); font-size: 20px; }
         
         /* Lobby Screen Styles */
         .lobby {
@@ -564,10 +564,10 @@
                     gameOver: { file: 'game-over.wav', loop: false },
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
-                    bossDefeated: { file: 'enemy-death.wav', loop: false },
+                    bossDefeated: { file: 'game-over.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
-                    UpgradeSelected: { file: 'button-click.wav', loop: false },
+                    UpgradeSelected: { file: 'level-up.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
                     'Level_UP': { file: 'level-up.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
@@ -825,7 +825,7 @@
                 this.y = y;
                 this.color = '#ffffff';
                 this.size = 20;
-                this.opacity = 0.9;
+                this.opacity = 0.8;
                 this.life = 20;
                 this.maxLife = 20;
             }
@@ -1174,7 +1174,7 @@
                 strokeColor: '#dd0000',
                 isBoss: true,
                 bossBaseType: 'rhombus',
-                bossTriangleSpawnIntervalMs: 2500
+                bossTriangleSpawnIntervalMs: 2400
             }
         };
 
@@ -1202,14 +1202,14 @@
             cols: 36,
             cellSize: null, // computed from canvas width
             // Piece/boss stats
-            pieceHp: 400,
+            pieceHp: 300,
             bossHp: 1500,
             playerCollisionDamage: 35,
             // Spawning & speeds
             spawnIntervalMs: 1200,
             minSpawnIntervalMs: 650,
             spawnAccelerationMsPerSec: 4, // decreases interval slowly
-            fallSpeedPxPerSec: 60,
+            fallSpeedPxPerSec: 50,
             enrageSpeedPxPerSec2: 6 // adds per second
         };
 
