@@ -3516,6 +3516,8 @@
                     // Check active pieces cells
                     pieceLoop: for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
                         const piece = this.tetrisManager.activePieces[p];
+                        // Ignore pieces that are already destroyed (fading out)
+                        if (piece && piece.dying) continue;
                         const cells = piece.getCells();
                         for (let c = 0; c < cells.length; c++) {
                             const cell = cells[c];
