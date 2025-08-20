@@ -282,13 +282,12 @@
         }
         .upgrade-overlay.visible { display: flex; }
         .upgrade-container {
-            display: grid;
-            grid-template-columns: repeat(3, 280px);
-            column-gap: var(--upgrade-card-gap, 50px);
-            row-gap: 24px;
+            display: flex;
+            flex-wrap: nowrap;
+            gap: var(--upgrade-card-gap, 50px);
             padding: 24px;
             justify-content: center;
-            justify-items: center;
+            align-items: center;
             margin: 0 auto;
         }
         .upgrade-card {
@@ -301,6 +300,13 @@
             text-align: center;
             width: 280px;
             position: relative;
+            transition: transform 150ms ease, opacity 250ms ease, box-shadow 150ms ease;
+        }
+        .upgrade-card.dimmed { opacity: 0.35; }
+        .upgrade-card.selected {
+            opacity: 1;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ffff66, 0 0 8px #00ffff33 inset;
         }
         .upgrade-card img {
             width: 120px;
@@ -3957,9 +3963,11 @@
                 const container = document.getElementById('upgradeContainer');
                 container.innerHTML = '';
                 this.currentOptions = options.slice();
+                // Centering: container is flex and will center 1, 2, or 3 cards
                 options.forEach((opt, idx) => {
                     const card = document.createElement('div');
                     card.className = 'upgrade-card';
+                    card.dataset.key = opt.key;
                     const badge = document.createElement('div');
                     badge.className = 'upgrade-key-badge';
                     badge.textContent = String(idx + 1);
@@ -4008,18 +4016,31 @@
             selectUpgrade(opt) {
                 if (!opt) return;
                 this.taken.add(opt.key);
+                // Visual selection effect: fade out other cards, highlight selected slightly longer
+                const container = document.getElementById('upgradeContainer');
+                const cards = Array.from(container.querySelectorAll('.upgrade-card'));
+                const selectedCard = cards.find(c => c.dataset.key === opt.key);
+                if (selectedCard) {
+                    cards.forEach(c => {
+                        if (c !== selectedCard) c.classList.add('dimmed');
+                    });
+                    selectedCard.classList.add('selected');
+                }
+                // Apply upgrade
                 opt.apply();
                 if (this.game && this.game.audio) {
                     this.game.audio.playSound('UpgradeSelected');
                 }
-                // Close overlay && resume
-                document.getElementById('upgradeOverlay').classList.remove('visible');
-                if (this.keyHandler) {
-                    document.removeEventListener('keydown', this.keyHandler);
-                    this.keyHandler = null;
-                }
-                this.currentOptions = [];
-                this.game.resumeAfterUpgrade();
+                // Close overlay && resume after a short delay to show the selection
+                setTimeout(() => {
+                    document.getElementById('upgradeOverlay').classList.remove('visible');
+                    if (this.keyHandler) {
+                        document.removeEventListener('keydown', this.keyHandler);
+                        this.keyHandler = null;
+                    }
+                    this.currentOptions = [];
+                    this.game.resumeAfterUpgrade();
+                }, 350);
             }
 
             reset() {
