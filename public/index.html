@@ -398,7 +398,7 @@
     </div>
 
     <script>
-        // Global speed and scaling settings
+        // Global speed && scaling settings
         const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 1.0 };
 
         function computeResolutionScale(width, height) {
@@ -605,7 +605,7 @@
             playSound(soundName) {
                 if (!this.initialized || !this.audios[soundName]) return;
                 
-                // Check if it's music and if music is disabled
+                // Check if it's music && if music is disabled
                 if ((soundName === 'backgroundMusic' || soundName === 'lobbyMusic') && !this.musicEnabled) return;
                 
                 try {
@@ -969,7 +969,7 @@
                     this.railgunCharge = Math.min(1, this.railgunCharge + (chargeMul * (1000 / 60 / this.railgunMaxChargeTime)) * timeScale);
                     if (effects && effects.enableRailgunAura) { effects.enableRailgunAura(); }
                     if (this.railgunCharge === 1) {
-                        // Stop charging sound and play max charge sound when fully charged (only once)
+                        // Stop charging sound && play max charge sound when fully charged (only once)
                         if (this.railgunCharging && audio) {
                             audio.stopLoopingSound('railgunCharge');
                             this.railgunCharging = false;
@@ -1808,7 +1808,7 @@
                     typeSpecificDraw: function(ctx) {
                         const blinkAlpha = this.life < 120 ? (0.2 + 0.6 * Math.abs(Math.sin(this.pulse))) : 0.5;
                         ctx.save();
-                        // Fill with base 0.25 alpha and subtle blink modulation; apply fade when life <= 0
+                        // Fill with base 0.25 alpha && subtle blink modulation; apply fade when life <= 0
                         ctx.fillStyle = fillColor;
                         const renderAlpha = this.life > 0 ? 1.0 : Math.max(0, 1.0 - this.fadeOut);
                         ctx.globalAlpha = renderAlpha;
@@ -1823,7 +1823,7 @@
                         ctx.beginPath();
                         ctx.arc(this.x, this.y, renderSize, 0, Math.PI * 2);
                         ctx.fill();
-                        // Stroke with blink and fade
+                        // Stroke with blink && fade
                         ctx.strokeStyle = strokeColor;
                         ctx.lineWidth = 3;
                         const strokeAlpha = this.life > 0 ? blinkAlpha : Math.max(0, blinkAlpha * (1 - this.fadeOut));
@@ -1968,9 +1968,10 @@
                             const tx = this.x + Math.cos(angle) * distance;
                             const ty = this.y + Math.sin(angle) * distance;
                             const e = new Enemy(tx, ty, 'triangle', ENEMY_TYPES['triangle']);
-                            e.spawnShieldUntil = now + 1500;
+                            e.spawnShieldUntil = now + 1000;
                             if (typeof window !== 'undefined' && window.game) window.game.enemies.push(e);
                         }
+                        if (audio) audio.playSound('MinionSummon');
                         this.lastTriangleSpawnTime = now;
                     }
                 }
@@ -2044,6 +2045,7 @@
                 this.scoreAdditionTimeout = null;
                 this.xpFill = document.getElementById('xpFill');
                 this.xpLevel = document.getElementById('xpLevel');
+                this.bossWarningShown = false;
             }
 
             hideUI() {
@@ -2081,12 +2083,14 @@
                 this.nextWaveElement.textContent = 'BOSS IS APROACHING!!!';
                 this.nextWaveElement.classList.add('boss-warning');
                 this.nextWaveElement.style.display = 'block';
+                if (!this.bossWarningShown && typeof window !== 'undefined' && window.game && window.game.audio) { window.game.audio.playSound('BossAlarm'); this.bossWarningShown = true; }
             }
 
             hideBossWarning() {
                 if (!this.nextWaveElement) return;
                 this.nextWaveElement.classList.remove('boss-warning');
                 this.nextWaveElement.style.display = 'none';
+                this.bossWarningShown = false;
             }
             
             showScoreAddition(points) {
@@ -2132,7 +2136,7 @@
                 this.lastShot = 0;
                 this.inLobby = true;
                 this.setupCanvas();
-                // Expose and initialize motion scale based on resolution
+                // Expose && initialize motion scale based on resolution
                 if (typeof window !== 'undefined') { window.game = this; }
                 this.speedScale = computeResolutionScale(this.canvas.width, this.canvas.height);
                 this.reset();
@@ -2219,6 +2223,9 @@
                 this.defeatedBossCount = (this.defeatedBossCount || 0) + 1;
                 this.inBossPhase = false;
                 this.activeBoss = null;
+                // Start pause before next group like regular wave pause
+                this.inWavePause = true;
+                this.wavePauseEndTime = Date.now() + Math.round(3000 / Math.max(0.001, getTimeScale()));
                 // Advance to next wave group
                 this.currentGroupIndex++;
                 if (this.currentGroupIndex < this.waveGroupsPrepared.length) {
@@ -2374,16 +2381,16 @@
                 const gridSize = 40;
                 // Small, pulsing red glow on the grid using current transparency
                 const timeMs = Date.now();
-                const periodMs = 3000; // ~3s slow fade in/out
+                const periodMs = (this.inBossPhase ? 1200 : 3000); // faster blink during boss phase
                 const phase = (timeMs % periodMs) / periodMs;
                 const pulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2); // 0..1
 
                 this.ctx.save();
                 // Light red grid lines with the existing transparency
-                this.ctx.strokeStyle = 'rgba(255, 180, 180, 0.1)';
+                this.ctx.strokeStyle = this.inBossPhase ? 'rgba(255, 60, 60, 0.22)' : 'rgba(255, 180, 180, 0.1)';
                 this.ctx.lineWidth = 1;
                 // Red glow that slowly fades in/out
-                this.ctx.shadowColor = `rgba(255, 80, 80, ${0.1 * pulse})`;
+                this.ctx.shadowColor = this.inBossPhase ? `rgba(255, 30, 30, ${0.25 + 0.35 * pulse})` : `rgba(255, 80, 80, ${0.1 * pulse})`;
                 this.ctx.shadowBlur = 6;
                 this.ctx.shadowOffsetX = 0;
                 this.ctx.shadowOffsetY = 0;
@@ -2433,15 +2440,15 @@
                 this.gameOver = false;
                 this.paused = false;
                 
-                // Hide quit button and show lobby
+                // Hide quit button && show lobby
                 document.getElementById('quitButton').classList.remove('visible');
                 document.getElementById('lobby').classList.remove('hidden');
                 
-                // Hide game UI and clear input
+                // Hide game UI && clear input
                 this.uiManager.hideUI();
                 this.input.clear();
                 
-                // Stop game music and start lobby music
+                // Stop game music && start lobby music
                 this.audio.stopGameMusic();
                 if (this.audio.musicEnabled) {
                     this.audio.playLobbyMusic();
@@ -2688,9 +2695,10 @@
                     const x = cx + Math.cos(angle) * distance;
                     const y = cy + Math.sin(angle) * distance;
                     const enemy = new Enemy(x, y, 'triangle', ENEMY_TYPES['triangle']);
-                    enemy.spawnShieldUntil = now + 1500;
+                    enemy.spawnShieldUntil = now + 1000;
                     this.enemies.push(enemy);
                 }
+                if (this.audio) this.audio.playSound('MinionSummon');
             }
 
             startWave(waveConfig) {
@@ -2882,7 +2890,7 @@
                     // Stop all background music on game over
                     this.audio.stopGameMusic();
                     this.audio.stopLobbyMusic();
-                    // Update and persist best stats
+                    // Update && persist best stats
                     this.updateBestStatsIfNeeded(this.score, this.currentWave);
                     this.updateBestStatsLabel();
                     this.player.stopRailgunCharge(this.audio);
@@ -3064,7 +3072,7 @@
                 const crosshairSize = 20;
                 const centerX = this.input.mouse.x;
                 const centerY = this.input.mouse.y;
-                const gap = 4; // Gap between center and crosshair lines
+                const gap = 4; // Gap between center && crosshair lines
                 const thickness = 2;
                 
                 this.ctx.strokeStyle = '#00ffff';
@@ -3200,7 +3208,7 @@
             }
 
             triggerLevelUpSelection() {
-                // Pause game and show upgrade UI
+                // Pause game && show upgrade UI
                 this.paused = true;
                 this.upgradePause = true;
                 this.pauseTime = Date.now();
@@ -3337,7 +3345,7 @@
                 if (this.game && this.game.audio) {
                     this.game.audio.playSound('UpgradeSelected');
                 }
-                // Close overlay and resume
+                // Close overlay && resume
                 document.getElementById('upgradeOverlay').classList.remove('visible');
                 if (this.keyHandler) {
                     document.removeEventListener('keydown', this.keyHandler);
@@ -3357,7 +3365,7 @@
             }
         }
 
-        // Initialize and start the game
+        // Initialize && start the game
         const game = new Game();
         game.start();
 
