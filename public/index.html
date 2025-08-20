@@ -521,6 +521,13 @@
                         this.spawnNumber(layer);
                         this.spawnTimers[layer] = 0;
                     }
+                    // Cleanup: remove pieces after their disappear animation completes
+                    for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
+                        const piece = this.tetrisManager.activePieces[p];
+                        if (piece.dying && piece.deathLife >= piece.deathMaxLife) {
+                            this.tetrisManager.activePieces.splice(p, 1);
+                        }
+                    }
                 }
             }
 
@@ -563,6 +570,7 @@
                     gameOver: { file: 'game-over.wav', loop: false },
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
+                    bossDefeated: { file: 'enemy-death.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
                     UpgradeSelected: { file: 'button-click.wav', loop: false },
@@ -1200,7 +1208,7 @@
             cols: 36,
             cellSize: null, // computed from canvas width
             // Piece/boss stats
-            pieceHp: 500,
+            pieceHp: 400,
             bossHp: 1500,
             playerCollisionDamage: 35,
             // Spawning & speeds
@@ -2161,6 +2169,10 @@
                 this.y = -2 * cellSize;
                 this.glow = 0;
                 this.landed = false;
+                this.damageFlash = 0;
+                this.dying = false;
+                this.deathLife = 0;
+                this.deathMaxLife = 24;
             }
 
             getCells() {
@@ -2183,6 +2195,12 @@
             }
 
             update(canvas) {
+                if (this.damageFlash > 0) this.damageFlash -= getTimeScale();
+                if (this.dying) {
+                    this.deathLife += getTimeScale();
+                    this.glow = (this.glow + 0.06 * getTimeScale()) % (Math.PI * 2);
+                    return true;
+                }
                 if (this.landed) return true;
                 const motion = getMotionScale();
                 const t = getTimeScale();
@@ -2203,8 +2221,14 @@
                 ctx.save();
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = 'rgba(255, 80, 80, 0.8)';
+                const t = this.dying ? Math.min(1, this.deathLife / this.deathMaxLife) : 0;
+                const alpha = this.dying ? (1 - t) : 1;
+                const scale = this.dying ? (1 - 0.2 * t) : 1;
+                const blink = this.damageFlash > 0 && (Math.floor(this.damageFlash / 2) % 2 === 0);
                 cells.forEach(({ x, y }) => {
-                    const half = this.cellSize / 2 - 2;
+                    const halfBase = this.cellSize / 2 - 2;
+                    const half = halfBase * scale;
+                    ctx.globalAlpha = alpha;
                     ctx.fillStyle = 'rgba(255, 80, 80, 0.9)';
                     ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
                     ctx.lineWidth = 2;
@@ -2212,20 +2236,25 @@
                     ctx.rect(x - half, y - half, half * 2, half * 2);
                     ctx.fill();
                     ctx.stroke();
+                    if (blink) {
+                        ctx.save();
+                        ctx.globalAlpha = Math.min(1, 0.7 * alpha);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.rect(x - half, y - half, half * 2, half * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
                 });
-                // Draw HP bar above center of piece
-                const minX = Math.min(...cells.map(c => c.x));
-                const maxX = Math.max(...cells.map(c => c.x));
-                const minY = Math.min(...cells.map(c => c.y));
-                const barW = Math.max(30, maxX - minX);
-                const barX = (minX + maxX) / 2 - barW / 2;
-                const barY = minY - 10 - 6;
-                ctx.fillStyle = 'rgba(100,0,0,0.7)';
-                ctx.fillRect(barX, barY, barW, 4);
-                ctx.fillStyle = 'rgba(255,0,0,0.8)';
-                const pct = Math.max(0, Math.min(1, this.hp / TETRIS_SETTINGS.pieceHp));
-                ctx.fillRect(barX, barY, barW * pct, 4);
                 ctx.restore();
+            }
+
+            startDeath(effects) {
+                if (this.dying) return;
+                this.dying = true;
+                this.deathLife = 0;
+                const cells = this.getCells();
+                cells.forEach(kc => effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
             }
         }
 
@@ -2400,6 +2429,50 @@
                     this.active = false;
                     // Clear all tetrominoes
                     if (this.game.tetrisManager) this.game.tetrisManager.clearAll();
+                    // Cross-shaped explosion and XP reward
+                    if (this.game.effects && this.game.effects.createExplosion) {
+                        // Emit a cross pattern by exploding along 4 arms using square shards
+                        const arms = 4;
+                        const armLen = 6;
+                        const speed = 3.5;
+                        for (let i = 0; i < arms; i++) {
+                            for (let j = 1; j <= armLen; j++) {
+                                const angle = (Math.PI / 2) * i;
+                                const dx = Math.cos(angle) * (speed + j * 0.4);
+                                const dy = Math.sin(angle) * (speed + j * 0.4);
+                                this.game.effects.effects.push(new Effect('explosion', this.x, this.y, {
+                                    size: 12 * (0.8 + Math.random() * 0.4),
+                                    opacity: 1,
+                                    life: 28 + Math.random() * 16,
+                                    dx, dy,
+                                    fillColor: '#ff3333',
+                                    strokeColor: '#ff3333',
+                                    shapeType: 'square',
+                                    typeSpecificUpdate: function() {
+                                        const motion = getMotionScale();
+                                        const t = getTimeScale();
+                                        this.x += this.dx * motion;
+                                        this.y += this.dy * motion;
+                                        this.dx *= Math.pow(0.94, t);
+                                        this.dy *= Math.pow(0.94, t);
+                                        this.life -= t;
+                                        this.opacity = this.life / 45;
+                                        return this.life > 0;
+                                    },
+                                    typeSpecificDraw: function(ctx) {
+                                        ctx.save();
+                                        ctx.globalAlpha = this.opacity;
+                                        ShapeRenderer.drawShape(ctx, this.x, this.y, this.shapeType, this.size, this.fillColor, this.strokeColor);
+                                        ctx.restore();
+                                    }
+                                }));
+                            }
+                        }
+                    }
+                    if (this.game.effects && this.game.effects.createXPRing) {
+                        this.game.effects.createXPRing(this.x, this.y, 22, 200);
+                    }
+                    if (this.game.audio) this.game.audio.playSound('bossDefeated');
                     return false; // dead
                 }
                 return true;
@@ -3334,10 +3407,10 @@
                                     this.bullets.splice(j, 1);
                                     piece.hp -= b.damage;
                                     this.effects.createHitEffect(cell.x, cell.y);
+                                    piece.damageFlash = 12;
                                     if (piece.hp <= 0) {
-                                        // explode per cell and remove piece
-                                        cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
-                                        this.tetrisManager.activePieces.splice(p, 1);
+                                        // start fade-out death instead of instant removal
+                                        piece.startDeath(this.effects);
                                     }
                                     continue outerBullet;
                                 }
@@ -3355,9 +3428,9 @@
                             if (effect.intersectsCircle(piece.x, piece.y, 0, piece.id)) {
                                 // Using id-based dedup; apply once per piece if line passes through any cell
                                 piece.hp -= effect.damage;
+                                piece.damageFlash = 12;
                                 if (piece.hp <= 0) {
-                                    cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
-                                    this.tetrisManager.activePieces.splice(p, 1);
+                                    piece.startDeath(this.effects);
                                 }
                             } else {
                                 // Fallback: check any cell
@@ -3365,9 +3438,9 @@
                                     const cell = cells[c];
                                     if (effect.intersectsCircle(cell.x, cell.y, cell.r, piece.id)) {
                                         piece.hp -= effect.damage;
+                                        piece.damageFlash = 12;
                                         if (piece.hp <= 0) {
-                                            cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
-                                            this.tetrisManager.activePieces.splice(p, 1);
+                                            piece.startDeath(this.effects);
                                         }
                                         break;
                                     }
@@ -3385,6 +3458,10 @@
                         // approximate boss as circle radius 63 around center (matches shield visual)
                         const hit = effect.intersectsCircle(this.activeBoss.x, this.activeBoss.y, 63, null);
                         if (hit) {
+                            // Ensure each beam damages the Cross only once
+                            this.activeBoss._beamHitSet = this.activeBoss._beamHitSet || new WeakSet();
+                            if (this.activeBoss._beamHitSet.has(effect)) continue;
+                            this.activeBoss._beamHitSet.add(effect);
                             const alive = this.activeBoss.takeRailgunDamage(effect.damage, effect.charge >= 1);
                             if (!alive) {
                                 // Mark defeated
