@@ -1176,6 +1176,41 @@
             }
         };
 
+        // Boss: Tetris Cross (cross made of squares)
+        // Declared as a boss type so it appears in the boss pool, but it has a custom class/behavior below
+        ENEMY_TYPES['tetris_cross_boss'] = {
+            role: 'boss',
+            health: 1500,
+            speed: 0, // handled by custom boss class
+            size: 60, // collision radius approximation
+            points: 1000,
+            damage: 0,
+            xp: 0,
+            fillColor: '#ff3333',
+            strokeColor: '#ff3333',
+            isBoss: true,
+            bossBaseType: 'tetris_cross'
+        };
+
+        // Tetris Cross boss config
+        const TETRIS_SETTINGS = {
+            // Toggle: force Tetris Cross as the first boss with 100% spawn chance
+            forceFirstBoss: true,
+            // Playfield
+            cols: 12,
+            cellSize: null, // computed from canvas width
+            // Piece/boss stats
+            pieceHp: 500,
+            bossHp: 1500,
+            playerCollisionDamage: 35,
+            // Spawning & speeds
+            spawnIntervalMs: 1200,
+            minSpawnIntervalMs: 650,
+            spawnAccelerationMsPerSec: 4, // decreases interval slowly
+            fallSpeedPxPerSec: 120,
+            enrageSpeedPxPerSec2: 6 // adds per second
+        };
+
         // Wave configuration
         const WAVE_CONFIG = [
             { timer: 3000, wave: 1, enemies: { cubes: 6, triangles: 0, octagons: 0, rhombuses: 0 }, spawnTime: 10000 },
@@ -1611,12 +1646,14 @@
                 this.effects.push(new Effect('railgunBeam', startX, startY, {
                     endX: startX + (dx / dist) * maxDist,
                     endY: startY + (dy / dist) * maxDist,
+                    charge: charge,
                     damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * (this.playerDamageMultiplier || 1),
                     life: 60,
                     maxLife: 60,
                     opacity: 1.0,
                     width: 8,
                     hitEnemies: new Set(),
+                    hitTetrominoIds: new Set(),
                     typeSpecificUpdate: function() {
                         const t = getTimeScale();
                         this.life -= t;
@@ -1655,6 +1692,25 @@
                         const distance = Math.sqrt(distX * distX + distY * distY);
                         if (distance <= radius && dot >= 0 && dot <= 1) {
                             this.hitEnemies.add(enemy);
+                            return true;
+                        }
+                        return false;
+                    },
+                    intersectsCircle: function(cx, cy, radius, id) {
+                        if (id != null && this.hitTetrominoIds.has(id)) return false;
+                        const p1 = { x: this.x, y: this.y };
+                        const p2 = { x: this.endX, y: this.endY };
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const dot = ((cx - p1.x) * dx + (cy - p1.y) * dy) / (len * len);
+                        const closestX = p1.x + dot * dx;
+                        const closestY = p1.y + dot * dy;
+                        const distX = cx - closestX;
+                        const distY = cy - closestY;
+                        const distance = Math.sqrt(distX * distX + distY * distY);
+                        if (distance <= radius && dot >= 0 && dot <= 1) {
+                            if (id != null) this.hitTetrominoIds.add(id);
                             return true;
                         }
                         return false;
@@ -2027,6 +2083,373 @@
             }
         }
 
+        // ---- Tetris Cross Boss and Tetromino System ----
+        // Shapes: I, O, T, S, Z, J, L (using 4x4 grids for rotation ease)
+        const TETROMINO_SHAPES = {
+            I: [
+                [0,0,0,0],
+                [1,1,1,1],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            O: [
+                [0,1,1,0],
+                [0,1,1,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            T: [
+                [0,1,0,0],
+                [1,1,1,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            S: [
+                [0,1,1,0],
+                [1,1,0,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            Z: [
+                [1,1,0,0],
+                [0,1,1,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            J: [
+                [1,0,0,0],
+                [1,1,1,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ],
+            L: [
+                [0,0,1,0],
+                [1,1,1,0],
+                [0,0,0,0],
+                [0,0,0,0]
+            ]
+        };
+
+        function rotateGridClockwise(grid) {
+            const n = grid.length;
+            const out = Array.from({ length: n }, () => Array(n).fill(0));
+            for (let r = 0; r < n; r++) {
+                for (let c = 0; c < n; c++) {
+                    out[c][n - 1 - r] = grid[r][c];
+                }
+            }
+            return out;
+        }
+
+        let TETROMINO_ID_SEQ = 1;
+        class TetrominoPiece {
+            constructor(shapeKey, cellSize, canvasWidth) {
+                this.id = TETROMINO_ID_SEQ++;
+                this.shapeKey = shapeKey;
+                this.grid = TETROMINO_SHAPES[shapeKey].map(row => row.slice());
+                this.cellSize = cellSize;
+                this.hp = TETRIS_SETTINGS.pieceHp;
+                this.baseSpeed = TETRIS_SETTINGS.fallSpeedPxPerSec;
+                this.enrageAdd = 0;
+                this.rotation = 0;
+                // Random lane at top
+                const cols = TETRIS_SETTINGS.cols;
+                const maxColStart = Math.max(0, cols - 4);
+                this.col = Math.floor(Math.random() * (maxColStart + 1));
+                this.x = this.col * cellSize + cellSize / 2;
+                // position above view
+                this.y = -2 * cellSize;
+                this.glow = 0;
+                this.landed = false;
+            }
+
+            getCells() {
+                const cells = [];
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (this.grid[r][c]) {
+                            const cx = this.x + (c - 1.5) * this.cellSize;
+                            const cy = this.y + (r - 1.5) * this.cellSize;
+                            cells.push({ x: cx, y: cy, r: this.cellSize * 0.5 - 4 });
+                        }
+                    }
+                }
+                return cells;
+            }
+
+            rotate() {
+                this.grid = rotateGridClockwise(this.grid);
+                this.rotation = (this.rotation + 1) % 4;
+            }
+
+            update(canvas) {
+                if (this.landed) return true;
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                const speed = (this.baseSpeed + this.enrageAdd) * motion * (t / (1000 / 60));
+                this.y += speed;
+                // If any cell hits bottom, mark landed
+                const bottom = canvas.height;
+                const cells = this.getCells();
+                if (cells.some(cell => cell.y + cell.r >= bottom)) {
+                    this.landed = true;
+                }
+                this.glow = (this.glow + 0.06 * t) % (Math.PI * 2);
+                return true;
+            }
+
+            draw(ctx) {
+                const cells = this.getCells();
+                ctx.save();
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = 'rgba(255, 80, 80, 0.8)';
+                cells.forEach(({ x, y }) => {
+                    const half = this.cellSize / 2 - 2;
+                    ctx.fillStyle = 'rgba(255, 80, 80, 0.9)';
+                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.rect(x - half, y - half, half * 2, half * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                // Draw HP bar above center of piece
+                const minX = Math.min(...cells.map(c => c.x));
+                const maxX = Math.max(...cells.map(c => c.x));
+                const minY = Math.min(...cells.map(c => c.y));
+                const barW = Math.max(30, maxX - minX);
+                const barX = (minX + maxX) / 2 - barW / 2;
+                const barY = minY - 10 - 6;
+                ctx.fillStyle = 'rgba(100,0,0,0.7)';
+                ctx.fillRect(barX, barY, barW, 4);
+                ctx.fillStyle = 'rgba(255,0,0,0.8)';
+                const pct = Math.max(0, Math.min(1, this.hp / TETRIS_SETTINGS.pieceHp));
+                ctx.fillRect(barX, barY, barW * pct, 4);
+                ctx.restore();
+            }
+        }
+
+        class TetrisManager {
+            constructor(game) {
+                this.game = game;
+                this.activePieces = [];
+                this.stack = []; // landed cells for game-over detection
+                this.lastSpawn = 0;
+                this.spawnIntervalMs = TETRIS_SETTINGS.spawnIntervalMs;
+                this.enrage = 0;
+            }
+
+            reset() {
+                this.activePieces = [];
+                this.stack = [];
+                this.lastSpawn = 0;
+                this.spawnIntervalMs = TETRIS_SETTINGS.spawnIntervalMs;
+                this.enrage = 0;
+            }
+
+            computeCellSize() {
+                const cols = TETRIS_SETTINGS.cols;
+                const width = this.game.canvas.width;
+                const margin = 0;
+                const cellSize = Math.floor((width - margin * 2) / cols);
+                TETRIS_SETTINGS.cellSize = cellSize;
+                return cellSize;
+            }
+
+            spawnRandomPiece() {
+                const keys = Object.keys(TETROMINO_SHAPES);
+                const key = keys[Math.floor(Math.random() * keys.length)];
+                const cell = this.computeCellSize();
+                const p = new TetrominoPiece(key, cell, this.game.canvas.width);
+                // Enrage affects new pieces' speed
+                p.enrageAdd = this.enrage;
+                this.activePieces.push(p);
+            }
+
+            update() {
+                const t = getTimeScale();
+                const now = Date.now();
+                const canvas = this.game.canvas;
+                // Enrage: gradual speed increase
+                this.enrage += (TETRIS_SETTINGS.enrageSpeedPxPerSec2 / 60) * t;
+                // Spawn pacing shortens slowly
+                const accel = (TETRIS_SETTINGS.spawnAccelerationMsPerSec / 60) * t;
+                this.spawnIntervalMs = Math.max(
+                    TETRIS_SETTINGS.minSpawnIntervalMs,
+                    this.spawnIntervalMs - accel
+                );
+                if (now - this.lastSpawn >= this.spawnIntervalMs / Math.max(0.001, t)) {
+                    this.spawnRandomPiece();
+                    this.lastSpawn = now;
+                }
+                // Update pieces
+                for (let i = this.activePieces.length - 1; i >= 0; i--) {
+                    const p = this.activePieces[i];
+                    // Move piece
+                    const beforeY = p.y;
+                    p.update(canvas);
+                    // Collision with stack: if any cell overlaps an existing stacked cell, land it and revert to before overlap
+                    const cells = p.getCells();
+                    let overlapsStack = false;
+                    if (!p.landed && this.stack.length > 0) {
+                        for (let c = 0; c < cells.length && !overlapsStack; c++) {
+                            const cell = cells[c];
+                            const half = cell.r;
+                            for (let s = 0; s < this.stack.length; s++) {
+                                const st = this.stack[s];
+                                const shalf = st.r;
+                                const dx = Math.abs(cell.x - st.x);
+                                const dy = Math.abs(cell.y - st.y);
+                                if (dx <= half + shalf && dy <= half + shalf) {
+                                    overlapsStack = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (overlapsStack) {
+                        p.y = beforeY; // revert to just before overlap
+                        p.landed = true;
+                    }
+                    if (p.landed) {
+                        // Project all cells to stack
+                        const cells = p.getCells();
+                        cells.forEach(c => this.stack.push({ x: c.x, y: c.y, r: c.r }));
+                        this.activePieces.splice(i, 1);
+                    }
+                }
+                // Game over check: if any stacked cell reaches top
+                const topThreshold = 0 + 20; // allow slight buffer
+                for (let k = 0; k < this.stack.length; k++) {
+                    if (this.stack[k].y - this.stack[k].r <= topThreshold) {
+                        // Player is destroyed
+                        if (!this.game.gameOver) {
+                            this.game.player.takeDamage(this.game.player.health, this.game.player.x, this.game.player.y, this.game.effects, this.game.audio);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            draw(ctx) {
+                // Draw stack
+                ctx.save();
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = 'rgba(255,40,40,0.6)';
+                this.stack.forEach(cell => {
+                    const half = cell.r;
+                    ctx.fillStyle = 'rgba(180, 20, 20, 0.9)';
+                    ctx.strokeStyle = 'rgba(255, 40, 40, 1)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.rect(cell.x - half, cell.y - half, half * 2, half * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                ctx.restore();
+                // Draw active pieces
+                this.activePieces.forEach(p => p.draw(ctx));
+            }
+
+            clearAll() {
+                this.activePieces = [];
+                this.stack = [];
+            }
+        }
+
+        class TetrisCrossBoss {
+            constructor(game) {
+                this.game = game;
+                this.hp = TETRIS_SETTINGS.bossHp;
+                this.maxHp = TETRIS_SETTINGS.bossHp;
+                this.width = 90;
+                this.height = 90;
+                // position in upper center
+                this.x = game.canvas.width / 2;
+                this.y = Math.max(70, 0.12 * game.canvas.height);
+                this.vx = 0;
+                this.targetVx = 2.0; // desired horizontal speed (px/frame baseline)
+                this.inertia = 0.02;
+                this.margin = 60; // never fully crosses screen
+                this.spawnBelowUiY = this.y;
+                this.lastSpawn = 0;
+                this.active = true;
+            }
+
+            update() {
+                const t = getTimeScale();
+                const motion = getMotionScale();
+                // Horizontal movement with inertia
+                const desired = this.targetVx * motion;
+                this.vx += (desired - this.vx) * Math.min(1, this.inertia * t);
+                this.x += this.vx * t;
+                // Bounce softly at margins
+                const left = this.margin;
+                const right = this.game.canvas.width - this.margin;
+                if (this.x < left) { this.x = left; this.targetVx = Math.abs(this.targetVx); }
+                if (this.x > right) { this.x = right; this.targetVx = -Math.abs(this.targetVx); }
+                // Spawn pieces handled by game.tetrisManager
+                return true;
+            }
+
+            takeRailgunDamage(damage, fullCharge) {
+                // Only fully charged railgun can penetrate shield
+                if (!fullCharge) return true; // no effect
+                this.hp -= damage;
+                if (this.hp <= 0) {
+                    this.active = false;
+                    // Clear all tetrominoes
+                    if (this.game.tetrisManager) this.game.tetrisManager.clearAll();
+                    return false; // dead
+                }
+                return true;
+            }
+
+            draw(ctx) {
+                // Draw cross: vertical and horizontal bars made of squares
+                ctx.save();
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = 'rgba(255,140,0,0.9)';
+                const s = 18; // square size
+                const halfW = Math.floor(this.width / s / 2) * s;
+                const halfH = Math.floor(this.height / s / 2) * s;
+                // Horizontal bar
+                for (let x = -halfW; x <= halfW; x += s) {
+                    ctx.fillStyle = 'rgba(255,120,0,0.9)';
+                    ctx.strokeStyle = 'rgba(255,180,30,1)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.rect(this.x + x - s/2, this.y - s/2, s, s);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                // Vertical bar
+                for (let y = -halfH; y <= halfH; y += s) {
+                    ctx.fillStyle = 'rgba(255,120,0,0.9)';
+                    ctx.strokeStyle = 'rgba(255,180,30,1)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.rect(this.x - s/2, this.y + y - s/2, s, s);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                // Shield aura (only penetrable by full railgun)
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255,140,0,0.9)';
+                ctx.lineWidth = 4;
+                ctx.arc(this.x, this.y, 48, 0, Math.PI * 2);
+                ctx.stroke();
+                // HP bar
+                const w = 120, h = 6;
+                ctx.fillStyle = 'rgba(140, 40, 0, 0.7)';
+                ctx.fillRect(this.x - w/2, this.y - 64, w, h);
+                ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+                const pct = Math.max(0, Math.min(1, this.hp / this.maxHp));
+                ctx.fillRect(this.x - w/2, this.y - 64, w * pct, h);
+                ctx.restore();
+            }
+        }
+
         // UI Manager for handling UI visibility
         class UIManager {
             constructor() {
@@ -2144,6 +2567,7 @@
                 this.setupAudio();
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                this.tetrisManager = new TetrisManager(this);
                 
                 // Persistent best stats
                 this.bestScore = 0;
@@ -2193,15 +2617,30 @@
             }
 
             spawnBoss() {
-                const bossTypes = this.getAvailableBossTypes();
-                // Ensure rotation without repeats until exhausted
-                if (!this.usedBossTypes) this.usedBossTypes = new Set();
-                const unused = bossTypes.filter(b => !this.usedBossTypes.has(b));
-                const pool = unused.length > 0 ? unused : bossTypes;
-                if (unused.length === 0) this.usedBossTypes.clear();
-                const chosen = pool[Math.floor(Math.random() * pool.length)] || 'rhombus_boss';
+                // Determine boss type; force Tetris Cross for first boss if enabled
+                let chosen;
+                if (this.defeatedBossCount === 0 && TETRIS_SETTINGS.forceFirstBoss) {
+                    chosen = 'tetris_cross_boss';
+                } else {
+                    const bossTypes = this.getAvailableBossTypes();
+                    if (!this.usedBossTypes) this.usedBossTypes = new Set();
+                    const unused = bossTypes.filter(b => !this.usedBossTypes.has(b));
+                    const pool = unused.length > 0 ? unused : bossTypes;
+                    if (unused.length === 0) this.usedBossTypes.clear();
+                    chosen = pool[Math.floor(Math.random() * pool.length)] || 'rhombus_boss';
+                }
                 this.usedBossTypes.add(chosen);
 
+                if (chosen === 'tetris_cross_boss') {
+                    // Custom boss instantiation
+                    this.activeBoss = new TetrisCrossBoss(this);
+                    // Ensure tetromino manager reset at boss start
+                    if (this.tetrisManager) this.tetrisManager.reset();
+                    if (this.uiManager && this.uiManager.hideBossWarning) this.uiManager.hideBossWarning();
+                    return;
+                }
+
+                // default spawn for classic enemy bosses
                 const side = Math.floor(Math.random() * 4);
                 const margin = 60;
                 let x, y;
@@ -2483,6 +2922,8 @@
                 this.activeBoss = null;
                 this.usedBossTypes = new Set();
                 this.defeatedBossCount = 0;
+                if (!this.tetrisManager) this.tetrisManager = new TetrisManager(this);
+                this.tetrisManager.reset();
                 
                 // Reset best flags for new session
                 this.isNewBestScore = false;
@@ -2796,6 +3237,12 @@
                 // Continue all normal game mechanics regardless of wave pause
                 this.player.move(this.input.keys, this.canvas);
                 this.player.update(this.input, this.effects, this.canvas, this.audio);
+
+                // Update Tetris Cross boss and its pieces if active
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    this.activeBoss.update();
+                    this.tetrisManager.update();
+                }
                 
                 // Update background parallax based on player movement
                 this.updateBackgroundParallax();
@@ -2871,6 +3318,109 @@
                         }
                     }
                 }
+
+                // Bullet collisions with tetromino pieces
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    outerBullet: for (let j = this.bullets.length - 1; j >= 0; j--) {
+                        const b = this.bullets[j];
+                        for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
+                            const piece = this.tetrisManager.activePieces[p];
+                            const cells = piece.getCells();
+                            for (let c = 0; c < cells.length; c++) {
+                                const cell = cells[c];
+                                const dist = Math.hypot(b.x - cell.x, b.y - cell.y);
+                                if (dist < b.radius + cell.r) {
+                                    // Hit
+                                    this.bullets.splice(j, 1);
+                                    piece.hp -= b.damage;
+                                    this.effects.createHitEffect(cell.x, cell.y);
+                                    if (piece.hp <= 0) {
+                                        // explode per cell and remove piece
+                                        cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
+                                        this.tetrisManager.activePieces.splice(p, 1);
+                                    }
+                                    continue outerBullet;
+                                }
+                            }
+                        }
+                    }
+
+                    // Railgun beam collisions with tetromino pieces
+                    for (let j = this.effects.effects.length - 1; j >= 0; j--) {
+                        const effect = this.effects.effects[j];
+                        if (effect.type !== 'railgunBeam') continue;
+                        for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
+                            const piece = this.tetrisManager.activePieces[p];
+                            const cells = piece.getCells();
+                            if (effect.intersectsCircle(piece.x, piece.y, 0, piece.id)) {
+                                // Using id-based dedup; apply once per piece if line passes through any cell
+                                piece.hp -= effect.damage;
+                                if (piece.hp <= 0) {
+                                    cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
+                                    this.tetrisManager.activePieces.splice(p, 1);
+                                }
+                            } else {
+                                // Fallback: check any cell
+                                for (let c = 0; c < cells.length; c++) {
+                                    const cell = cells[c];
+                                    if (effect.intersectsCircle(cell.x, cell.y, cell.r, piece.id)) {
+                                        piece.hp -= effect.damage;
+                                        if (piece.hp <= 0) {
+                                            cells.forEach(kc => this.effects.createBulletExplosion(kc.x, kc.y, '#ff4040'));
+                                            this.tetrisManager.activePieces.splice(p, 1);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Railgun interaction with Tetris Cross boss (full charge only)
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    for (let j = this.effects.effects.length - 1; j >= 0; j--) {
+                        const effect = this.effects.effects[j];
+                        if (effect.type !== 'railgunBeam') continue;
+                        // approximate boss as circle radius 48 around center
+                        const hit = effect.intersectsCircle(this.activeBoss.x, this.activeBoss.y, 48, null);
+                        if (hit) {
+                            const alive = this.activeBoss.takeRailgunDamage(effect.damage, effect.charge >= 1);
+                            if (!alive) {
+                                // Mark defeated
+                                this.onBossDefeated();
+                            }
+                        }
+                    }
+                }
+
+                // Tetromino collision with player
+                if (!this.player.isDashing && this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    const dmg = TETRIS_SETTINGS.playerCollisionDamage;
+                    // Check active pieces cells
+                    pieceLoop: for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
+                        const piece = this.tetrisManager.activePieces[p];
+                        const cells = piece.getCells();
+                        for (let c = 0; c < cells.length; c++) {
+                            const cell = cells[c];
+                            const dist = Math.hypot(this.player.x - cell.x, this.player.y - cell.y);
+                            if (dist < this.player.radius + cell.r) {
+                                this.player.takeDamage(dmg, cell.x, cell.y, this.effects, this.audio);
+                                break pieceLoop;
+                            }
+                        }
+                    }
+                    // Check stacked cells
+                    for (let s = 0; s < this.tetrisManager.stack.length; s++) {
+                        const cell = this.tetrisManager.stack[s];
+                        const dist = Math.hypot(this.player.x - cell.x, this.player.y - cell.y);
+                        if (dist < this.player.radius + cell.r) {
+                            this.player.takeDamage(dmg, cell.x, cell.y, this.effects, this.audio);
+                            break;
+                        }
+                    }
+                }
+
                 if (!this.player.isDashing) {
                     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
                         const bullet = this.enemyBullets[i];
@@ -2883,6 +3433,11 @@
                 }
                 this.effects.update(this.player.x, this.player.y);
                 
+                // If custom boss died outside of loop, close phase
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss && !this.activeBoss.active) {
+                    this.onBossDefeated();
+                }
+
                 if (this.player.health <= 0 && !this.gameOver) {
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
@@ -2946,6 +3501,11 @@
                 
                 this.backgroundBinary.draw(this.ctx);
                 this.drawInfiniteGrid();
+
+                // Tetris stack and falling pieces (under everything else except background)
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    this.tetrisManager.draw(this.ctx);
+                }
                 
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.player.x, this.player.y);
@@ -2955,6 +3515,11 @@
                 this.ctx.stroke();
                 this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
                 this.enemies.forEach(enemy => enemy.draw(this.ctx));
+
+                // Draw Tetris Cross boss above enemies and bullets for emphasis
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    this.activeBoss.draw(this.ctx);
+                }
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
                 
