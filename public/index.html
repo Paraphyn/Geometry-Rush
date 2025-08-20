@@ -521,13 +521,7 @@
                         this.spawnNumber(layer);
                         this.spawnTimers[layer] = 0;
                     }
-                    // Cleanup: remove pieces after their disappear animation completes
-                    for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
-                        const piece = this.tetrisManager.activePieces[p];
-                        if (piece.dying && piece.deathLife >= piece.deathMaxLife) {
-                            this.tetrisManager.activePieces.splice(p, 1);
-                        }
-                    }
+                    
                 }
             }
 
