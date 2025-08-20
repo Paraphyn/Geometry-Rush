@@ -67,6 +67,8 @@
         .enemies { top: 20px; left: 20px; font-size: 25px; }
         .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
         .next-wave { top: 120px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #00ffff; }
+        .next-wave.boss-warning { color: #ff3333; font-weight: bold; text-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 20px rgba(255, 0, 0, 0.5); animation: bossBlink 1.2s ease-in-out infinite; }
+        @keyframes bossBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .score { top: 50px; left: 20px; font-size: 25px; }
         .score-addition { color: #00ff00; }
         .wave { top: 80px; left: 20px; font-size: 25px; }
@@ -1115,6 +1117,7 @@
         // Enemy configuration
         const ENEMY_TYPES = {
             square: { 
+                role: 'regular',
                 health: 200, 
                 speed: 3.5, 
                 size: 30, 
@@ -1125,6 +1128,7 @@
                 strokeColor: '#cc0000'
             },
             triangle: { 
+                role: 'regular',
                 health: 45, 
                 speed: 6, 
                 size: 15, 
@@ -1135,6 +1139,7 @@
                 strokeColor: '#cc3333'
             },
             octagon: { 
+                role: 'regular',
                 health: 800, 
                 speed: 2, 
                 size: 50, 
@@ -1145,6 +1150,7 @@
                 strokeColor: '#660000'
             },
             rhombus: {
+                role: 'regular',
                 health: 500,
                 speed: 3.5,
                 size: 45,
@@ -1153,6 +1159,20 @@
                 xp: 25,
                 fillColor: '#ff9999',
                 strokeColor: '#ff6666'
+            },
+            rhombus_boss: {
+                role: 'boss',
+                health: 5000,
+                speed: 2.5,
+                size: 45 * 3,
+                points: 1000,
+                damage: 500,
+                xp: 100,
+                fillColor: '#ff5555',
+                strokeColor: '#dd0000',
+                isBoss: true,
+                bossBaseType: 'rhombus',
+                bossTriangleSpawnIntervalMs: 2500
             }
         };
 
@@ -1253,7 +1273,7 @@
                     ctx.closePath();
                     ctx.fill();
                     ctx.stroke();
-                } else if (type === 'rhombus') {
+                } else if (type === 'rhombus' || type === 'rhombus_boss') {
                     ctx.beginPath();
                     ctx.moveTo(x, y - size);
                     ctx.lineTo(x + size, y);
@@ -1872,7 +1892,10 @@
                 this.shootDelay = type === 'octagon' ? 4000 : Infinity;
                 this.lastTrailTime = 0;
                 this.spawnShieldUntil = 0;
-                if (type === 'rhombus') {
+                this.isBoss = !!config.isBoss || config.role === 'boss';
+                this.bossTriangleSpawnIntervalMs = config.bossTriangleSpawnIntervalMs || 0;
+                this.lastTriangleSpawnTime = 0;
+                if (type === 'rhombus' || type === 'rhombus_boss') {
                     this.invulnerable = false;
                     this.lastStateChange = Date.now();
                     this.stateChangeDuration = 2500;
@@ -1888,7 +1911,7 @@
                 const motion = getMotionScale();
                 const t = getTimeScale();
                 if (this.damageFlash > 0) this.damageFlash -= t;
-                if (this.type === 'rhombus') {
+                if (this.type === 'rhombus' || this.type === 'rhombus_boss') {
                     const now = Date.now();
                     if (now - this.lastStateChange >= this.stateChangeDuration / Math.max(0.001, t)) {
                         const wasInvulnerable = this.invulnerable;
@@ -1900,7 +1923,7 @@
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-                if (this.type === 'rhombus') {
+                if (this.type === 'rhombus' || this.type === 'rhombus_boss') {
                     this.angleOffset += (this.clockwise ? this.orbitSpeed : -this.orbitSpeed) * t;
                     const desiredX = player.x + Math.cos(this.angleOffset) * this.circleRadius;
                     const desiredY = player.y + Math.sin(this.angleOffset) * this.circleRadius;
@@ -1930,6 +1953,25 @@
                             effects.createTriangleTrail(this.x, this.y, size, opacity, this.fillColor);
                         }
                         this.lastTrailTime = now;
+                    }
+                }
+                // Boss periodic triangle spawns
+                if (this.isBoss && this.bossTriangleSpawnIntervalMs > 0) {
+                    const now = Date.now();
+                    if (now - this.lastTriangleSpawnTime >= this.bossTriangleSpawnIntervalMs / Math.max(0.001, t)) {
+                        const count = 3;
+                        const minRadius = 90;
+                        const extraRadius = 60;
+                        for (let i = 0; i < count; i++) {
+                            const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+                            const distance = minRadius + extraRadius + Math.random() * 40;
+                            const tx = this.x + Math.cos(angle) * distance;
+                            const ty = this.y + Math.sin(angle) * distance;
+                            const e = new Enemy(tx, ty, 'triangle', ENEMY_TYPES['triangle']);
+                            e.spawnShieldUntil = now + 1500;
+                            if (typeof window !== 'undefined' && window.game) window.game.enemies.push(e);
+                        }
+                        this.lastTriangleSpawnTime = now;
                     }
                 }
                 return dist;
@@ -1966,7 +2008,7 @@
 
             draw(ctx) {
                 let color, stroke;
-                if (this.type === 'rhombus' && this.invulnerable) {
+                if ((this.type === 'rhombus' || this.type === 'rhombus_boss') && this.invulnerable) {
                     color = 'rgba(0, 0, 0, 0.5)';
                     stroke = '#ff0000';
                 } else {
@@ -2032,6 +2074,19 @@
                 if (this.nextWaveElement) {
                     this.nextWaveElement.style.display = 'none';
                 }
+            }
+            
+            showBossWarning() {
+                if (!this.nextWaveElement) return;
+                this.nextWaveElement.textContent = 'BOSS IS APROACHING!!!';
+                this.nextWaveElement.classList.add('boss-warning');
+                this.nextWaveElement.style.display = 'block';
+            }
+
+            hideBossWarning() {
+                if (!this.nextWaveElement) return;
+                this.nextWaveElement.classList.remove('boss-warning');
+                this.nextWaveElement.style.display = 'none';
             }
             
             showScoreAddition(points) {
@@ -2109,6 +2164,66 @@
                 
                 // Initially hide UI since we start in lobby
                 this.uiManager.hideUI();
+
+                // Boss state initialization
+                this.inBossPhase = false;
+                this.bossWarningEndTime = 0;
+                this.activeBoss = null;
+                this.usedBossTypes = new Set();
+                this.defeatedBossCount = 0;
+            }
+
+            // Boss management
+            getAvailableBossTypes() {
+                const bosses = Object.keys(ENEMY_TYPES).filter(k => ENEMY_TYPES[k] && (ENEMY_TYPES[k].isBoss || ENEMY_TYPES[k].role === 'boss'));
+                return bosses.length > 0 ? bosses : ['rhombus_boss'];
+            }
+
+            triggerBossPhase() {
+                if (this.inBossPhase) return;
+                this.inBossPhase = true;
+                this.activeBoss = null;
+                this.waveStarted = false;
+                if (this.uiManager && this.uiManager.showBossWarning) this.uiManager.showBossWarning();
+                this.bossWarningEndTime = Date.now() + Math.round(5000 / Math.max(0.001, getTimeScale()));
+            }
+
+            spawnBoss() {
+                const bossTypes = this.getAvailableBossTypes();
+                // Ensure rotation without repeats until exhausted
+                if (!this.usedBossTypes) this.usedBossTypes = new Set();
+                const unused = bossTypes.filter(b => !this.usedBossTypes.has(b));
+                const pool = unused.length > 0 ? unused : bossTypes;
+                if (unused.length === 0) this.usedBossTypes.clear();
+                const chosen = pool[Math.floor(Math.random() * pool.length)] || 'rhombus_boss';
+                this.usedBossTypes.add(chosen);
+
+                const side = Math.floor(Math.random() * 4);
+                const margin = 60;
+                let x, y;
+                switch (side) {
+                    case 0: x = Math.random() * this.canvas.width; y = -margin; break;
+                    case 1: x = this.canvas.width + margin; y = Math.random() * this.canvas.height; break;
+                    case 2: x = Math.random() * this.canvas.width; y = this.canvas.height + margin; break;
+                    default: x = -margin; y = Math.random() * this.canvas.height; break;
+                }
+                const config = ENEMY_TYPES[chosen] || ENEMY_TYPES['rhombus_boss'];
+                const boss = new Enemy(x, y, chosen, config);
+                boss.spawnShieldUntil = Date.now() + 1500;
+                this.enemies.push(boss);
+                this.activeBoss = boss;
+                if (this.uiManager && this.uiManager.hideBossWarning) this.uiManager.hideBossWarning();
+            }
+
+            onBossDefeated() {
+                this.defeatedBossCount = (this.defeatedBossCount || 0) + 1;
+                this.inBossPhase = false;
+                this.activeBoss = null;
+                // Advance to next wave group
+                this.currentGroupIndex++;
+                if (this.currentGroupIndex < this.waveGroupsPrepared.length) {
+                    this.currentGroupQueue = this.waveGroupsPrepared[this.currentGroupIndex].slice();
+                }
             }
 
             setupCanvas() {
@@ -2355,6 +2470,12 @@
                 this.spawnedEnemies = 0;
                 this.gameOver = false;
                 this.paused = false;
+                // Boss state
+                this.inBossPhase = false;
+                this.bossWarningEndTime = 0;
+                this.activeBoss = null;
+                this.usedBossTypes = new Set();
+                this.defeatedBossCount = 0;
                 
                 // Reset best flags for new session
                 this.isNewBestScore = false;
@@ -2625,6 +2746,13 @@
                 
                 const gameTime = Date.now() - this.startTime;
                 
+                // Boss phase timing: after warning ends, spawn boss
+                if (this.inBossPhase) {
+                    if (!this.activeBoss && Date.now() >= this.bossWarningEndTime) {
+                        this.spawnBoss();
+                    }
+                }
+                
                 // Handle wave pause - only affects wave spawning, not gameplay
                 if (this.inWavePause) {
                     if (Date.now() >= this.wavePauseEndTime) {
@@ -2633,8 +2761,8 @@
                     // Continue with all normal gameplay during wave pause
                 }
                 
-                // Only check for next wave if not in wave pause
-                if (!this.inWavePause) {
+                // Only check for next wave if not in wave pause or boss phase
+                if (!this.inWavePause && !this.inBossPhase) {
                     if (USE_WAVE_GROUPS) {
                         if (!this.waveStarted) {
                             const nextGrouped = this.getNextGroupedWave();
@@ -2650,7 +2778,7 @@
                     }
                 }
                 
-                if (this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
+                if (!this.inBossPhase && this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
                     // Wave completed, start pause before next wave
                     this.waveStarted = false;
                     this.inWavePause = true;
@@ -2680,6 +2808,9 @@
                         }
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
                         this.enemies.splice(i, 1);
+                        if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
+                            this.onBossDefeated();
+                        }
                         this.enemiesKilled++;
                         // No score addition for collision deaths
                         continue;
@@ -2699,6 +2830,9 @@
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
                                     this.enemies.splice(i, 1);
+                                    if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
+                                        this.onBossDefeated();
+                                    }
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
                                     this.uiManager.showScoreAddition(enemy.points);
@@ -2718,6 +2852,9 @@
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
                                     this.enemies.splice(i, 1);
+                                    if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
+                                        this.onBossDefeated();
+                                    }
                                     this.score += enemy.points;
                                     this.enemiesKilled++;
                                     this.uiManager.showScoreAddition(enemy.points);
@@ -2997,13 +3134,20 @@
                     this.pauseBlinkFrame += getTimeScale();
                 }
                 
-                // Update next wave timer display
-                if (this.inWavePause) {
+                // Update next wave/boss timer display
+                if (this.inBossPhase) {
+                    if (!this.activeBoss) {
+                        this.uiManager.showBossWarning();
+                    } else {
+                        this.uiManager.hideBossWarning();
+                    }
+                } else if (this.inWavePause) {
                     const remainingTime = Math.max(0, this.wavePauseEndTime - Date.now());
                     const seconds = Math.ceil(remainingTime / 1000);
                     this.uiManager.showNextWaveTimer(seconds);
                 } else {
                     this.uiManager.hideNextWaveTimer();
+                    if (this.uiManager && this.uiManager.hideBossWarning) this.uiManager.hideBossWarning();
                 }
                 
                 // Only update UI if not in lobby
@@ -3038,9 +3182,9 @@
                 }
                 // If current group exhausted, advance to next group
                 if (this.currentGroupQueue.length === 0) {
-                    this.currentGroupIndex++;
-                    if (this.currentGroupIndex >= this.waveGroupsPrepared.length) return null;
-                    this.currentGroupQueue = this.waveGroupsPrepared[this.currentGroupIndex].slice();
+                    // Before advancing to the next group, trigger a boss phase
+                    this.triggerBossPhase();
+                    return null;
                 }
                 // Pop next wave from current group's randomized queue
                 const wave = this.currentGroupQueue.shift();
