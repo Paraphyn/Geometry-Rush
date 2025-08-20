@@ -2017,7 +2017,7 @@
                 if (this.isBoss && this.bossTriangleSpawnIntervalMs > 0) {
                     const now = Date.now();
                     if (now - this.lastTriangleSpawnTime >= this.bossTriangleSpawnIntervalMs / Math.max(0.001, t)) {
-                        const count = 3;
+                        const count = 4;
                         const minRadius = 90;
                         const extraRadius = 60;
                         for (let i = 0; i < count; i++) {
@@ -2026,7 +2026,7 @@
                             const tx = this.x + Math.cos(angle) * distance;
                             const ty = this.y + Math.sin(angle) * distance;
                             const e = new Enemy(tx, ty, 'triangle', ENEMY_TYPES['triangle']);
-                            e.spawnShieldUntil = now + 1000;
+                            e.spawnShieldUntil = now + 800;
                             if (typeof window !== 'undefined' && window.game) window.game.enemies.push(e);
                         }
                         if (audio) audio.playSound('MinionSummon');
@@ -2389,11 +2389,11 @@
                 this.height = 90;
                 // position in upper center
                 this.x = game.canvas.width / 2;
-                this.y = Math.max(70, 0.12 * game.canvas.height);
+                this.y = Math.max(80, 0.12 * game.canvas.height);
                 this.vx = 0;
-                this.targetVx = 2.0; // desired horizontal speed (px/frame baseline)
+                this.targetVx = 3.0; // desired horizontal speed (px/frame baseline)
                 this.inertia = 0.02;
-                this.margin = 60; // never fully crosses screen
+                this.margin = 50; // never fully crosses screen
                 this.spawnBelowUiY = this.y;
                 this.lastSpawn = 0;
                 this.active = true;
