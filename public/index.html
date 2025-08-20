@@ -1204,7 +1204,7 @@
             // Piece/boss stats
             pieceHp: 300,
             bossHp: 1500,
-            playerCollisionDamage: 35,
+            playerCollisionDamage: 25,
             // Spawning & speeds
             spawnIntervalMs: 1200,
             minSpawnIntervalMs: 650,
@@ -2385,11 +2385,11 @@
                 this.game = game;
                 this.hp = TETRIS_SETTINGS.bossHp;
                 this.maxHp = TETRIS_SETTINGS.bossHp;
-                this.width = 90;
-                this.height = 90;
+                this.width = 80;
+                this.height = 80;
                 // position in upper center
                 this.x = game.canvas.width / 2;
-                this.y = Math.max(80, 0.12 * game.canvas.height);
+                this.y = Math.max(80, 0.2 * game.canvas.height);
                 this.vx = 0;
                 this.targetVx = 3.0; // desired horizontal speed (px/frame baseline)
                 this.inertia = 0.02;
