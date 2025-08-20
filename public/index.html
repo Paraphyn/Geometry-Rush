@@ -64,18 +64,18 @@
             display: none !important;
         }
         
-        .enemies { top: 20px; left: 20px; font-size: 25px; }
-        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; }
-        .next-wave { top: 120px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #00ffff; }
-        .next-wave.boss-warning { color: #ff3333; font-weight: bold; text-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 20px rgba(255, 0, 0, 0.5); animation: bossBlink 1.2s ease-in-out infinite; }
+        .enemies { top: 20px; left: 20px; font-size: 20px; }
+        .timer { top: 20px; left: 50%; transform: translateX(-50%); font-size: 40px; }
+        .next-wave { top: 120px; left: 50%; transform: translateX(-50%); font-size: 25px; color: #00ffff; }
+        .next-wave.boss-warning { color: #ff3333; font-weight: bold; text-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 25px rgba(255, 0, 0, 0.5); animation: bossBlink 1.2s ease-in-out infinite; }
         @keyframes bossBlink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .score { top: 50px; left: 20px; font-size: 25px; }
+        .score { top: 50px; left: 20px; font-size: 20px; }
         .score-addition { color: #00ff00; }
-        .wave { top: 80px; left: 20px; font-size: 25px; }
+        .wave { top: 80px; left: 20px; font-size: 20px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         
         /* XP Bar */
-        .xp-bar { top: 85px; left: 50%; transform: translateX(-50%); width: 400px; height: 16px; border: 2px solid #ffffff; }
+        .xp-bar { top: 85px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; }
         .xp-bar-fill { height: 100%; width: 0%; background: #00ff00; }
         .xp-label { top: 85px; left: calc(50% - 200px - 40px); font-size: 18px; }
         .xp-level { top: 85px; left: calc(50% + 200px + 10px); font-size: 18px; }
@@ -245,8 +245,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, 100px);
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             background: rgba(255, 0, 0, 0.1);
             border: 2px solid #ff0000;
             border-radius: 10px;
@@ -284,7 +284,7 @@
         .upgrade-container {
             display: grid;
             grid-template-columns: repeat(3, 280px);
-            column-gap: var(--upgrade-card-gap, 48px);
+            column-gap: var(--upgrade-card-gap, 50px);
             row-gap: 24px;
             padding: 24px;
             justify-content: center;
@@ -367,7 +367,7 @@
     <div class="ui wave">Wave: <span id="wave">0</span></div>
     <div class="ui xp-label">XP</div>
     <div class="ui xp-bar"><div class="xp-bar-fill" id="xpFill"></div></div>
-    <div class="ui xp-level" id="xpLevel">Level 1</div>
+    <div class="ui xp-level" id="xpLevel">Lv. 1</div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
     
     <!-- Lobby Screen -->
