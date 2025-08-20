@@ -563,6 +563,7 @@
                     railgunShoot: { file: 'railgun-shoot.wav', loop: false },
                     railgunCharge: { file: 'railgun-charge.wav', loop: true },
                     railgunChargeMax: { file: 'railgun-charge-max.wav', loop: false },
+                    BossAlertSound: { file: 'railgun-charge.wav', loop: true },
                     dash: { file: 'dash.wav', loop: false },
                     playerDamage: { file: 'player-damage.wav', loop: false },
                     pauseActivate: { file: 'pause-activate.wav', loop: false },
@@ -2602,13 +2603,20 @@
                 this.nextWaveElement.textContent = 'Boss is Approaching';
                 this.nextWaveElement.classList.add('boss-warning');
                 this.nextWaveElement.style.display = 'block';
-                if (!this.bossWarningShown && typeof window !== 'undefined' && window.game && window.game.audio) { window.game.audio.playSound('BossAlarm'); this.bossWarningShown = true; }
+                if (!this.bossWarningShown && typeof window !== 'undefined' && window.game && window.game.audio) {
+                    // Start looped alert sound while warning is visible
+                    window.game.audio.startLoopingSound('BossAlertSound');
+                    this.bossWarningShown = true;
+                }
             }
 
             hideBossWarning() {
                 if (!this.nextWaveElement) return;
                 this.nextWaveElement.classList.remove('boss-warning');
                 this.nextWaveElement.style.display = 'none';
+                if (typeof window !== 'undefined' && window.game && window.game.audio) {
+                    window.game.audio.stopLoopingSound('BossAlertSound');
+                }
                 this.bossWarningShown = false;
             }
             
