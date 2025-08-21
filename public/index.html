@@ -2147,7 +2147,7 @@
             }
 
             takeDamage(damage, effects, score, ctx, audio) {
-                if ((this.spawnShieldUntil && Date.now() < this.spawnShieldUntil) || (this.type === 'rhombus' && this.invulnerable)) return true;
+                if ((this.spawnShieldUntil && Date.now() < this.spawnShieldUntil) || ((this.type === 'rhombus' || this.type === 'rhombus_boss') && this.invulnerable)) return true;
                 this.health -= damage;
                 this.damageFlash = 10;
                 // Record recent damage for health bar overlay
