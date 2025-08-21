@@ -2821,6 +2821,15 @@
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.tetrisManager = new TetrisManager(this);
+                // Lobby radial lines config (precompute base directions)
+                this.lobbyRadial = { lineCount: 36, innerR: 80, baseDirs: [] };
+                for (let i = 0; i < this.lobbyRadial.lineCount; i++) {
+                    const a = (Math.PI * 2 * i) / this.lobbyRadial.lineCount;
+                    this.lobbyRadial.baseDirs.push({ x: Math.cos(a), y: Math.sin(a) });
+                }
+                this.lobbyRadialCenterX = this.canvas.width / 2;
+                this.lobbyRadialCenterY = this.canvas.height / 3;
+                this.lobbyRadialOuterR = Math.sqrt(this.canvas.width * this.canvas.width + this.canvas.height * this.canvas.height) / 2 + 20;
                 // Offscreen grid pattern cache
                 this.gridPatternCanvas = null;
                 this.gridPattern = null;
@@ -3269,6 +3278,20 @@
                     if (this.player.health === 100 && this.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
+                    }
+                    // Update cached lobby radial center and outer radius
+                    this.lobbyRadialOuterR = Math.sqrt(this.canvas.width * this.canvas.width + this.canvas.height * this.canvas.height) / 2 + 20;
+                    const logo = document.getElementById('lobbyLogo');
+                    const rect = logo && logo.getBoundingClientRect ? logo.getBoundingClientRect() : null;
+                    const canvasRect = this.canvas.getBoundingClientRect();
+                    if (rect) {
+                        const centerX = rect.left + rect.width / 2 - canvasRect.left;
+                        const centerY = rect.top + rect.height / 2 - canvasRect.top + 40;
+                        this.lobbyRadialCenterX = centerX * (this.canvas.width / canvasRect.width);
+                        this.lobbyRadialCenterY = centerY * (this.canvas.height / canvasRect.height);
+                    } else {
+                        this.lobbyRadialCenterX = this.canvas.width / 2;
+                        this.lobbyRadialCenterY = this.canvas.height / 3;
                     }
                 });
 
@@ -3814,33 +3837,25 @@
                     // Draw falling numbers background and radial lines in lobby (below UI)
                     this.fallingNumbers.draw(this.ctx);
                     // Radial lines: cyan, rotating slowly around logo center
-                    const logo = document.getElementById('lobbyLogo');
-                    const rect = logo && logo.getBoundingClientRect ? logo.getBoundingClientRect() : null;
-                    const canvasRect = this.canvas.getBoundingClientRect();
-                    let cx = this.canvas.width / 2, cy = this.canvas.height / 3;
-                    if (rect) {
-                        const centerX = rect.left + rect.width / 2 - canvasRect.left;
-                        const centerY = rect.top + rect.height / 2 - canvasRect.top + 40;
-                        cx = centerX * (this.canvas.width / canvasRect.width);
-                        cy = centerY * (this.canvas.height / canvasRect.height);
-                    }
+                    const cx = this.lobbyRadialCenterX, cy = this.lobbyRadialCenterY;
                     const time = Date.now();
                     const angle = (time % 120000) / 120000 * Math.PI * 2; // slower rotation: 120s per full turn
-                    const lines = 36;
-                    const innerR = 80, outerR = Math.sqrt(this.canvas.width*this.canvas.width + this.canvas.height*this.canvas.height) / 2 + 20;
+                    const cosA = Math.cos(angle), sinA = Math.sin(angle);
+                    const dirs = this.lobbyRadial.baseDirs;
+                    const innerR = this.lobbyRadial.innerR, outerR = this.lobbyRadialOuterR;
                     this.ctx.save();
                     this.ctx.translate(cx, cy);
-                    this.ctx.rotate(angle);
                     this.ctx.strokeStyle = 'rgba(0,255,255,0.2)';
                     this.ctx.lineWidth = 1;
-                    for (let i = 0; i < lines; i++) {
-                        const a = (Math.PI * 2 * i) / lines;
-                        const cos = Math.cos(a), sin = Math.sin(a);
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(cos * innerR, sin * innerR);
-                        this.ctx.lineTo(cos * outerR, sin * outerR);
-                        this.ctx.stroke();
+                    this.ctx.beginPath();
+                    for (let i = 0; i < dirs.length; i++) {
+                        const bx = dirs[i].x, by = dirs[i].y;
+                        const rx = bx * cosA - by * sinA;
+                        const ry = bx * sinA + by * cosA;
+                        this.ctx.moveTo(rx * innerR, ry * innerR);
+                        this.ctx.lineTo(rx * outerR, ry * outerR);
                     }
+                    this.ctx.stroke();
                     this.ctx.restore();
                     return;
                 }
