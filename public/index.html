@@ -1014,14 +1014,14 @@
                         if (last && last.type === 'railgunBeam') {
                             last.damage = Math.floor(last.damage * dmgMul);
                             // Visual tweak for max charge: wider and orange
-                            if (this.railgunCharge >= 0.95) {
+                            if (this.railgunCharge === 1) {
                                 last.width = Math.floor((last.width || 8) * 1.25);
                                 last._isMaxCharge = true;
                             }
                         }
                     }
                     if (audio) {
-                        if (this.railgunCharge >= 0.95) audio.playSound('MaxRailgunShot');
+                        if (this.railgunCharge === 1) audio.playSound('MaxRailgunShot');
                         else audio.playSound('railgunShoot');
                     }
                     if (effects && effects.disableRailgunAura) { effects.disableRailgunAura(); }
@@ -4069,8 +4069,8 @@
                 const gap = 4; // Gap between center && crosshair lines
                 const thickness = 2;
                 
-                // Orange when railgun is fully charged, cyan otherwise
-                const isMax = this.player && this.player.railgunCharge >= 0.95;
+                // Orange when railgun is fully charged (100%), cyan otherwise
+                const isMax = this.player && this.player.railgunCharge === 1;
                 this.ctx.strokeStyle = isMax ? '#ffa500' : '#00ffff';
                 this.ctx.lineWidth = thickness;
                 this.ctx.lineCap = 'round';
