@@ -2838,11 +2838,21 @@
             }
 
             setupCanvas() {
-                // Fixed internal resolution scaled via CSS to keep element sizes consistent
-                this.canvas.width = SPEED_SETTINGS.baseWidth;
-                this.canvas.height = SPEED_SETTINGS.baseHeight;
-                this.canvas.style.width = window.innerWidth + 'px';
-                this.canvas.style.height = window.innerHeight + 'px';
+                // Fixed internal resolution; uniform CSS scale to preserve aspect ratio (letterbox)
+                const baseW = SPEED_SETTINGS.baseWidth;
+                const baseH = SPEED_SETTINGS.baseHeight;
+                this.canvas.width = baseW;
+                this.canvas.height = baseH;
+                const scale = Math.min(window.innerWidth / baseW, window.innerHeight / baseH);
+                const cssW = Math.floor(baseW * scale);
+                const cssH = Math.floor(baseH * scale);
+                const offsetX = Math.floor((window.innerWidth - cssW) / 2);
+                const offsetY = Math.floor((window.innerHeight - cssH) / 2);
+                this.canvas.style.width = cssW + 'px';
+                this.canvas.style.height = cssH + 'px';
+                this.canvas.style.position = 'absolute';
+                this.canvas.style.left = offsetX + 'px';
+                this.canvas.style.top = offsetY + 'px';
             }
 
             async setupAudio() {
@@ -3155,9 +3165,18 @@
 
             setupEventListeners() {
                 window.addEventListener('resize', () => {
-                    // Keep internal resolution fixed; scale via CSS on resize
-                    this.canvas.style.width = window.innerWidth + 'px';
-                    this.canvas.style.height = window.innerHeight + 'px';
+                    // Recompute uniform scale and letterbox offsets
+                    const baseW = SPEED_SETTINGS.baseWidth;
+                    const baseH = SPEED_SETTINGS.baseHeight;
+                    const scale = Math.min(window.innerWidth / baseW, window.innerHeight / baseH);
+                    const cssW = Math.floor(baseW * scale);
+                    const cssH = Math.floor(baseH * scale);
+                    const offsetX = Math.floor((window.innerWidth - cssW) / 2);
+                    const offsetY = Math.floor((window.innerHeight - cssH) / 2);
+                    this.canvas.style.width = cssW + 'px';
+                    this.canvas.style.height = cssH + 'px';
+                    this.canvas.style.left = offsetX + 'px';
+                    this.canvas.style.top = offsetY + 'px';
                     this.speedScale = 1;
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
