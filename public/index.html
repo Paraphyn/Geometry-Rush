@@ -3008,6 +3008,16 @@
                 this._cachedRectTop = rect.top;
                 this._cachedScaleX = this.canvas.width / (rect.width || 1);
                 this._cachedScaleY = this.canvas.height / (rect.height || 1);
+                this._cachedRectTime = Date.now();
+            }
+
+            refreshCanvasRectCache() {
+                const rect = this.canvas.getBoundingClientRect();
+                this._cachedRectLeft = rect.left;
+                this._cachedRectTop = rect.top;
+                this._cachedScaleX = this.canvas.width / (rect.width || 1);
+                this._cachedScaleY = this.canvas.height / (rect.height || 1);
+                this._cachedRectTime = Date.now();
             }
 
             async setupAudio() {
@@ -3224,6 +3234,8 @@
                 }
 
                 this.reset();
+                // UI layout changed: refresh canvas rect cache for accurate mouse mapping
+                this.refreshCanvasRectCache();
                 
                 // Switch from lobby music to game music
                 this.audio.stopLobbyMusic();
@@ -3255,6 +3267,8 @@
                 this.reset();
                 // Update lobby best stats label when returning
                 this.updateBestStatsLabel();
+                // UI layout changed: refresh rect cache
+                this.refreshCanvasRectCache();
             }
 
             reset() {
@@ -3359,11 +3373,7 @@
                     this.canvas.style.top = offsetY + 'px';
                     this.speedScale = 1;
                     // Cache canvas rect-derived scales for mouse mapping
-                    const rect = this.canvas.getBoundingClientRect();
-                    this._cachedRectLeft = rect.left;
-                    this._cachedRectTop = rect.top;
-                    this._cachedScaleX = this.canvas.width / rect.width;
-                    this._cachedScaleY = this.canvas.height / rect.height;
+                    this.refreshCanvasRectCache();
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
@@ -3465,12 +3475,20 @@
                 this.canvas.addEventListener('mousemove', e => {
                     if (this.gameOver || this.inLobby) return;
                     // Use cached rect/scales to avoid repeated DOM reads
+                    // If cache is missing or stale (first movement), refresh once
+                    if (!isFinite(this._cachedRectLeft) || !isFinite(this._cachedRectTop) || !isFinite(this._cachedScaleX) || !isFinite(this._cachedScaleY)) {
+                        this.refreshCanvasRectCache();
+                    }
                     const left = this._cachedRectLeft;
                     const top = this._cachedRectTop;
                     const scaleX = this._cachedScaleX || 1;
                     const scaleY = this._cachedScaleY || 1;
-                    this.input.mouse.x = (e.clientX - left) * scaleX;
-                    this.input.mouse.y = (e.clientY - top) * scaleY;
+                    const mx = (e.clientX - left) * scaleX;
+                    const my = (e.clientY - top) * scaleY;
+                    if (isFinite(mx) && isFinite(my)) {
+                        this.input.mouse.x = mx;
+                        this.input.mouse.y = my;
+                    }
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
