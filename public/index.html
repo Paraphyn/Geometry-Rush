@@ -1717,6 +1717,9 @@
             }
 
             createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
+                if (!isFinite(startX) || !isFinite(startY) || !isFinite(targetX) || !isFinite(targetY)) {
+                    return;
+                }
                 const dx = targetX - startX;
                 const dy = targetY - startY;
                 const invLen = 1 / (Math.sqrt(dx * dx + dy * dy) || 1);
@@ -1741,6 +1744,9 @@
                         return this.life > 0;
                     },
                     typeSpecificDraw: function(ctx) {
+                        if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(this.endX) || !isFinite(this.endY)) {
+                            return;
+                        }
                         ctx.save();
                         ctx.globalAlpha = this.opacity;
                         const gradient = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
