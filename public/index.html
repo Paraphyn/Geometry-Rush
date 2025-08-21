@@ -2756,6 +2756,9 @@
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
                 this.tetrisManager = new TetrisManager(this);
+                // Offscreen grid pattern cache
+                this.gridPatternCanvas = null;
+                this.gridPattern = null;
                 
                 // Persistent best stats
                 this.bestScore = 0;
@@ -3019,38 +3022,33 @@
             
             drawInfiniteGrid() {
                 const gridSize = 40;
-                // Small, pulsing red glow on the grid using current transparency
                 const timeMs = Date.now();
-                const periodMs = (this.inBossPhase ? 1200 : 3000); // faster blink during boss phase
+                const periodMs = (this.inBossPhase ? 1200 : 3000);
                 const phase = (timeMs % periodMs) / periodMs;
-                const pulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2); // 0..1
+                const pulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
 
+                // Build or rebuild pattern if missing or canvas resized
+                const needBuild = !this.gridPatternCanvas || this.gridPatternCanvas.width !== gridSize * 2 || this.gridPatternCanvas.height !== gridSize * 2;
+                if (needBuild) {
+                    this.gridPatternCanvas = document.createElement('canvas');
+                    this.gridPatternCanvas.width = gridSize * 2;
+                    this.gridPatternCanvas.height = gridSize * 2;
+                    const gctx = this.gridPatternCanvas.getContext('2d');
+                    gctx.strokeStyle = 'rgba(255, 180, 180, 0.12)';
+                    gctx.lineWidth = 1;
+                    // One vertical and one horizontal line per grid
+                    for (let x = 0; x <= this.gridPatternCanvas.width; x += gridSize) {
+                        gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, this.gridPatternCanvas.height); gctx.stroke();
+                    }
+                    for (let y = 0; y <= this.gridPatternCanvas.height; y += gridSize) {
+                        gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(this.gridPatternCanvas.width, y); gctx.stroke();
+                    }
+                    this.gridPattern = this.ctx.createPattern(this.gridPatternCanvas, 'repeat');
+                }
                 this.ctx.save();
-                // Light red grid lines with the existing transparency
-                this.ctx.strokeStyle = this.inBossPhase ? 'rgba(255, 60, 60, 0.22)' : 'rgba(255, 180, 180, 0.1)';
-                this.ctx.lineWidth = 1;
-                // Red glow that slowly fades in/out
-                this.ctx.shadowColor = this.inBossPhase ? `rgba(255, 30, 30, ${0.25 + 0.35 * pulse})` : `rgba(255, 80, 80, ${0.1 * pulse})`;
-                this.ctx.shadowBlur = 6;
-                this.ctx.shadowOffsetX = 0;
-                this.ctx.shadowOffsetY = 0;
-                
-                // Draw static grid (no movement during gameplay)
-                // Draw vertical lines
-                for (let x = 0; x <= this.canvas.width; x += gridSize) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(x, 0);
-                    this.ctx.lineTo(x, this.canvas.height);
-                    this.ctx.stroke();
-                }
-                
-                // Draw horizontal lines
-                for (let y = 0; y <= this.canvas.height; y += gridSize) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(0, y);
-                    this.ctx.lineTo(this.canvas.width, y);
-                    this.ctx.stroke();
-                }
+                this.ctx.globalAlpha = this.inBossPhase ? (0.2 + 0.2 * pulse) : 0.12;
+                this.ctx.fillStyle = this.gridPattern;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 this.ctx.restore();
             }
             
