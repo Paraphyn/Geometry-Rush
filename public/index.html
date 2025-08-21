@@ -74,6 +74,7 @@
         .score-addition { color: #00ff00; }
         .wave { top: 80px; left: 20px; font-size: 20px; }
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
+        .fps { bottom: 20px; right: 20px; font-size: 18px; color: #00ff00; }
         
         /* XP Bar */
         .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; position: relative; overflow: hidden; }
@@ -377,6 +378,7 @@
     <div class="ui xp-bar"><div class="xp-bar-fill" id="xpFill"></div></div>
     <div class="ui xp-level" id="xpLevel">Lv. 1</div>
     <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
+    <div class="ui fps" id="fps">FPS: 60</div>
     
     <!-- Lobby Screen -->
     <div class="lobby" id="lobby">
@@ -2696,6 +2698,7 @@
                 this.scoreAdditionTimeout = null;
                 this.xpFill = document.getElementById('xpFill');
                 this.xpLevel = document.getElementById('xpLevel');
+                this.fpsEl = document.getElementById('fps');
                 this.bossWarningShown = false;
                 // XP gain overlay
                 this.xpGainOverlayWidth = 0; // percent [0..1]
@@ -2703,6 +2706,16 @@
                 // Cache overlay element and width as needed
                 this.xpOverlayEl = null;
                 this._cachedXpBarClientWidth = 0;
+            }
+
+            updateFPS(fps) {
+                if (!this.fpsEl) return;
+                const value = Math.round(fps);
+                let color = '#00ff00'; // green
+                if (value < 30) color = '#ff4444'; // red
+                else if (value < 50) color = '#ffcc00'; // yellow
+                this.fpsEl.textContent = `FPS: ${value}`;
+                this.fpsEl.style.color = color;
             }
 
             hideUI() {
@@ -2856,6 +2869,9 @@
                 this.lobbyRadialCenterX = this.canvas.width / 2;
                 this.lobbyRadialCenterY = this.canvas.height / 3;
                 this.lobbyRadialOuterR = Math.sqrt(this.canvas.width * this.canvas.width + this.canvas.height * this.canvas.height) / 2 + 20;
+                // FPS tracking state
+                this._lastFpsTime = 0;
+                this._fps = 60;
                 // Helper to update radial center from logo position
                 this.updateLobbyRadialCenterFromLogo = () => {
                     const logo = document.getElementById('lobbyLogo');
@@ -4206,6 +4222,20 @@
                 } else {
                     this.uiManager.hideNextWaveTimer();
                     if (this.uiManager && this.uiManager.hideBossWarning) this.uiManager.hideBossWarning();
+                }
+                
+                // FPS calculation and label update
+                if (this._lastFpsTime) {
+                    const dt = (timestamp - this._lastFpsTime) / 1000;
+                    if (dt > 0) {
+                        // Exponential moving average for stability
+                        const inst = 1 / dt;
+                        this._fps = this._fps * 0.9 + inst * 0.1;
+                    }
+                }
+                this._lastFpsTime = timestamp || performance.now();
+                if (this.uiManager && this.uiManager.updateFPS) {
+                    this.uiManager.updateFPS(this._fps);
                 }
                 
                 // Only update UI if not in lobby
