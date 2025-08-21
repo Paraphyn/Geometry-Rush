@@ -129,11 +129,11 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: #ffffff;
+            color: #00ffff;
             font-size: 18px;
             opacity: 0.8;
             pointer-events: none;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
         }
         
         @keyframes logoGlow {
@@ -3825,9 +3825,9 @@
                         cy = centerY * (this.canvas.height / canvasRect.height);
                     }
                     const time = Date.now();
-                    const angle = (time % 60000) / 60000 * Math.PI * 2; // slow rotation: 60s per full turn
+                    const angle = (time % 120000) / 120000 * Math.PI * 2; // slower rotation: 120s per full turn
                     const lines = 36;
-                    const innerR = 80, outerR = Math.max(this.canvas.width, this.canvas.height) * 0.4;
+                    const innerR = 80, outerR = Math.sqrt(this.canvas.width*this.canvas.width + this.canvas.height*this.canvas.height) / 2 + 20;
                     this.ctx.save();
                     this.ctx.translate(cx, cy);
                     this.ctx.rotate(angle);
