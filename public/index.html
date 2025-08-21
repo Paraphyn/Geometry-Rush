@@ -1347,6 +1347,52 @@
             }
         }
 
+        // Spatial hash for broad-phase collision culling
+        class SpatialHash {
+            constructor(cellSize) {
+                this.cellSize = cellSize;
+                this.buckets = new Map();
+            }
+
+            clear() { this.buckets.clear(); }
+
+            _key(col, row) { return col + ',' + row; }
+
+            _range(minX, minY, maxX, maxY) {
+                const cs = this.cellSize;
+                const c0 = Math.floor(minX / cs), r0 = Math.floor(minY / cs);
+                const c1 = Math.floor(maxX / cs), r1 = Math.floor(maxY / cs);
+                return { c0, r0, c1, r1 };
+            }
+
+            insert(item, minX, minY, maxX, maxY) {
+                const { c0, r0, c1, r1 } = this._range(minX, minY, maxX, maxY);
+                for (let r = r0; r <= r1; r++) {
+                    for (let c = c0; c <= c1; c++) {
+                        const k = this._key(c, r);
+                        let arr = this.buckets.get(k);
+                        if (!arr) { arr = []; this.buckets.set(k, arr); }
+                        arr.push(item);
+                    }
+                }
+            }
+
+            queryAABB(minX, minY, maxX, maxY) {
+                const { c0, r0, c1, r1 } = this._range(minX, minY, maxX, maxY);
+                const results = new Set();
+                for (let r = r0; r <= r1; r++) {
+                    for (let c = c0; c <= c1; c++) {
+                        const k = this._key(c, r);
+                        const arr = this.buckets.get(k);
+                        if (arr) {
+                            for (let i = 0; i < arr.length; i++) results.add(arr[i]);
+                        }
+                    }
+                }
+                return Array.from(results);
+            }
+        }
+
         // Effect base class
         class Effect {
             constructor(type, x, y, config) {
@@ -3463,6 +3509,13 @@
                 this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
                 this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
                 
+                // Build spatial hash for enemies this frame
+                const enemyHash = new SpatialHash(80);
+                for (let ei = 0; ei < this.enemies.length; ei++) {
+                    const e = this.enemies[ei];
+                    enemyHash.insert(e, e.x - e.radius, e.y - e.radius, e.x + e.radius, e.y + e.radius);
+                }
+
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
@@ -3483,10 +3536,13 @@
                         continue;
                     }
                     if (!this.player.isDashing) {
+                        // Query only bullets near this enemy using AABB around enemy
                         for (let j = this.bullets.length - 1; j >= 0; j--) {
                             const bullet = this.bullets[j];
-                            const bulletDist = Math.sqrt((bullet.x - enemy.x) ** 2 + (bullet.y - enemy.y) ** 2);
-                            if (bulletDist < bullet.radius + enemy.radius) {
+                            const dx = bullet.x - enemy.x;
+                            const dy = bullet.y - enemy.y;
+                            const r = bullet.radius + enemy.radius;
+                            if (dx*dx + dy*dy < r*r) {
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
                                 this.bullets.splice(j, 1);
                                 if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
@@ -3509,7 +3565,14 @@
                         }
                         for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                             const effect = this.effects.effects[j];
-                            if (effect.type === 'railgunBeam' && effect.intersectsEnemy(enemy)) {
+                            if (effect.type === 'railgunBeam') {
+                                // Quick reject using AABB around enemy vs beam segment bbox
+                                const minX = Math.min(effect.x, effect.endX) - enemy.radius;
+                                const maxX = Math.max(effect.x, effect.endX) + enemy.radius;
+                                const minY = Math.min(effect.y, effect.endY) - enemy.radius;
+                                const maxY = Math.max(effect.y, effect.endY) + enemy.radius;
+                                if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
+                                if (!effect.intersectsEnemy(enemy)) continue;
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
@@ -3533,6 +3596,17 @@
 
                 // Bullet collisions with tetromino pieces
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                    // Spatial hash for tetromino cells (treat each cell as small AABB)
+                    const cellHash = new SpatialHash(TETRIS_SETTINGS.cellSize || 40);
+                    for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
+                        const piece = this.tetrisManager.activePieces[p];
+                        const cells = piece.getCells();
+                        for (let c = 0; c < cells.length; c++) {
+                            const cell = cells[c];
+                            const r = cell.r;
+                            cellHash.insert({ piece, cell }, cell.x - r, cell.y - r, cell.x + r, cell.y + r);
+                        }
+                    }
                     outerBullet: for (let j = this.bullets.length - 1; j >= 0; j--) {
                         const b = this.bullets[j];
                         // First, check collision with Cross shield and remove bullet
@@ -3543,13 +3617,12 @@
                             this.bullets.splice(j, 1);
                             continue;
                         }
-                        for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
-                            const piece = this.tetrisManager.activePieces[p];
-                            const cells = piece.getCells();
-                            for (let c = 0; c < cells.length; c++) {
-                                const cell = cells[c];
-                                const dist = Math.hypot(b.x - cell.x, b.y - cell.y);
-                                if (dist < b.radius + cell.r) {
+                        // Query nearby cells via spatial hash
+                        const nearby = cellHash.queryAABB(b.x - 20, b.y - 20, b.x + 20, b.y + 20);
+                        for (let idx = 0; idx < nearby.length; idx++) {
+                            const { piece, cell } = nearby[idx];
+                            const dx = b.x - cell.x, dy = b.y - cell.y;
+                            if (dx*dx + dy*dy < (b.radius + cell.r) * (b.radius + cell.r)) {
                                     // Hit
                                     this.bullets.splice(j, 1);
                                     piece.hp -= b.damage;
@@ -3561,7 +3634,6 @@
                                     }
                                     continue outerBullet;
                                 }
-                            }
                         }
                     }
 
