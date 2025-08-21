@@ -2663,9 +2663,9 @@
                 this.lastShot = 0;
                 this.inLobby = true;
                 this.setupCanvas();
-                // Expose && initialize motion scale based on resolution
+                // Expose && initialize scaling
                 if (typeof window !== 'undefined') { window.game = this; }
-                this.speedScale = computeResolutionScale(this.canvas.width, this.canvas.height);
+                this.speedScale = 1; // fixed internal resolution; keep motion scale 1
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
@@ -2777,8 +2777,11 @@
             }
 
             setupCanvas() {
-                this.canvas.width = window.innerWidth;
-                this.canvas.height = window.innerHeight;
+                // Fixed internal resolution scaled via CSS to keep element sizes consistent
+                this.canvas.width = SPEED_SETTINGS.baseWidth;
+                this.canvas.height = SPEED_SETTINGS.baseHeight;
+                this.canvas.style.width = window.innerWidth + 'px';
+                this.canvas.style.height = window.innerHeight + 'px';
             }
 
             async setupAudio() {
@@ -3091,9 +3094,10 @@
 
             setupEventListeners() {
                 window.addEventListener('resize', () => {
-                    this.canvas.width = window.innerWidth;
-                    this.canvas.height = window.innerHeight;
-                    this.speedScale = computeResolutionScale(this.canvas.width, this.canvas.height);
+                    // Keep internal resolution fixed; scale via CSS on resize
+                    this.canvas.style.width = window.innerWidth + 'px';
+                    this.canvas.style.height = window.innerHeight + 'px';
+                    this.speedScale = 1;
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
@@ -3174,8 +3178,10 @@
                 this.canvas.addEventListener('mousemove', e => {
                     if (this.gameOver || this.inLobby) return;
                     const rect = this.canvas.getBoundingClientRect();
-                    this.input.mouse.x = e.clientX - rect.left;
-                    this.input.mouse.y = e.clientY - rect.top;
+                    const scaleX = this.canvas.width / rect.width;
+                    const scaleY = this.canvas.height / rect.height;
+                    this.input.mouse.x = (e.clientX - rect.left) * scaleX;
+                    this.input.mouse.y = (e.clientY - rect.top) * scaleY;
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
