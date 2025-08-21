@@ -623,13 +623,17 @@
                     audio.currentTime = 0;
                     audio.volume = (audio === this.audios.backgroundMusic || audio === this.audios.lobbyMusic) ? 
                         (this.musicEnabled ? this.musicVolume : 0) : this.volume;
-                    if (soundName === 'bulletShoot' || soundName === 'enemyHit') {
-                        const clone = audio.cloneNode();
-                        clone.volume = audio.volume;
-                        clone.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
-                    } else {
-                        audio.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
-                    }
+                    // Limit concurrency for very frequent SFX
+                    if (!this._playingCounts) this._playingCounts = {};
+                    const maxVoices = (soundName === 'bulletShoot' || soundName === 'enemyHit') ? 4 : 8;
+                    const key = soundName;
+                    const now = Date.now();
+                    if (!this._playingCounts[key]) this._playingCounts[key] = [];
+                    // Prune finished voices
+                    this._playingCounts[key] = this._playingCounts[key].filter(t => now - t < 250);
+                    if (this._playingCounts[key].length >= maxVoices) return;
+                    this._playingCounts[key].push(now);
+                    audio.play().catch(e => console.warn(`Failed to play ${soundName}:`, e));
                 } catch (e) {
                     console.warn(`Error playing ${soundName}:`, e);
                 }
@@ -1651,11 +1655,11 @@
             createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
                 const dx = targetX - startX;
                 const dy = targetY - startY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
+                const invLen = 1 / (Math.sqrt(dx * dx + dy * dy) || 1);
                 const maxDist = Math.max(canvas.width, canvas.height) * 2;
                 this.effects.push(new Effect('railgunBeam', startX, startY, {
-                    endX: startX + (dx / dist) * maxDist,
-                    endY: startY + (dy / dist) * maxDist,
+                    endX: startX + (dx * invLen) * maxDist,
+                    endY: startY + (dy * invLen) * maxDist,
                     charge: charge,
                     damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * (this.playerDamageMultiplier || 1),
                     life: 60,
@@ -1664,6 +1668,8 @@
                     width: 8,
                     hitEnemies: new Set(),
                     hitTetrominoIds: new Set(),
+                    _segDx: dx * invLen,
+                    _segDy: dy * invLen,
                     typeSpecificUpdate: function() {
                         const t = getTimeScale();
                         this.life -= t;
@@ -1687,20 +1693,17 @@
                     },
                     intersectsEnemy: function(enemy) {
                         if (this.hitEnemies.has(enemy)) return false;
-                        const p1 = { x: this.x, y: this.y };
-                        const p2 = { x: this.endX, y: this.endY };
-                        const p3 = { x: enemy.x, y: enemy.y };
-                        const radius = enemy.radius;
-                        const dx = p2.x - p1.x;
-                        const dy = p2.y - p1.y;
-                        const len = Math.sqrt(dx * dx + dy * dy);
-                        const dot = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / (len * len);
-                        const closestX = p1.x + dot * dx;
-                        const closestY = p1.y + dot * dy;
-                        const distX = p3.x - closestX;
-                        const distY = p3.y - closestY;
-                        const distance = Math.sqrt(distX * distX + distY * distY);
-                        if (distance <= radius && dot >= 0 && dot <= 1) {
+                        const dx = this.endX - this.x;
+                        const dy = this.endY - this.y;
+                        const segLen2 = dx*dx + dy*dy;
+                        const t = ((enemy.x - this.x) * dx + (enemy.y - this.y) * dy) / segLen2;
+                        if (t < 0 || t > 1) return false;
+                        const cx = this.x + t * dx;
+                        const cy = this.y + t * dy;
+                        const ddx = enemy.x - cx;
+                        const ddy = enemy.y - cy;
+                        const r2 = enemy.radius * enemy.radius;
+                        if (ddx*ddx + ddy*ddy <= r2) {
                             this.hitEnemies.add(enemy);
                             return true;
                         }
@@ -1708,18 +1711,16 @@
                     },
                     intersectsCircle: function(cx, cy, radius, id) {
                         if (id != null && this.hitTetrominoIds.has(id)) return false;
-                        const p1 = { x: this.x, y: this.y };
-                        const p2 = { x: this.endX, y: this.endY };
-                        const dx = p2.x - p1.x;
-                        const dy = p2.y - p1.y;
-                        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const dot = ((cx - p1.x) * dx + (cy - p1.y) * dy) / (len * len);
-                        const closestX = p1.x + dot * dx;
-                        const closestY = p1.y + dot * dy;
-                        const distX = cx - closestX;
-                        const distY = cy - closestY;
-                        const distance = Math.sqrt(distX * distX + distY * distY);
-                        if (distance <= radius && dot >= 0 && dot <= 1) {
+                        const dx = this.endX - this.x;
+                        const dy = this.endY - this.y;
+                        const segLen2 = dx*dx + dy*dy;
+                        const t = ((cx - this.x) * dx + (cy - this.y) * dy) / segLen2;
+                        if (t < 0 || t > 1) return false;
+                        const px = this.x + t * dx;
+                        const py = this.y + t * dy;
+                        const ddx = cx - px;
+                        const ddy = cy - py;
+                        if (ddx*ddx + ddy*ddy <= radius*radius) {
                             if (id != null) this.hitTetrominoIds.add(id);
                             return true;
                         }
