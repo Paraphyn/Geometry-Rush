@@ -2830,6 +2830,18 @@
                 this.lobbyRadialCenterX = this.canvas.width / 2;
                 this.lobbyRadialCenterY = this.canvas.height / 3;
                 this.lobbyRadialOuterR = Math.sqrt(this.canvas.width * this.canvas.width + this.canvas.height * this.canvas.height) / 2 + 20;
+                // Helper to update radial center from logo position
+                this.updateLobbyRadialCenterFromLogo = () => {
+                    const logo = document.getElementById('lobbyLogo');
+                    const rect = logo && logo.getBoundingClientRect ? logo.getBoundingClientRect() : null;
+                    const canvasRect = this.canvas.getBoundingClientRect();
+                    if (rect) {
+                        const centerX = rect.left + rect.width / 2 - canvasRect.left;
+                        const centerY = rect.top + rect.height / 2 - canvasRect.top;
+                        this.lobbyRadialCenterX = centerX * (this.canvas.width / canvasRect.width);
+                        this.lobbyRadialCenterY = centerY * (this.canvas.height / canvasRect.height);
+                    }
+                };
                 // Offscreen grid pattern cache
                 this.gridPatternCanvas = null;
                 this.gridPattern = null;
@@ -2976,6 +2988,8 @@
                 lobbyLogo.addEventListener('load', () => {
                     lobbyTitle.style.display = 'none';
                     lobbyLogo.style.display = 'block';
+                    // Align radial center to logo center when ready
+                    if (this.updateLobbyRadialCenterFromLogo) this.updateLobbyRadialCenterFromLogo();
                 });
                 
                 // Handle logo load error (fallback to text)
@@ -3281,14 +3295,8 @@
                     }
                     // Update cached lobby radial center and outer radius
                     this.lobbyRadialOuterR = Math.sqrt(this.canvas.width * this.canvas.width + this.canvas.height * this.canvas.height) / 2 + 20;
-                    const logo = document.getElementById('lobbyLogo');
-                    const rect = logo && logo.getBoundingClientRect ? logo.getBoundingClientRect() : null;
-                    const canvasRect = this.canvas.getBoundingClientRect();
-                    if (rect) {
-                        const centerX = rect.left + rect.width / 2 - canvasRect.left;
-                        const centerY = rect.top + rect.height / 2 - canvasRect.top + 40;
-                        this.lobbyRadialCenterX = centerX * (this.canvas.width / canvasRect.width);
-                        this.lobbyRadialCenterY = centerY * (this.canvas.height / canvasRect.height);
+                    if (this.updateLobbyRadialCenterFromLogo) {
+                        this.updateLobbyRadialCenterFromLogo();
                     } else {
                         this.lobbyRadialCenterX = this.canvas.width / 2;
                         this.lobbyRadialCenterY = this.canvas.height / 3;
