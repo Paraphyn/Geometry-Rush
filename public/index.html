@@ -1960,6 +1960,9 @@
                 this.isBoss = !!config.isBoss || config.role === 'boss';
                 this.bossTriangleSpawnIntervalMs = config.bossTriangleSpawnIntervalMs || 0;
                 this.lastTriangleSpawnTime = 0;
+                // Damage indicator for health bar (white overlay segment)
+                this.recentDamage = 0;
+                this.recentDamageFade = 0; // frames left
                 if (type === 'rhombus' || type === 'rhombus_boss') {
                     this.invulnerable = false;
                     this.lastStateChange = Date.now();
@@ -2060,6 +2063,9 @@
                 if ((this.spawnShieldUntil && Date.now() < this.spawnShieldUntil) || (this.type === 'rhombus' && this.invulnerable)) return true;
                 this.health -= damage;
                 this.damageFlash = 10;
+                // Record recent damage for health bar overlay
+                this.recentDamage = Math.max(0, damage);
+                this.recentDamageFade = 45; // ~0.75s at 60fps
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
                 if (this.health <= 0) {
@@ -2087,7 +2093,19 @@
                     ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
                     ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
                     ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * (this.health / this.maxHealth), h);
+                    const healthPct = Math.max(0, this.health / this.maxHealth);
+                    ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * healthPct, h);
+                    // Draw recent damage overlay as white segment with fading opacity
+                    if (this.recentDamageFade > 0 && this.maxHealth > 0) {
+                        const t = getTimeScale();
+                        this.recentDamageFade = Math.max(0, this.recentDamageFade - t);
+                        const recentPct = Math.min(1, this.recentDamage / this.maxHealth);
+                        const overlayStart = this.x - w/2 + w * healthPct;
+                        const overlayWidth = Math.max(0, w * recentPct);
+                        const alpha = Math.max(0, this.recentDamageFade / 45);
+                        ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha})`;
+                        ctx.fillRect(overlayStart, this.y - this.radius - 10, overlayWidth, h);
+                    }
                 }
             }
         }
@@ -2407,6 +2425,8 @@
                 this.damageFlash = 0;
                 this.lastShoot = 0;
                 this.shootCooldownMs = 3000;
+                this.recentDamage = 0;
+                this.recentDamageFade = 0;
             }
 
             update() {
@@ -2448,6 +2468,8 @@
                 // Only fully charged railgun can penetrate shield
                 if (!fullCharge) return true; // no effect
                 this.damageFlash = 12;
+                this.recentDamage = Math.max(0, damage);
+                this.recentDamageFade = 45;
                 this.hp -= damage;
                 if (this.hp <= 0) {
                     this.active = false;
@@ -2536,13 +2558,22 @@
                 ctx.lineWidth = 4;
                 ctx.arc(this.x, this.y, 63, 0, Math.PI * 2);
                 ctx.stroke();
-                // HP bar
+                // HP bar with recent damage overlay
                 const w = 120, h = 6;
                 ctx.fillStyle = 'rgba(100, 0, 0, 0.7)';
                 ctx.fillRect(this.x - w/2, this.y - 74, w, h);
                 ctx.fillStyle = 'rgba(255, 60, 60, 0.95)';
                 const pct = Math.max(0, Math.min(1, this.hp / this.maxHp));
                 ctx.fillRect(this.x - w/2, this.y - 74, w * pct, h);
+                if (this.recentDamageFade && this.recentDamageFade > 0 && this.maxHp > 0) {
+                    this.recentDamageFade = Math.max(0, this.recentDamageFade - getTimeScale());
+                    const recentPct = Math.min(1, (this.recentDamage || 0) / this.maxHp);
+                    const overlayStart = this.x - w/2 + w * pct;
+                    const overlayWidth = Math.max(0, w * recentPct);
+                    const alpha = Math.max(0, this.recentDamageFade / 45);
+                    ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha})`;
+                    ctx.fillRect(overlayStart, this.y - 74, overlayWidth, h);
+                }
                 ctx.restore();
             }
         }
@@ -2566,6 +2597,9 @@
                 this.xpFill = document.getElementById('xpFill');
                 this.xpLevel = document.getElementById('xpLevel');
                 this.bossWarningShown = false;
+                // XP gain overlay
+                this.xpGainOverlayWidth = 0; // percent [0..1]
+                this.xpGainFade = 0; // frames left
             }
 
             hideUI() {
@@ -2642,6 +2676,33 @@
                 const pct = Math.max(0, Math.min(1, requiredXp > 0 ? currentXp / requiredXp : 0));
                 this.xpFill.style.width = `${pct * 100}%`;
                 this.xpLevel.textContent = `Level ${level}`;
+                // Apply overlay fading if active (drawn via box-shadow-like overlay using CSS gradient)
+                if (this.xpGainFade > 0) {
+                    this.xpGainFade = Math.max(0, this.xpGainFade - getTimeScale());
+                    const alpha = Math.max(0, this.xpGainFade / 45);
+                    const overlayPct = Math.max(0, Math.min(1, this.xpGainOverlayWidth));
+                    // Create a white overlay segment to the right of the fill
+                    const baseWidth = pct * 100;
+                    const overlayWidth = overlayPct * 100;
+                    const gradient = `linear-gradient(to right, rgba(255,255,255,${0.85*alpha}) 0%, rgba(255,255,255,${0.85*alpha}) ${overlayWidth}%, rgba(255,255,255,0) ${overlayWidth}%)`;
+                    this.xpFill.style.backgroundImage = gradient;
+                    this.xpFill.style.backgroundSize = `${overlayWidth}% 100%`;
+                    this.xpFill.style.backgroundRepeat = 'no-repeat';
+                    this.xpFill.style.backgroundPosition = `${baseWidth}% 0`;
+                    if (this.xpGainFade === 0) {
+                        // Clear overlay
+                        this.xpFill.style.backgroundImage = '';
+                    }
+                } else {
+                    this.xpFill.style.backgroundImage = '';
+                }
+            }
+
+            showXPGainOverlay(amount, requiredXp) {
+                if (!requiredXp || requiredXp <= 0) return;
+                // width proportional to required XP
+                this.xpGainOverlayWidth = Math.max(0, Math.min(1, amount / requiredXp));
+                this.xpGainFade = 45; // ~0.75s
             }
 
             resetXPBar() {
@@ -3605,6 +3666,7 @@
                             // Visual collect effect
                             this.effects.createXPCollectEffect(eff.x, eff.y);
                             // Update UI
+                            this.uiManager.showXPGainOverlay(add, this.playerXpRequired);
                             this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
                             // Remove the ring
                             this.effects.effects.splice(k, 1);
