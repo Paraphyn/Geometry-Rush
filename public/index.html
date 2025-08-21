@@ -1817,17 +1817,32 @@
             update(playerX, playerY) {
                 this.playerX = playerX;
                 this.playerY = playerY;
-                this.effects = this.effects.filter(effect => effect.update(playerX, playerY));
+                // In-place compaction to avoid new array allocations
+                let write = 0;
+                for (let read = 0; read < this.effects.length; read++) {
+                    const eff = this.effects[read];
+                    if (eff.update(playerX, playerY)) {
+                        this.effects[write++] = eff;
+                    }
+                }
+                this.effects.length = write;
             }
 
             draw(ctx, score, playerX, playerY, bullets) {
-                this.effects.forEach(effect => {
+                // Pre-scan dash trails to avoid repeated filtering per effect
+                const dashTrails = [];
+                for (let i = 0; i < this.effects.length; i++) {
+                    const ef = this.effects[i];
+                    if (ef.type === 'dashTrail') dashTrails.push(ef);
+                }
+                const dashCount = dashTrails.length;
+                const maxOpacity = 0.3;
+                const minOpacity = 0.05;
+                for (let i = 0; i < this.effects.length; i++) {
+                    const effect = this.effects[i];
                     if (effect.type === 'dashTrail') {
-                        const index = this.effects.filter(e => e.type === 'dashTrail').indexOf(effect);
-                        const maxOpacity = 0.3;
-                        const minOpacity = 0.05;
-                        const dashTrails = this.effects.filter(e => e.type === 'dashTrail');
-                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, dashTrails.length - 1));
+                        const index = dashTrails.indexOf(effect);
+                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, dashCount - 1));
                         ctx.save();
                         ctx.globalAlpha = effect.opacity * opacityScale;
                         ctx.fillStyle = effect.color;
@@ -1838,7 +1853,7 @@
                     } else {
                         effect.draw(ctx);
                     }
-                });
+                }
                 bullets.forEach(bullet => bullet.draw(ctx));
                 this.playerX = playerX;
                 this.playerY = playerY;
