@@ -1010,6 +1010,11 @@
                         const last = effects.effects[effects.effects.length - 1];
                         if (last && last.type === 'railgunBeam') {
                             last.damage = Math.floor(last.damage * dmgMul);
+                            // Visual tweak for max charge: wider and orange
+                            if (this.railgunCharge >= 0.95) {
+                                last.width = Math.floor((last.width || 8) * 1.25);
+                                last._isMaxCharge = true;
+                            }
                         }
                     }
                     if (audio) audio.playSound('railgunShoot');
@@ -1046,9 +1051,10 @@
                 if (this.railgunCharge > 0 && this.blinkState) {
                     const w = this.radius * 2;
                     const h = 4;
-                    ctx.fillStyle = 'rgba(0, 100, 100, 0.7)';
+                    const isMax = this.railgunCharge >= 0.95;
+                    ctx.fillStyle = isMax ? 'rgba(120, 60, 0, 0.7)' : 'rgba(0, 100, 100, 0.7)';
                     ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w, h);
-                    ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+                    ctx.fillStyle = isMax ? 'rgba(255, 165, 0, 0.9)' : 'rgba(0, 255, 255, 0.7)';
                     ctx.fillRect(this.x - w/2, this.y - this.radius - 10, w * this.railgunCharge, h);
                 }
             }
@@ -1429,23 +1435,29 @@
                     baseRadius: 25,
                     radiusOffset: 6,
                     baseSize: 2.5,
-                    maxOpacity: 0.5,
+                    maxOpacityBase: 0.5,
                     typeSpecificUpdate: function(playerX, playerY) {
                         this.x = playerX;
                         this.y = playerY;
                         this.angle += this.rotationSpeed * getTimeScale();
                         this.renderRadius = (this.baseRadius || 25) + this.radiusOffset;
+                        // Fade aura as charge approaches max
+                        const charge = (typeof window !== 'undefined' && window.game && window.game.player) ? (window.game.player.railgunCharge || 0) : 0;
+                        const fade = Math.max(0, 1 - Math.min(1, charge));
+                        this.currentMaxOpacity = (this.maxOpacityBase || 0.5) * fade;
                         return true;
                     },
                     typeSpecificDraw: function(ctx) {
                         const step = Math.PI * 2 / this.particleCount;
+                        const charge = (typeof window !== 'undefined' && window.game && window.game.player) ? (window.game.player.railgunCharge || 0) : 0;
+                        const color = (charge >= 0.95) ? '#ffa500' : '#00ffff';
                         for (let i = 0; i < this.particleCount; i++) {
                             const a = this.angle + i * step;
                             const px = this.x + Math.cos(a) * this.renderRadius;
                             const py = this.y + Math.sin(a) * this.renderRadius;
                             ctx.save();
-                            ctx.globalAlpha = this.maxOpacity;
-                            ctx.fillStyle = '#00ffff';
+                            ctx.globalAlpha = this.currentMaxOpacity != null ? this.currentMaxOpacity : (this.maxOpacityBase || 0.5);
+                            ctx.fillStyle = color;
                             ctx.beginPath();
                             ctx.arc(px, py, this.baseSize, 0, Math.PI * 2);
                             ctx.fill();
@@ -1726,9 +1738,15 @@
                         ctx.save();
                         ctx.globalAlpha = this.opacity;
                         const gradient = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
-                        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
-                        gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
-                        gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        if (this._isMaxCharge) {
+                            gradient.addColorStop(0, 'rgba(255, 165, 0, 0.2)');
+                            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
+                            gradient.addColorStop(1, 'rgba(255, 165, 0, 0.2)');
+                        } else {
+                            gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+                            gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                            gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        }
                         ctx.strokeStyle = gradient;
                         ctx.lineWidth = this.width;
                         ctx.beginPath();
