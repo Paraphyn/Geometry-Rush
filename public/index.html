@@ -3128,7 +3128,8 @@
                     this.gridPatternCanvas.width = gridSize * 2;
                     this.gridPatternCanvas.height = gridSize * 2;
                     const gctx = this.gridPatternCanvas.getContext('2d');
-                    gctx.strokeStyle = 'rgba(255, 180, 180, 0.12)';
+                    // Slightly stronger base visibility for grid
+                    gctx.strokeStyle = 'rgba(255, 190, 190, 0.2)';
                     gctx.lineWidth = 1;
                     // One vertical and one horizontal line per grid
                     for (let x = 0; x <= this.gridPatternCanvas.width; x += gridSize) {
@@ -3140,10 +3141,37 @@
                     this.gridPattern = this.ctx.createPattern(this.gridPatternCanvas, 'repeat');
                 }
                 this.ctx.save();
-                this.ctx.globalAlpha = this.inBossPhase ? (0.2 + 0.2 * pulse) : 0.12;
+                // Base alpha a bit higher; stronger pulse during boss presence
+                this.ctx.globalAlpha = this.inBossPhase && this.activeBoss
+                    ? (0.25 + 0.25 * pulse)
+                    : 0.18;
                 this.ctx.fillStyle = this.gridPattern;
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 this.ctx.restore();
+
+                // During boss alert (warning before spawn), overlay red blinking grid lines for visibility
+                const alertPhase = this.inBossPhase && !this.activeBoss;
+                if (alertPhase) {
+                    const alpha = 0.25 + 0.25 * (0.5 + 0.5 * Math.sin(phase * Math.PI * 2));
+                    this.ctx.save();
+                    this.ctx.strokeStyle = `rgba(255, 60, 60, ${alpha.toFixed(3)})`;
+                    this.ctx.lineWidth = 1;
+                    // Vertical lines
+                    for (let x = 0; x <= this.canvas.width; x += gridSize) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(x, 0);
+                        this.ctx.lineTo(x, this.canvas.height);
+                        this.ctx.stroke();
+                    }
+                    // Horizontal lines
+                    for (let y = 0; y <= this.canvas.height; y += gridSize) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(0, y);
+                        this.ctx.lineTo(this.canvas.width, y);
+                        this.ctx.stroke();
+                    }
+                    this.ctx.restore();
+                }
             }
             
             startGame() {
