@@ -476,7 +476,8 @@
             update(canvas) {
                 const motion = getMotionScale();
                 const t = getTimeScale();
-                this.y += this.speed * motion;
+                // Slow fall speed by 30%
+                this.y += this.speed * motion * 0.7;
                 this.life += t;
                 this.twinkle += 0.05 * t;
                 
