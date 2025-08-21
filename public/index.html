@@ -2325,33 +2325,36 @@
             draw(ctx) {
                 const cells = this.getCells();
                 ctx.save();
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = 'rgba(255, 80, 80, 0.8)';
                 const t = this.dying ? Math.min(1, this.deathLife / this.deathMaxLife) : 0;
                 const alpha = this.dying ? (1 - t) : 1;
                 const scale = this.dying ? (1 - 0.2 * t) : 1;
                 const blink = this.damageFlash > 0 && (Math.floor(this.damageFlash / 2) % 2 === 0);
-                cells.forEach(({ x, y }) => {
-                    const halfBase = this.cellSize / 2 - 2;
-                    const half = halfBase * scale;
-                    ctx.globalAlpha = alpha;
-                    ctx.fillStyle = 'rgba(255, 80, 80, 0.9)';
-                    ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
-                    ctx.lineWidth = 2;
+                const halfBase = this.cellSize / 2 - 2;
+                const half = halfBase * scale;
+                // Batch draw all tetromino cells with one fill+stroke to minimize state churn
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = 'rgba(255, 80, 80, 0.9)';
+                ctx.strokeStyle = 'rgba(255, 30, 30, 1)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < cells.length; i++) {
+                    const c = cells[i];
+                    ctx.rect(c.x - half, c.y - half, half * 2, half * 2);
+                }
+                ctx.fill();
+                ctx.stroke();
+                if (blink) {
+                    ctx.save();
+                    ctx.globalAlpha = Math.min(1, 0.7 * alpha);
+                    ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
-                    ctx.rect(x - half, y - half, half * 2, half * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                    if (blink) {
-                        ctx.save();
-                        ctx.globalAlpha = Math.min(1, 0.7 * alpha);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.beginPath();
-                        ctx.rect(x - half, y - half, half * 2, half * 2);
-                        ctx.fill();
-                        ctx.restore();
+                    for (let i = 0; i < cells.length; i++) {
+                        const c = cells[i];
+                        ctx.rect(c.x - half, c.y - half, half * 2, half * 2);
                     }
-                });
+                    ctx.fill();
+                    ctx.restore();
+                }
                 ctx.restore();
             }
 
@@ -2467,20 +2470,19 @@
             }
 
             draw(ctx) {
-                // Draw stack
+                // Draw stack (batch by style, no shadow blur)
                 ctx.save();
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = 'rgba(255,40,40,0.6)';
-                this.stack.forEach(cell => {
+                ctx.fillStyle = 'rgba(180, 20, 20, 0.9)';
+                ctx.strokeStyle = 'rgba(255, 40, 40, 1)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let i = 0; i < this.stack.length; i++) {
+                    const cell = this.stack[i];
                     const half = cell.r;
-                    ctx.fillStyle = 'rgba(180, 20, 20, 0.9)';
-                    ctx.strokeStyle = 'rgba(255, 40, 40, 1)';
-                    ctx.lineWidth = 1.5;
-                    ctx.beginPath();
                     ctx.rect(cell.x - half, cell.y - half, half * 2, half * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                });
+                }
+                ctx.fill();
+                ctx.stroke();
                 ctx.restore();
                 // Draw active pieces
                 this.activePieces.forEach(p => p.draw(ctx));
@@ -2616,33 +2618,25 @@
             }
 
             draw(ctx) {
-                // Draw cross: vertical and horizontal bars made of squares
+                // Draw cross: vertical and horizontal bars made of squares (batch, no blur)
                 ctx.save();
-                ctx.shadowBlur = 18;
-                ctx.shadowColor = 'rgba(255, 80, 80, 0.9)';
                 const s = 18; // square size
                 const halfW = Math.floor(this.width / s / 2) * s;
                 const halfH = Math.floor(this.height / s / 2) * s;
-                // Horizontal bar
+                const fill = this.damageFlash > 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255, 80, 80, 0.95)';
+                const stroke = this.damageFlash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255, 30, 30, 1)';
+                ctx.fillStyle = fill;
+                ctx.strokeStyle = stroke;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
                 for (let x = -halfW; x <= halfW; x += s) {
-                    ctx.fillStyle = this.damageFlash > 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255, 80, 80, 0.95)';
-                    ctx.strokeStyle = this.damageFlash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255, 30, 30, 1)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
                     ctx.rect(this.x + x - s/2, this.y - s/2, s, s);
-                    ctx.fill();
-                    ctx.stroke();
                 }
-                // Vertical bar
                 for (let y = -halfH; y <= halfH; y += s) {
-                    ctx.fillStyle = this.damageFlash > 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255, 80, 80, 0.95)';
-                    ctx.strokeStyle = this.damageFlash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255, 30, 30, 1)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
                     ctx.rect(this.x - s/2, this.y + y - s/2, s, s);
-                    ctx.fill();
-                    ctx.stroke();
                 }
+                ctx.fill();
+                ctx.stroke();
                 // Shield aura (only penetrable by full railgun)
                 ctx.beginPath();
                 ctx.strokeStyle = 'rgba(255,140,0,0.9)';
@@ -2672,15 +2666,24 @@
         // UI Manager for handling UI visibility
         class UIManager {
             constructor() {
+                // Cache DOM nodes once
+                this.enemiesEl = document.querySelector('.enemies');
+                this.timerEl = document.querySelector('.timer');
+                this.scoreEl = document.querySelector('.score');
+                this.waveEl = document.querySelector('.wave');
+                this.controlsEl = document.querySelector('.controls');
+                this.xpLabelEl = document.querySelector('.xp-label');
+                this.xpBarEl = document.querySelector('.xp-bar');
+                this.xpLevelEl = document.querySelector('.xp-level');
                 this.uiElements = [
-                    document.querySelector('.enemies'),
-                    document.querySelector('.timer'),
-                    document.querySelector('.score'),
-                    document.querySelector('.wave'),
-                    document.querySelector('.controls'),
-                    document.querySelector('.xp-label'),
-                    document.querySelector('.xp-bar'),
-                    document.querySelector('.xp-level')
+                    this.enemiesEl,
+                    this.timerEl,
+                    this.scoreEl,
+                    this.waveEl,
+                    this.controlsEl,
+                    this.xpLabelEl,
+                    this.xpBarEl,
+                    this.xpLevelEl
                 ];
                 this.nextWaveElement = document.querySelector('#nextWave');
                 this.scoreAdditionElement = document.querySelector('#scoreAddition');
@@ -2691,6 +2694,9 @@
                 // XP gain overlay
                 this.xpGainOverlayWidth = 0; // percent [0..1]
                 this.xpGainFade = 0; // frames left
+                // Cache overlay element and width as needed
+                this.xpOverlayEl = null;
+                this._cachedXpBarClientWidth = 0;
             }
 
             hideUI() {
@@ -2767,21 +2773,25 @@
                 const pct = Math.max(0, Math.min(1, requiredXp > 0 ? currentXp / requiredXp : 0));
                 this.xpFill.style.width = `${pct * 100}%`;
                 this.xpLevel.textContent = `Level ${level}`;
-                // Apply overlay fading if active using separate element for reliability
-                const bar = document.querySelector('.xp-bar');
-                let overlay = bar ? bar.querySelector('.xp-gain-overlay') : null;
-                if (bar && !overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'xp-gain-overlay';
-                    bar.appendChild(overlay);
+                // Apply overlay fading using cached elements and width
+                if (!this.xpOverlayEl && this.xpBarEl) {
+                    this.xpOverlayEl = document.createElement('div');
+                    this.xpOverlayEl.className = 'xp-gain-overlay';
+                    this.xpBarEl.appendChild(this.xpOverlayEl);
+                    this._cachedXpBarClientWidth = this.xpBarEl.clientWidth;
                 }
+                const overlay = this.xpOverlayEl;
                 if (overlay) {
                     if (this.xpGainFade > 0) {
                         this.xpGainFade = Math.max(0, this.xpGainFade - getTimeScale());
                         const alpha = Math.max(0, this.xpGainFade / 45);
                         const overlayPct = Math.max(0, Math.min(1, this.xpGainOverlayWidth));
-                        const basePx = pct * bar.clientWidth;
-                        const overlayPx = overlayPct * bar.clientWidth;
+                        // Use cached width to avoid reflow; refresh occasionally when overlay starts
+                        if (this._cachedXpBarClientWidth === 0 || (this.xpGainFade === 45 && this.xpBarEl)) {
+                            this._cachedXpBarClientWidth = this.xpBarEl.clientWidth;
+                        }
+                        const basePx = pct * this._cachedXpBarClientWidth;
+                        const overlayPx = overlayPct * this._cachedXpBarClientWidth;
                         overlay.style.left = `${basePx}px`;
                         overlay.style.width = `${overlayPx}px`;
                         overlay.style.opacity = `${0.85 * alpha}`;
@@ -2888,21 +2898,14 @@
                 this.defeatedBossCount = 0;
 
                 // Helpers for UI-to-canvas mapping
+                // Cache boss-safe Y derived from XP bar on resize
+                this._cachedBossSafeMinCenterY = 120;
                 this.screenToCanvasY = (screenY) => {
                     const rect = this.canvas.getBoundingClientRect();
                     return (screenY - rect.top) * (this.canvas.height / rect.height);
                 };
                 this.getBossSafeMinCenterY = () => {
-                    const xpEl = document.querySelector('.xp-bar');
-                    if (!xpEl) return 100; // fallback
-                    const xpRect = xpEl.getBoundingClientRect();
-                    const canvasRect = this.canvas.getBoundingClientRect();
-                    // If XP bar is above the canvas, no need to offset
-                    if (xpRect.bottom <= canvasRect.top) return 100;
-                    const xpBottomCanvasY = this.screenToCanvasY(xpRect.bottom);
-                    const margin = 8;
-                    // Boss HP bar renders at y - 74, so center must be at least xpBottom + 74 + margin
-                    return xpBottomCanvasY + 74 + margin;
+                    return this._cachedBossSafeMinCenterY;
                 };
             }
 
@@ -3343,6 +3346,12 @@
                     this.canvas.style.left = offsetX + 'px';
                     this.canvas.style.top = offsetY + 'px';
                     this.speedScale = 1;
+                    // Cache canvas rect-derived scales for mouse mapping
+                    const rect = this.canvas.getBoundingClientRect();
+                    this._cachedRectLeft = rect.left;
+                    this._cachedRectTop = rect.top;
+                    this._cachedScaleX = this.canvas.width / rect.width;
+                    this._cachedScaleY = this.canvas.height / rect.height;
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
                     if (this.player.health === 100 && this.score === 0) {
@@ -3356,6 +3365,19 @@
                     } else {
                         this.lobbyRadialCenterX = this.canvas.width / 2;
                         this.lobbyRadialCenterY = this.canvas.height / 3;
+                    }
+                    // Refresh cached boss-safe min center Y from XP bar position
+                    const xpEl = document.querySelector('.xp-bar');
+                    if (xpEl) {
+                        const xpRect = xpEl.getBoundingClientRect();
+                        const canvasRect = this.canvas.getBoundingClientRect();
+                        if (xpRect.bottom <= canvasRect.top) {
+                            this._cachedBossSafeMinCenterY = 120;
+                        } else {
+                            const xpBottomCanvasY = this.screenToCanvasY(xpRect.bottom);
+                            const margin = 8;
+                            this._cachedBossSafeMinCenterY = xpBottomCanvasY + 74 + margin;
+                        }
                     }
                 });
 
@@ -3430,11 +3452,13 @@
 
                 this.canvas.addEventListener('mousemove', e => {
                     if (this.gameOver || this.inLobby) return;
-                    const rect = this.canvas.getBoundingClientRect();
-                    const scaleX = this.canvas.width / rect.width;
-                    const scaleY = this.canvas.height / rect.height;
-                    this.input.mouse.x = (e.clientX - rect.left) * scaleX;
-                    this.input.mouse.y = (e.clientY - rect.top) * scaleY;
+                    // Use cached rect/scales to avoid repeated DOM reads
+                    const left = this._cachedRectLeft;
+                    const top = this._cachedRectTop;
+                    const scaleX = this._cachedScaleX || 1;
+                    const scaleY = this._cachedScaleY || 1;
+                    this.input.mouse.x = (e.clientX - left) * scaleX;
+                    this.input.mouse.y = (e.clientY - top) * scaleY;
                 });
 
                 this.canvas.addEventListener('mousedown', e => {
