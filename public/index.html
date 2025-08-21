@@ -3002,6 +3002,12 @@
                 this.canvas.style.position = 'absolute';
                 this.canvas.style.left = offsetX + 'px';
                 this.canvas.style.top = offsetY + 'px';
+                // Initialize cached rect/scales for mouse mapping immediately
+                const rect = this.canvas.getBoundingClientRect();
+                this._cachedRectLeft = rect.left;
+                this._cachedRectTop = rect.top;
+                this._cachedScaleX = this.canvas.width / (rect.width || 1);
+                this._cachedScaleY = this.canvas.height / (rect.height || 1);
             }
 
             async setupAudio() {
