@@ -2499,9 +2499,10 @@
                 this.maxHp = TETRIS_SETTINGS.bossHp;
                 this.width = 80;
                 this.height = 80;
-                // position in upper center
+                // position in upper center under XP bar
                 this.x = game.canvas.width / 2;
-                this.y = Math.max(80, 0.2 * game.canvas.height);
+                const safeMinY = (game.getBossSafeMinCenterY ? game.getBossSafeMinCenterY() : 120);
+                this.y = Math.max(safeMinY, 0.2 * game.canvas.height);
                 this.vx = 0;
                 this.targetVx = 3.0; // desired horizontal speed (px/frame baseline)
                 this.inertia = 0.02;
@@ -2525,11 +2526,14 @@
                 this.x += this.vx * t;
                 // Damage flash decay
                 if (this.damageFlash > 0) this.damageFlash -= t;
-                // Bounce softly at margins
+                // Bounce softly at margins and enforce vertical floor below XP bar
                 const left = this.margin;
                 const right = this.game.canvas.width - this.margin;
                 if (this.x < left) { this.x = left; this.targetVx = Math.abs(this.targetVx); }
                 if (this.x > right) { this.x = right; this.targetVx = -Math.abs(this.targetVx); }
+                // Clamp Y so boss (and its HP bar at y-74) stays below the XP bar
+                const safeY = this.game.getBossSafeMinCenterY ? this.game.getBossSafeMinCenterY() : 120;
+                if (this.y < safeY) this.y = safeY;
                 // Spawn pieces handled by game.tetrisManager
                 // Boss shoots enemy bullets toward player every 3 seconds
                 const now = Date.now();
@@ -2882,6 +2886,24 @@
                 this.activeBoss = null;
                 this.usedBossTypes = new Set();
                 this.defeatedBossCount = 0;
+
+                // Helpers for UI-to-canvas mapping
+                this.screenToCanvasY = (screenY) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    return (screenY - rect.top) * (this.canvas.height / rect.height);
+                };
+                this.getBossSafeMinCenterY = () => {
+                    const xpEl = document.querySelector('.xp-bar');
+                    if (!xpEl) return 100; // fallback
+                    const xpRect = xpEl.getBoundingClientRect();
+                    const canvasRect = this.canvas.getBoundingClientRect();
+                    // If XP bar is above the canvas, no need to offset
+                    if (xpRect.bottom <= canvasRect.top) return 100;
+                    const xpBottomCanvasY = this.screenToCanvasY(xpRect.bottom);
+                    const margin = 8;
+                    // Boss HP bar renders at y - 74, so center must be at least xpBottom + 74 + margin
+                    return xpBottomCanvasY + 74 + margin;
+                };
             }
 
             // Boss management
