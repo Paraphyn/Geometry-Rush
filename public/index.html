@@ -564,6 +564,7 @@
                 const audioFiles = {
                     bulletShoot: { file: 'bullet-shoot.wav', loop: false },
                     railgunShoot: { file: 'railgun-shoot.wav', loop: false },
+                    MaxRailgunShot: { file: 'max-railgun-shot.wav', loop: false },
                     railgunCharge: { file: 'railgun-charge.wav', loop: true },
                     railgunChargeMax: { file: 'railgun-charge-max.wav', loop: false },
                     BossAlertSound: { file: 'boss-alert.wav', loop: true },
@@ -1019,7 +1020,10 @@
                             }
                         }
                     }
-                    if (audio) audio.playSound('railgunShoot');
+                    if (audio) {
+                        if (this.railgunCharge >= 0.95) audio.playSound('MaxRailgunShot');
+                        else audio.playSound('railgunShoot');
+                    }
                     if (effects && effects.disableRailgunAura) { effects.disableRailgunAura(); }
                     this.railgunCharge = 0;
                     this.railgunParticles = [];
@@ -4015,7 +4019,9 @@
                 const gap = 4; // Gap between center && crosshair lines
                 const thickness = 2;
                 
-                this.ctx.strokeStyle = '#00ffff';
+                // Orange when railgun is fully charged, cyan otherwise
+                const isMax = this.player && this.player.railgunCharge >= 0.95;
+                this.ctx.strokeStyle = isMax ? '#ffa500' : '#00ffff';
                 this.ctx.lineWidth = thickness;
                 this.ctx.lineCap = 'round';
                 
