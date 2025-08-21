@@ -407,7 +407,7 @@
 
     <script>
         // Global speed && scaling settings
-        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
+        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.9 };
 
         function computeResolutionScale(width, height) {
             return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
@@ -1198,7 +1198,7 @@
                 strokeColor: '#dd0000',
                 isBoss: true,
                 bossBaseType: 'rhombus',
-                bossTriangleSpawnIntervalMs: 2400
+                bossTriangleSpawnIntervalMs: 2500
             }
         };
 
@@ -1206,7 +1206,7 @@
         // Declared as a boss type so it appears in the boss pool, but it has a custom class/behavior below
         ENEMY_TYPES['tetris_cross_boss'] = {
             role: 'boss',
-            health: 1500,
+            health: 1650,
             speed: 0, // handled by custom boss class
             size: 60, // collision radius approximation
             points: 1000,
@@ -1226,15 +1226,15 @@
             cols: 36,
             cellSize: null, // computed from canvas width
             // Piece/boss stats
-            pieceHp: 300,
-            bossHp: 1500,
+            pieceHp: 250,
+            bossHp: 1650,
             playerCollisionDamage: 25,
             // Spawning & speeds
             spawnIntervalMs: 1200,
             minSpawnIntervalMs: 650,
             spawnAccelerationMsPerSec: 4, // decreases interval slowly
-            fallSpeedPxPerSec: 50,
-            enrageSpeedPxPerSec2: 6 // adds per second
+            fallSpeedPxPerSec: 40,
+            enrageSpeedPxPerSec2: 5 // adds per second
         };
 
         // Wave configuration
@@ -1803,7 +1803,7 @@
                 this.effects.push(new Effect('dashTrail', x, y, {
                     color: '#ffffff',
                     size: 20,
-                    opacity: 0.85,
+                    opacity: 0.7,
                     life: 20,
                     maxLife: 20,
                     typeSpecificUpdate: function() {
@@ -2512,7 +2512,7 @@
                 this.active = true;
                 this.damageFlash = 0;
                 this.lastShoot = 0;
-                this.shootCooldownMs = 3000;
+                this.shootCooldownMs = 2000;
                 this.recentDamage = 0;
                 this.recentDamageFade = 0;
             }
