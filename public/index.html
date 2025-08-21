@@ -43,6 +43,7 @@
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
+            -webkit-touch-callout: none;
         }
         
         html, body {
@@ -3396,6 +3397,10 @@
                 });
 
                 this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+                // Prevent right-click menu globally as a safeguard
+                document.addEventListener('contextmenu', e => {
+                    if (!this.inLobby) e.preventDefault();
+                });
 
                 window.addEventListener('blur', () => this.input.clear());
                 window.addEventListener('focus', () => this.input.clear());
