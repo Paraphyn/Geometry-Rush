@@ -2872,6 +2872,9 @@
                 // FPS tracking state
                 this._lastFpsTime = 0;
                 this._fps = 60;
+                this._fpsSamples = [];
+                this._fpsSum = 0;
+                this._fpsWindow = 60; // average over last N frames
                 // Helper to update radial center from logo position
                 this.updateLobbyRadialCenterFromLogo = () => {
                     const logo = document.getElementById('lobbyLogo');
@@ -4228,9 +4231,14 @@
                 if (this._lastFpsTime) {
                     const dt = (timestamp - this._lastFpsTime) / 1000;
                     if (dt > 0) {
-                        // Exponential moving average for stability
                         const inst = 1 / dt;
-                        this._fps = this._fps * 0.9 + inst * 0.1;
+                        // Rolling window average
+                        this._fpsSamples.push(inst);
+                        this._fpsSum += inst;
+                        if (this._fpsSamples.length > this._fpsWindow) {
+                            this._fpsSum -= this._fpsSamples.shift();
+                        }
+                        this._fps = this._fpsSum / Math.max(1, this._fpsSamples.length);
                     }
                 }
                 this._lastFpsTime = timestamp || performance.now();
