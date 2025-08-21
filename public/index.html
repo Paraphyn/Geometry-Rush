@@ -75,8 +75,9 @@
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         
         /* XP Bar */
-        .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; }
+        .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; position: relative; overflow: hidden; }
         .xp-bar-fill { height: 100%; width: 0%; background: #00ff00; }
+        .xp-gain-overlay { position: absolute; top: 0; height: 100%; background: rgba(255,255,255,0.85); pointer-events: none; opacity: 0; }
         .xp-label { top: 80px; left: calc(50% - 180px - 10px); font-size: 20px; }
         .xp-level { top: 80px; left: calc(50% + 180px - 10px); font-size: 20px; }
         
@@ -405,7 +406,7 @@
 
     <script>
         // Global speed && scaling settings
-        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 1.0 };
+        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
 
         function computeResolutionScale(width, height) {
             return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
@@ -2676,25 +2677,32 @@
                 const pct = Math.max(0, Math.min(1, requiredXp > 0 ? currentXp / requiredXp : 0));
                 this.xpFill.style.width = `${pct * 100}%`;
                 this.xpLevel.textContent = `Level ${level}`;
-                // Apply overlay fading if active (drawn via box-shadow-like overlay using CSS gradient)
-                if (this.xpGainFade > 0) {
-                    this.xpGainFade = Math.max(0, this.xpGainFade - getTimeScale());
-                    const alpha = Math.max(0, this.xpGainFade / 45);
-                    const overlayPct = Math.max(0, Math.min(1, this.xpGainOverlayWidth));
-                    // Create a white overlay segment to the right of the fill
-                    const baseWidth = pct * 100;
-                    const overlayWidth = overlayPct * 100;
-                    const gradient = `linear-gradient(to right, rgba(255,255,255,${0.85*alpha}) 0%, rgba(255,255,255,${0.85*alpha}) ${overlayWidth}%, rgba(255,255,255,0) ${overlayWidth}%)`;
-                    this.xpFill.style.backgroundImage = gradient;
-                    this.xpFill.style.backgroundSize = `${overlayWidth}% 100%`;
-                    this.xpFill.style.backgroundRepeat = 'no-repeat';
-                    this.xpFill.style.backgroundPosition = `${baseWidth}% 0`;
-                    if (this.xpGainFade === 0) {
-                        // Clear overlay
-                        this.xpFill.style.backgroundImage = '';
+                // Apply overlay fading if active using separate element for reliability
+                const bar = document.querySelector('.xp-bar');
+                let overlay = bar ? bar.querySelector('.xp-gain-overlay') : null;
+                if (bar && !overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'xp-gain-overlay';
+                    bar.appendChild(overlay);
+                }
+                if (overlay) {
+                    if (this.xpGainFade > 0) {
+                        this.xpGainFade = Math.max(0, this.xpGainFade - getTimeScale());
+                        const alpha = Math.max(0, this.xpGainFade / 45);
+                        const overlayPct = Math.max(0, Math.min(1, this.xpGainOverlayWidth));
+                        const basePx = pct * bar.clientWidth;
+                        const overlayPx = overlayPct * bar.clientWidth;
+                        overlay.style.left = `${basePx}px`;
+                        overlay.style.width = `${overlayPx}px`;
+                        overlay.style.opacity = `${0.85 * alpha}`;
+                        if (this.xpGainFade === 0) {
+                            overlay.style.opacity = '0';
+                            overlay.style.width = '0px';
+                        }
+                    } else {
+                        overlay.style.opacity = '0';
+                        overlay.style.width = '0px';
                     }
-                } else {
-                    this.xpFill.style.backgroundImage = '';
                 }
             }
 
