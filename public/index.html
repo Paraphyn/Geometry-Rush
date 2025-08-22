@@ -524,8 +524,13 @@
             update() {
                 // Update all layers
                 for (let layer = 0; layer < 5; layer++) {
-                    this.layers[layer] = this.layers[layer].filter(number => number.update(this.canvas));
-                    
+                    const arr = this.layers[layer];
+                    let write = 0;
+                    for (let read = 0; read < arr.length; read++) {
+                        const item = arr[read];
+                        if (item.update(this.canvas)) arr[write++] = item;
+                    }
+                    arr.length = write;
                     this.spawnTimers[layer] += getTimeScale();
                     if (this.spawnTimers[layer] >= this.spawnDelays[layer] && 
                         this.layers[layer].length < this.maxNumbers[layer]) {
@@ -787,7 +792,12 @@
 
             update() {
                 const t = getTimeScale();
-                this.binaries = this.binaries.filter(binary => binary.update());
+                let write = 0;
+                for (let read = 0; read < this.binaries.length; read++) {
+                    const bin = this.binaries[read];
+                    if (bin.update()) this.binaries[write++] = bin;
+                }
+                this.binaries.length = write;
                 this.spawnTimer += t;
                 if (this.spawnTimer >= this.spawnDelay && this.binaries.length < this.maxBinaries) {
                     this.spawnBinary();
@@ -1431,12 +1441,12 @@
                 this.effects = [];
                 this.playerX = 0;
                 this.playerY = 0;
+                this.railgunAuraEffect = null;
             }
 
             enableRailgunAura() {
-                const exists = this.effects.some(e => e.type === 'railgunAura');
-                if (exists) return;
-                this.effects.push(new Effect('railgunAura', this.playerX, this.playerY, {
+                if (this.railgunAuraEffect) return;
+                const aura = new Effect('railgunAura', this.playerX, this.playerY, {
                     particleCount: 8,
                     angle: 0,
                     rotationSpeed: 0.12,
@@ -1449,7 +1459,6 @@
                         this.y = playerY;
                         this.angle += this.rotationSpeed * getTimeScale();
                         this.renderRadius = (this.baseRadius || 25) + this.radiusOffset;
-                        // Fade aura as charge approaches max
                         const charge = (typeof window !== 'undefined' && window.game && window.game.player) ? (window.game.player.railgunCharge || 0) : 0;
                         const fade = Math.max(0, 1 - Math.min(1, charge));
                         this.currentMaxOpacity = (this.maxOpacityBase || 0.5) * fade;
@@ -1472,13 +1481,17 @@
                             ctx.restore();
                         }
                     }
-                }));
+                });
+                this.effects.push(aura);
+                this.railgunAuraEffect = aura;
             }
 
             disableRailgunAura() {
-                this.effects = this.effects.filter(e => e.type !== 'railgunAura');
+                if (!this.railgunAuraEffect) return;
+                const idx = this.effects.indexOf(this.railgunAuraEffect);
+                if (idx !== -1) this.effects.splice(idx, 1);
+                this.railgunAuraEffect = null;
             }
-
 
             createBulletTrail(x, y, color) {
                 this.effects.push(new Effect('bulletTrail', x, y, {
@@ -1730,6 +1743,7 @@
                     endX: startX + (dx * invLen) * maxDist,
                     endY: startY + (dy * invLen) * maxDist,
                     charge: charge,
+                    _isMaxCharge: charge >= 0.95,
                     damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * (this.playerDamageMultiplier || 1),
                     life: 60,
                     maxLife: 60,
@@ -1751,17 +1765,20 @@
                         }
                         ctx.save();
                         ctx.globalAlpha = this.opacity;
-                        const gradient = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
-                        if (this._isMaxCharge) {
-                            gradient.addColorStop(0, 'rgba(255, 165, 0, 0.2)');
-                            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
-                            gradient.addColorStop(1, 'rgba(255, 165, 0, 0.2)');
-                        } else {
-                            gradient.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
-                            gradient.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
-                            gradient.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        if (!this._gradient) {
+                            const g = ctx.createLinearGradient(this.x, this.y, this.endX, this.endY);
+                            if (this._isMaxCharge) {
+                                g.addColorStop(0, 'rgba(255, 165, 0, 0.2)');
+                                g.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
+                                g.addColorStop(1, 'rgba(255, 165, 0, 0.2)');
+                            } else {
+                                g.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+                                g.addColorStop(0.5, 'rgba(0, 255, 255, 1)');
+                                g.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                            }
+                            this._gradient = g;
                         }
-                        ctx.strokeStyle = gradient;
+                        ctx.strokeStyle = this._gradient;
                         ctx.lineWidth = this.width;
                         ctx.beginPath();
                         ctx.moveTo(this.x, this.y);
@@ -1933,7 +1950,11 @@
                         effect.draw(ctx);
                     }
                 }
-                bullets.forEach(bullet => bullet.draw(ctx));
+                for (let i = 0; i < bullets.length; i++) {
+                    const b = bullets[i];
+                    if (!b || b._dead) continue;
+                    b.draw(ctx);
+                }
                 this.playerX = playerX;
                 this.playerY = playerY;
             }
@@ -2706,16 +2727,32 @@
                 // Cache overlay element and width as needed
                 this.xpOverlayEl = null;
                 this._cachedXpBarClientWidth = 0;
+                // Cached value spans
+                this.scoreValueEl = document.getElementById('score');
+                this.enemiesValueEl = document.getElementById('enemies');
+                this.timerValueEl = document.getElementById('timer');
+                this.waveValueEl = document.getElementById('wave');
+                this._lastFpsLabelTs = 0;
             }
 
             updateFPS(fps) {
                 if (!this.fpsEl) return;
                 const value = Math.round(fps);
+                const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                if (this._lastFpsLabelTs && (nowTs - this._lastFpsLabelTs) < 250) return;
+                this._lastFpsLabelTs = nowTs;
                 let color = '#00ff00'; // green
                 if (value < 30) color = '#ff4444'; // red
                 else if (value < 50) color = '#ffcc00'; // yellow
                 this.fpsEl.textContent = `FPS: ${value}`;
                 this.fpsEl.style.color = color;
+            }
+
+            updateStats(score, kills, timeText, wave) {
+                if (this.scoreValueEl) this.scoreValueEl.textContent = score;
+                if (this.enemiesValueEl) this.enemiesValueEl.textContent = kills;
+                if (this.timerValueEl) this.timerValueEl.textContent = timeText;
+                if (this.waveValueEl) this.waveValueEl.textContent = wave;
             }
 
             hideUI() {
@@ -3688,10 +3725,38 @@
                 this.updateBackgroundParallax();
                 
                 if (this.input.mouse.down) this.shoot();
-                this.bullets = this.bullets.filter(bullet => bullet.update(this.canvas, this.effects));
-                this.enemyBullets = this.enemyBullets.filter(bullet => bullet.update(this.canvas, this.effects));
+                // In-place compaction for bullets
+                {
+                    let write = 0;
+                    for (let read = 0; read < this.bullets.length; read++) {
+                        const b = this.bullets[read];
+                        if (!b._dead && b.update(this.canvas, this.effects)) {
+                            this.bullets[write++] = b;
+                        }
+                    }
+                    this.bullets.length = write;
+                }
+                // In-place compaction for enemy bullets
+                {
+                    let write = 0;
+                    for (let read = 0; read < this.enemyBullets.length; read++) {
+                        const eb = this.enemyBullets[read];
+                        if (eb.update(this.canvas, this.effects)) {
+                            this.enemyBullets[write++] = eb;
+                        }
+                    }
+                    this.enemyBullets.length = write;
+                }
                 
-                // Build spatial hash for enemies this frame
+                // Build spatial hash for bullets this frame
+                const bulletHash = new SpatialHash(80);
+                for (let bi = 0; bi < this.bullets.length; bi++) {
+                    const b = this.bullets[bi];
+                    const r = b.radius;
+                    bulletHash.insert(bi, b.x - r, b.y - r, b.x + r, b.y + r);
+                }
+
+                // Build spatial hash for enemies this frame (kept for other broad-phase uses)
                 const enemyHash = new SpatialHash(80);
                 for (let ei = 0; ei < this.enemies.length; ei++) {
                     const e = this.enemies[ei];
@@ -3703,38 +3768,45 @@
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
                     if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
                         this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        // Spawn XP ring on death
                         { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                         if (enemy.type === 'rhombus') {
                             this.spawnTrianglesAround(enemy.x, enemy.y);
                         }
                         this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
-                        this.enemies.splice(i, 1);
+                        // swap-remove enemy
+                        const last = this.enemies.length - 1;
+                        this.enemies[i] = this.enemies[last];
+                        this.enemies.pop();
                         if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
                             this.onBossDefeated();
                         }
                         this.enemiesKilled++;
-                        // No score addition for collision deaths
                         continue;
                     }
                     if (!this.player.isDashing) {
-                        // Query only bullets near this enemy using AABB around enemy
-                        for (let j = this.bullets.length - 1; j >= 0; j--) {
+                        // Query bullets near this enemy using spatial hash
+                        const pad = 6; // bullet radius cushion
+                        const nearIdx = bulletHash.queryAABB(enemy.x - enemy.radius - pad, enemy.y - enemy.radius - pad, enemy.x + enemy.radius + pad, enemy.y + enemy.radius + pad);
+                        for (let k = 0; k < nearIdx.length; k++) {
+                            const j = nearIdx[k];
                             const bullet = this.bullets[j];
+                            if (!bullet || bullet._dead) continue;
                             const dx = bullet.x - enemy.x;
                             const dy = bullet.y - enemy.y;
                             const r = bullet.radius + enemy.radius;
                             if (dx*dx + dy*dy < r*r) {
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
-                                this.bullets.splice(j, 1);
+                                bullet._dead = true;
                                 if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                    // Spawn XP ring on death
                                     { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                                     if (enemy.type === 'rhombus') {
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
-                                    this.enemies.splice(i, 1);
+                                    // swap-remove enemy
+                                    const last = this.enemies.length - 1;
+                                    this.enemies[i] = this.enemies[last];
+                                    this.enemies.pop();
                                     if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
                                         this.onBossDefeated();
                                     }
@@ -3748,7 +3820,6 @@
                         for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                             const effect = this.effects.effects[j];
                             if (effect.type === 'railgunBeam') {
-                                // Quick reject using AABB around enemy vs beam segment bbox
                                 const minX = Math.min(effect.x, effect.endX) - enemy.radius;
                                 const maxX = Math.max(effect.x, effect.endX) + enemy.radius;
                                 const minY = Math.min(effect.y, effect.endY) - enemy.radius;
@@ -3758,12 +3829,14 @@
                                 if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                                    // Spawn XP ring on death
                                     { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
                                     if (enemy.type === 'rhombus') {
                                         this.spawnTrianglesAround(enemy.x, enemy.y);
                                     }
-                                    this.enemies.splice(i, 1);
+                                    // swap-remove enemy
+                                    const last = this.enemies.length - 1;
+                                    this.enemies[i] = this.enemies[last];
+                                    this.enemies.pop();
                                     if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
                                         this.onBossDefeated();
                                     }
@@ -3778,7 +3851,6 @@
 
                 // Bullet collisions with tetromino pieces
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
-                    // Spatial hash for tetromino cells (treat each cell as small AABB)
                     const cellHash = new SpatialHash(TETRIS_SETTINGS.cellSize || 40);
                     for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
                         const piece = this.tetrisManager.activePieces[p];
@@ -3791,31 +3863,27 @@
                     }
                     outerBullet: for (let j = this.bullets.length - 1; j >= 0; j--) {
                         const b = this.bullets[j];
-                        // First, check collision with Cross shield and remove bullet
+                        if (!b || b._dead) continue;
                         const distToBoss = Math.hypot(b.x - this.activeBoss.x, b.y - this.activeBoss.y);
                         if (distToBoss <= 63 + b.radius) {
-                            // Collides with shield; bullet disappears with small effect
                             this.effects.createBulletExplosion(b.x, b.y, '#00ffff');
-                            this.bullets.splice(j, 1);
+                            b._dead = true;
                             continue;
                         }
-                        // Query nearby cells via spatial hash
                         const nearby = cellHash.queryAABB(b.x - 20, b.y - 20, b.x + 20, b.y + 20);
                         for (let idx = 0; idx < nearby.length; idx++) {
                             const { piece, cell } = nearby[idx];
                             const dx = b.x - cell.x, dy = b.y - cell.y;
                             if (dx*dx + dy*dy < (b.radius + cell.r) * (b.radius + cell.r)) {
-                                    // Hit
-                                    this.bullets.splice(j, 1);
-                                    piece.hp -= b.damage;
-                                    this.effects.createHitEffect(cell.x, cell.y);
-                                    piece.damageFlash = 12;
-                                    if (piece.hp <= 0) {
-                                        // start fade-out death instead of instant removal
-                                        piece.startDeath(this.effects);
-                                    }
-                                    continue outerBullet;
+                                b._dead = true;
+                                piece.hp -= b.damage;
+                                this.effects.createHitEffect(cell.x, cell.y);
+                                piece.damageFlash = 12;
+                                if (piece.hp <= 0) {
+                                    piece.startDeath(this.effects);
                                 }
+                                continue outerBullet;
+                            }
                         }
                     }
 
@@ -3827,14 +3895,12 @@
                             const piece = this.tetrisManager.activePieces[p];
                             const cells = piece.getCells();
                             if (effect.intersectsCircle(piece.x, piece.y, 0, piece.id)) {
-                                // Using id-based dedup; apply once per piece if line passes through any cell
                                 piece.hp -= effect.damage;
                                 piece.damageFlash = 12;
                                 if (piece.hp <= 0) {
                                     piece.startDeath(this.effects);
                                 }
                             } else {
-                                // Fallback: check any cell
                                 for (let c = 0; c < cells.length; c++) {
                                     const cell = cells[c];
                                     if (effect.intersectsCircle(cell.x, cell.y, cell.r, piece.id)) {
@@ -3856,47 +3922,15 @@
                     for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                         const effect = this.effects.effects[j];
                         if (effect.type !== 'railgunBeam') continue;
-                        // approximate boss as circle radius 63 around center (matches shield visual)
                         const hit = effect.intersectsCircle(this.activeBoss.x, this.activeBoss.y, 63, null);
                         if (hit) {
-                            // Ensure each beam damages the Cross only once
                             this.activeBoss._beamHitSet = this.activeBoss._beamHitSet || new WeakSet();
                             if (this.activeBoss._beamHitSet.has(effect)) continue;
                             this.activeBoss._beamHitSet.add(effect);
                             const alive = this.activeBoss.takeRailgunDamage(effect.damage, effect.charge >= 1);
                             if (!alive) {
-                                // Mark defeated
                                 this.onBossDefeated();
                             }
-                        }
-                    }
-                }
-
-                // Tetromino collision with player
-                if (!this.player.isDashing && this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
-                    const dmg = TETRIS_SETTINGS.playerCollisionDamage;
-                    // Check active pieces cells
-                    pieceLoop: for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
-                        const piece = this.tetrisManager.activePieces[p];
-                        // Ignore pieces that are already destroyed (fading out)
-                        if (piece && piece.dying) continue;
-                        const cells = piece.getCells();
-                        for (let c = 0; c < cells.length; c++) {
-                            const cell = cells[c];
-                            const dist = Math.hypot(this.player.x - cell.x, this.player.y - cell.y);
-                            if (dist < this.player.radius + cell.r) {
-                                this.player.takeDamage(dmg, cell.x, cell.y, this.effects, this.audio);
-                                break pieceLoop;
-                            }
-                        }
-                    }
-                    // Check stacked cells
-                    for (let s = 0; s < this.tetrisManager.stack.length; s++) {
-                        const cell = this.tetrisManager.stack[s];
-                        const dist = Math.hypot(this.player.x - cell.x, this.player.y - cell.y);
-                        if (dist < this.player.radius + cell.r) {
-                            this.player.takeDamage(dmg, cell.x, cell.y, this.effects, this.audio);
-                            break;
                         }
                     }
                 }
@@ -3907,9 +3941,21 @@
                         const dist = Math.sqrt((bullet.x - this.player.x) ** 2 + (bullet.y - this.player.y) ** 2);
                         if (dist < bullet.radius + this.player.radius) {
                             this.player.takeDamage(bullet.damage, bullet.x, bullet.y, this.effects, this.audio);
-                            this.enemyBullets.splice(i, 1);
+                            const last = this.enemyBullets.length - 1;
+                            this.enemyBullets[i] = this.enemyBullets[last];
+                            this.enemyBullets.pop();
                         }
                     }
+                }
+                
+                // Post-collision compaction for bullets (remove any marked as dead)
+                {
+                    let write = 0;
+                    for (let read = 0; read < this.bullets.length; read++) {
+                        const b = this.bullets[read];
+                        if (b && !b._dead) this.bullets[write++] = b;
+                    }
+                    this.bullets.length = write;
                 }
                 this.effects.update(this.player.x, this.player.y);
                 
@@ -3922,10 +3968,8 @@
                     this.gameOver = true;
                     this.gameOverTime = Date.now();
                     this.input.clear();
-                    // Stop all background music on game over
                     this.audio.stopGameMusic();
                     this.audio.stopLobbyMusic();
-                    // Update && persist best stats
                     this.updateBestStatsIfNeeded(this.score, this.currentWave);
                     this.updateBestStatsLabel();
                     this.player.stopRailgunCharge(this.audio);
@@ -3937,7 +3981,6 @@
                 for (let k = this.effects.effects.length - 1; k >= 0; k--) {
                     const eff = this.effects.effects[k];
                     if (eff.type === 'xpRing') {
-                        // Collectible while visible; use same render radius as draw for accurate pickup window
                         const distToPlayer = Math.hypot(eff.x - this.player.x, eff.y - this.player.y);
                         const preExpireDuration = 120;
                         const preExpireScale = (eff.life > 0 && eff.life < preExpireDuration)
@@ -3946,10 +3989,8 @@
                         const visibleScale = eff.life > 0 ? preExpireScale : Math.max(0, 1 - eff.fadeOut);
                         const renderSize = eff.size * visibleScale;
                         if (distToPlayer < renderSize + this.player.radius && (eff.life > 0 || eff.fadeOut < 1)) {
-                            // Collect
                             const add = eff.xpAmount || 0;
                             this.playerXp += add;
-                            // Level-up loop
                             while (this.playerXp >= this.playerXpRequired) {
                                 this.playerXp -= this.playerXpRequired;
                                 this.playerLevel += 1;
@@ -3958,12 +3999,9 @@
                                 this.triggerLevelUpSelection();
                             }
                             if (this.audio) this.audio.playSound('XP_collect');
-                            // Visual collect effect
                             this.effects.createXPCollectEffect(eff.x, eff.y);
-                            // Update UI
                             this.uiManager.showXPGainOverlay(add, this.playerXpRequired);
                             this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
-                            // Remove the ring
                             this.effects.effects.splice(k, 1);
                         }
                     }
@@ -4248,10 +4286,7 @@
                 
                 // Only update UI if not in lobby
                 if (!this.inLobby) {
-                    document.getElementById('score').textContent = this.score;
-                    document.getElementById('enemies').textContent = this.enemiesKilled;
-                    document.getElementById('timer').textContent = this.formatTime(gameTime);
-                    document.getElementById('wave').textContent = this.currentWave;
+                    this.uiManager.updateStats(this.score, this.enemiesKilled, this.formatTime(gameTime), this.currentWave);
                     // Keep XP bar in sync
                     this.uiManager.updateXPBar(this.playerXp, this.playerXpRequired, this.playerLevel);
                 }
