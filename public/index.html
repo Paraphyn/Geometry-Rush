@@ -885,6 +885,7 @@
                 this.health = 100;
                 this.maxHealth = 100;
                 this.damageFlash = 0;
+				this.healFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
@@ -902,6 +903,7 @@
                 this.dashEndY = 0;
                 this.railgunCharging = false;
                 this.railgunMaxChargeSoundPlayed = false;
+				this._lastHealth = this.health;
             }
 
             startDash(keys, effects, audio) {
@@ -973,6 +975,7 @@
             update(input, effects, canvas, audio) {
                 const timeScale = getTimeScale();
                 if (this.damageFlash > 0) this.damageFlash -= timeScale;
+				if (this.healFlash > 0) this.healFlash -= timeScale;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime -= timeScale;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
@@ -988,7 +991,12 @@
                     if (this.dashProgress >= this.dashDuration) {
                         this.isDashing = false;
                         this.invulnerable = false;
-                    }
+				// Detect positive HP changes and trigger a single green blink
+				if (this.health > this._lastHealth) {
+					this.healFlash = 12;
+				}
+				this._lastHealth = this.health;
+			}
                 } else if (input.mouse.rightDown) {
                     if (!this.railgunCharging && audio) {
                         audio.startLoopingSound('railgunCharge');
@@ -1049,9 +1057,9 @@
                 }
             }
 
-            draw(ctx) {
-                let fillColor = this.damageFlash > 0 ? '#ff0000' : this.invulnerable ? '#f0f0ff' : '#ffffff';
-                let strokeColor = this.damageFlash > 0 ? '#cc0000' : this.invulnerable ? '#a0a0ff' : '#cccccc';
+			draw(ctx) {
+				let fillColor = this.damageFlash > 0 ? '#ff0000' : (this.healFlash > 0 ? '#00ff55' : (this.invulnerable ? '#f0f0ff' : '#ffffff'));
+				let strokeColor = this.damageFlash > 0 ? '#cc0000' : (this.healFlash > 0 ? '#00aa44' : (this.invulnerable ? '#a0a0ff' : '#cccccc'));
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = fillColor;
@@ -3763,26 +3771,33 @@
                     enemyHash.insert(e, e.x - e.radius, e.y - e.radius, e.x + e.radius, e.y + e.radius);
                 }
 
-                for (let i = this.enemies.length - 1; i >= 0; i--) {
+				for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
-                    if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
-                        this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
-                        if (enemy.type === 'rhombus') {
-                            this.spawnTrianglesAround(enemy.x, enemy.y);
-                        }
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
-                        // swap-remove enemy
-                        const last = this.enemies.length - 1;
-                        this.enemies[i] = this.enemies[last];
-                        this.enemies.pop();
-                        if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
-                            this.onBossDefeated();
-                        }
-                        this.enemiesKilled++;
-                        continue;
-                    }
+					if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
+						const cfg = ENEMY_TYPES[enemy.type] || {};
+						const isBoss = enemy.isBoss || cfg.isBoss || cfg.role === 'boss';
+						// Bosses are not damaged/removed by collisions; they only damage the player
+						if (isBoss) {
+							this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+						} else {
+							this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+							{ const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+							if (enemy.type === 'rhombus') {
+								this.spawnTrianglesAround(enemy.x, enemy.y);
+							}
+							this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+							// swap-remove enemy
+							const last = this.enemies.length - 1;
+							this.enemies[i] = this.enemies[last];
+							this.enemies.pop();
+							if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
+								this.onBossDefeated();
+							}
+							this.enemiesKilled++;
+							continue;
+						}
+					}
                     if (!this.player.isDashing) {
                         // Query bullets near this enemy using spatial hash
                         const pad = 6; // bullet radius cushion
@@ -3795,7 +3810,7 @@
                             const dy = bullet.y - enemy.y;
                             const r = bullet.radius + enemy.radius;
                             if (dx*dx + dy*dy < r*r) {
-                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+							if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || ((enemy.type === 'rhombus' || enemy.type === 'rhombus_boss') && enemy.invulnerable)) continue;
                                 bullet._dead = true;
                                 if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
@@ -3826,7 +3841,7 @@
                                 const maxY = Math.max(effect.y, effect.endY) + enemy.radius;
                                 if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
                                 if (!effect.intersectsEnemy(enemy)) continue;
-                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+							if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || ((enemy.type === 'rhombus' || enemy.type === 'rhombus_boss') && enemy.invulnerable)) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
@@ -3919,6 +3934,13 @@
 
                 // Railgun interaction with Tetris Cross boss (full charge only)
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+					// Player circle collision with Tetris boss should only damage player, not boss
+					if (!this.player.isDashing) {
+						const distToBoss = Math.hypot(this.player.x - this.activeBoss.x, this.player.y - this.activeBoss.y);
+						if (distToBoss < 63 + this.player.radius) {
+							this.player.takeDamage(TETRIS_SETTINGS.playerCollisionDamage || 25, (this.player.x + this.activeBoss.x) / 2, (this.player.y + this.activeBoss.y) / 2, this.effects, this.audio);
+						}
+					}
                     for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                         const effect = this.effects.effects[j];
                         if (effect.type !== 'railgunBeam') continue;
@@ -4053,13 +4075,19 @@
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-                this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.enemies.forEach(enemy => enemy.draw(this.ctx));
-
-                // Draw Tetris Cross boss above enemies and bullets for emphasis
-                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
-                    this.activeBoss.draw(this.ctx);
-                }
+				this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
+				// Draw boss above enemies for emphasis (works for any boss type)
+				if (this.inBossPhase && this.activeBoss && !(this.activeBoss instanceof TetrisCrossBoss)) {
+					const bossRef = this.activeBoss;
+					this.enemies.forEach(enemy => { if (enemy !== bossRef) enemy.draw(this.ctx); });
+					bossRef.draw(this.ctx);
+				} else {
+					this.enemies.forEach(enemy => enemy.draw(this.ctx));
+					// Draw Tetris Cross boss above enemies and bullets for emphasis
+					if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+						this.activeBoss.draw(this.ctx);
+					}
+				}
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
                 
@@ -4337,11 +4365,14 @@
                 this.pauseTime = Date.now();
                 this.input.clear();
                 const options = this.upgradeManager.getRandomOptions(this.playerLevel, 3);
-                // If nothing to show, skip selection
-                if (!options || options.length === 0) {
-                    this.resumeAfterUpgrade();
-                    return;
-                }
+				// If nothing to show, grant +25 HP and skip selection
+				if (!options || options.length === 0) {
+					if (this.player && this.player.health > 0) {
+						this.player.health = Math.min(this.player.maxHealth, this.player.health + 25);
+					}
+					this.resumeAfterUpgrade();
+					return;
+				}
                 this.upgradeManager.renderOptions(options);
             }
             
