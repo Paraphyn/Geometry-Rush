@@ -588,6 +588,9 @@
                     UpgradeSelected: { file: 'level-up.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
                     'Level_UP': { file: 'level-up.wav', loop: false },
+                    RocketLaunch: { file: 'rocket-launch.wav', loop: false },
+                    RocketExplotion: { file: 'rocket-explosion.wav', loop: false },
+                    RocketReload: { file: 'rocket-reload.wav', loop: false },
                     lobbyMusic: { file: 'lobby-music.mp3', loop: true, isMusic: true },
                     backgroundMusic: { file: 'background-music.mp3', loop: true, isMusic: true }
                 };
@@ -1126,7 +1129,7 @@
 
         // Player rocket projectile
         class Rocket {
-            constructor(x, y, dirX, dirY, damage = 50) {
+            constructor(x, y, dirX, dirY, damage = 100) {
                 this.x = x;
                 this.y = y;
                 const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
@@ -2999,6 +3002,8 @@
                 this.uiManager = new UIManager();
                 this.shootDelay = 250;
                 this.lastShot = 0;
+                this.rocketCooldownMs = 1500;
+                this.lastRocketShot = 0;
                 this.inLobby = true;
                 this.setupCanvas();
                 // Expose && initialize scaling
@@ -3706,11 +3711,18 @@
             }
 
             launchRocket() {
-                // Single-shot on middle click
+                const now = Date.now();
+                const t = Math.max(0.001, getTimeScale());
+                if (now - this.lastRocketShot < this.rocketCooldownMs / t) {
+                    this.audio.playSound('RocketReload');
+                    return;
+                }
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
-                const dmg = Math.floor(50 * (this.player.bulletDamageMultiplier || 1));
+                const dmg = Math.floor(100 * (this.player.bulletDamageMultiplier || 1));
                 this.rockets.push(new Rocket(this.player.x, this.player.y, dx, dy, dmg));
+                this.lastRocketShot = now;
+                this.audio.playSound('RocketLaunch');
             }
 
             spawnEnemy(type) {
@@ -3860,6 +3872,7 @@
                             // On removal (out of bounds or life ended), explode
                             if (this.effects && this.effects.createRocketExplosionRing) {
                                 this.effects.createRocketExplosionRing(r.x, r.y, r.aoeRadius);
+                                this.audio.playSound('RocketExplotion');
                             }
                             // Apply AoE damage to enemies
                             const radius = r.aoeRadius;
@@ -3950,6 +3963,7 @@
                             const exploded = this.rockets.splice(ri, 1)[0];
                             if (exploded && this.effects && this.effects.createRocketExplosionRing) {
                                 this.effects.createRocketExplosionRing(exploded.x, exploded.y, exploded.aoeRadius);
+                                this.audio.playSound('RocketExplotion');
                             }
                             // AoE damage
                             const ex = r.x, ey = r.y, aoe = exploded.aoeRadius;
