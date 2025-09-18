@@ -3771,26 +3771,33 @@
                     enemyHash.insert(e, e.x - e.radius, e.y - e.radius, e.x + e.radius, e.y + e.radius);
                 }
 
-                for (let i = this.enemies.length - 1; i >= 0; i--) {
+				for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     const dist = enemy.update(this.player, this.canvas, this.effects, this.enemyBullets, this.audio);
-                    if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
-                        this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
-                        { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
-                        if (enemy.type === 'rhombus') {
-                            this.spawnTrianglesAround(enemy.x, enemy.y);
-                        }
-                        this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
-                        // swap-remove enemy
-                        const last = this.enemies.length - 1;
-                        this.enemies[i] = this.enemies[last];
-                        this.enemies.pop();
-                        if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
-                            this.onBossDefeated();
-                        }
-                        this.enemiesKilled++;
-                        continue;
-                    }
+					if (!this.player.isDashing && dist < enemy.radius + this.player.radius) {
+						const cfg = ENEMY_TYPES[enemy.type] || {};
+						const isBoss = enemy.isBoss || cfg.isBoss || cfg.role === 'boss';
+						// Bosses are not damaged/removed by collisions; they only damage the player
+						if (isBoss) {
+							this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+						} else {
+							this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+							{ const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+							if (enemy.type === 'rhombus') {
+								this.spawnTrianglesAround(enemy.x, enemy.y);
+							}
+							this.player.takeDamage(enemy.damage, (this.player.x + enemy.x) / 2, (this.player.y + enemy.y) / 2, this.effects, this.audio);
+							// swap-remove enemy
+							const last = this.enemies.length - 1;
+							this.enemies[i] = this.enemies[last];
+							this.enemies.pop();
+							if (this.inBossPhase && enemy.type && (ENEMY_TYPES[enemy.type]?.isBoss || ENEMY_TYPES[enemy.type]?.role === 'boss')) {
+								this.onBossDefeated();
+							}
+							this.enemiesKilled++;
+							continue;
+						}
+					}
                     if (!this.player.isDashing) {
                         // Query bullets near this enemy using spatial hash
                         const pad = 6; // bullet radius cushion
@@ -3927,6 +3934,13 @@
 
                 // Railgun interaction with Tetris Cross boss (full charge only)
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+					// Player circle collision with Tetris boss should only damage player, not boss
+					if (!this.player.isDashing) {
+						const distToBoss = Math.hypot(this.player.x - this.activeBoss.x, this.player.y - this.activeBoss.y);
+						if (distToBoss < 63 + this.player.radius) {
+							this.player.takeDamage(TETRIS_SETTINGS.playerCollisionDamage || 25, (this.player.x + this.activeBoss.x) / 2, (this.player.y + this.activeBoss.y) / 2, this.effects, this.audio);
+						}
+					}
                     for (let j = this.effects.effects.length - 1; j >= 0; j--) {
                         const effect = this.effects.effects[j];
                         if (effect.type !== 'railgunBeam') continue;
