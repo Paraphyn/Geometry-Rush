@@ -377,7 +377,7 @@
     <div class="ui xp-label">XP</div>
     <div class="ui xp-bar"><div class="xp-bar-fill" id="xpFill"></div></div>
     <div class="ui xp-level" id="xpLevel">Lv. 1</div>
-    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Shift to Dash</div>
+    <div class="ui controls">WASD to Move | Mouse to Aim | Hold L.Mouse to Shoot | Hold R.Mouse for Railgun | Middle Mouse to Launch Rocket | Shift to Dash</div>
     <div class="ui fps" id="fps">FPS: 60</div>
     
     <!-- Lobby Screen -->
@@ -826,7 +826,7 @@
         class InputManager {
             constructor() {
                 this.keys = {};
-                this.mouse = { x: 0, y: 0, down: false, rightDown: false };
+                this.mouse = { x: 0, y: 0, down: false, middleDown: false, rightDown: false };
                 this.lastActionTime = {};
             }
 
@@ -840,6 +840,7 @@
             clear() {
                 this.keys = {};
                 this.mouse.down = false;
+                this.mouse.middleDown = false;
                 this.mouse.rightDown = false;
                 this.lastActionTime = {};
             }
@@ -1120,6 +1121,58 @@
                 ctx.strokeStyle = '#00cccc';
                 ctx.lineWidth = 1;
                 ctx.stroke();
+            }
+        }
+
+        // Player rocket projectile
+        class Rocket {
+            constructor(x, y, dirX, dirY, damage = 50) {
+                this.x = x;
+                this.y = y;
+                const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+                this.dirX = dirX / len;
+                this.dirY = dirY / len;
+                this.speed = 4;
+                this.acceleration = 0.15; // gradually increases speed
+                this.radius = 8; // 2x bullet
+                this.life = 240; // up to ~4s
+                this.damage = damage;
+                this.type = 'rocket';
+                this.aoeRadius = 100;
+                this.explodesOnRemove = true; // signal game to trigger AoE when removed
+                this.blinkPhase = 0;
+                this.blinkSpeed = 0.07; // slow blink
+            }
+
+            update(canvas, effects) {
+                // Orange longer trail (3x life)
+                if (effects && effects.createRocketTrail) effects.createRocketTrail(this.x, this.y, '#FFA500');
+                const motion = getMotionScale();
+                const t = getTimeScale();
+                this.speed += this.acceleration * t;
+                this.x += this.dirX * this.speed * motion;
+                this.y += this.dirY * this.speed * motion;
+                this.life -= t;
+                this.blinkPhase += this.blinkSpeed * t;
+                const inside = this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+                if (!inside || this.life <= 0) {
+                    return false; // removed -> Game will explode
+                }
+                return true;
+            }
+
+            draw(ctx) {
+                const blink = 0.6 + 0.4 * Math.abs(Math.sin(this.blinkPhase));
+                ctx.save();
+                ctx.globalAlpha = blink;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#00ffff';
+                ctx.fill();
+                ctx.strokeStyle = '#00cccc';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
             }
         }
 
@@ -1547,6 +1600,58 @@
                         ctx.beginPath();
                         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                         ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRocketTrail(x, y, color) {
+                this.effects.push(new Effect('rocketTrail', x, y, {
+                    size: 6,
+                    opacity: 0.7,
+                    life: 18, // 3x longer than bullet trail
+                    color,
+                    typeSpecificUpdate: function() {
+                        const t = getTimeScale();
+                        this.life -= t;
+                        this.opacity = this.life / 18;
+                        this.size *= Math.pow(0.97, t);
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = this.opacity;
+                        ctx.fillStyle = this.color;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }));
+            }
+
+            createRocketExplosionRing(x, y, maxRadius) {
+                this.effects.push(new Effect('rocketExplosionRing', x, y, {
+                    radius: 0,
+                    maxRadius,
+                    life: 30,
+                    maxLife: 30,
+                    typeSpecificUpdate: function() {
+                        const t = getTimeScale();
+                        this.life -= t;
+                        const k = 1 - (this.life / this.maxLife);
+                        this.radius = this.maxRadius * k;
+                        return this.life > 0;
+                    },
+                    typeSpecificDraw: function(ctx) {
+                        const alpha = Math.max(0, this.life / this.maxLife);
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.strokeStyle = '#00ffff';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        ctx.stroke();
                         ctx.restore();
                     }
                 }));
@@ -3339,6 +3444,7 @@
                 this.input.clear();
                 this.player = new Player(this.canvas);
                 this.bullets = [];
+                this.rockets = [];
                 this.enemyBullets = [];
                 this.enemies = [];
                 this.effects = new EffectsManager();
@@ -3559,12 +3665,14 @@
                     if (this.gameOver || this.inLobby) return;
                     if (!this.paused) {
                         if (e.button === 0) this.input.mouse.down = true;
+                        else if (e.button === 1) { this.input.mouse.middleDown = true; if (this.launchRocket) this.launchRocket(); e.preventDefault(); }
                         else if (e.button === 2) this.input.mouse.rightDown = true;
                     }
                 });
 
                 this.canvas.addEventListener('mouseup', e => {
                     if (e.button === 0) this.input.mouse.down = false;
+                    else if (e.button === 1) this.input.mouse.middleDown = false;
                     else if (e.button === 2) this.input.mouse.rightDown = false;
                 });
 
@@ -3595,6 +3703,14 @@
                 ));
                 this.lastShot = now;
                 this.audio.playSound('bulletShoot');
+            }
+
+            launchRocket() {
+                // Single-shot on middle click
+                const dx = this.input.mouse.x - this.player.x;
+                const dy = this.input.mouse.y - this.player.y;
+                const dmg = Math.floor(50 * (this.player.bulletDamageMultiplier || 1));
+                this.rockets.push(new Rocket(this.player.x, this.player.y, dx, dy, dmg));
             }
 
             spawnEnemy(type) {
@@ -3733,6 +3849,61 @@
                 this.updateBackgroundParallax();
                 
                 if (this.input.mouse.down) this.shoot();
+                // Update rockets
+                {
+                    let write = 0;
+                    for (let read = 0; read < this.rockets.length; read++) {
+                        const r = this.rockets[read];
+                        if (r && r.update(this.canvas, this.effects)) {
+                            this.rockets[write++] = r;
+                        } else if (r) {
+                            // On removal (out of bounds or life ended), explode
+                            if (this.effects && this.effects.createRocketExplosionRing) {
+                                this.effects.createRocketExplosionRing(r.x, r.y, r.aoeRadius);
+                            }
+                            // Apply AoE damage to enemies
+                            const radius = r.aoeRadius;
+                            const minX = r.x - radius, maxX = r.x + radius;
+                            const minY = r.y - radius, maxY = r.y + radius;
+                            for (let ei = this.enemies.length - 1; ei >= 0; ei--) {
+                                const enemy = this.enemies[ei];
+                                if (!enemy) continue;
+                                if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
+                                const d2 = (enemy.x - r.x) * (enemy.x - r.x) + (enemy.y - r.y) * (enemy.y - r.y);
+                                if (d2 <= radius * radius) {
+                                    if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || ((enemy.type === 'rhombus' || enemy.type === 'rhombus_boss') && enemy.invulnerable)) continue;
+                                    if (!enemy.takeDamage(r.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                        this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
+                                        { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
+                                        if (enemy.type === 'rhombus') {
+                                            // special rhombus death handled elsewhere if needed
+                                        }
+                                    }
+                                }
+                            }
+                            // Apply AoE to Tetris Cross boss pieces if active
+                            if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                                for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
+                                    const piece = this.tetrisManager.activePieces[p];
+                                    const cells = piece.getCells();
+                                    for (let c = 0; c < cells.length; c++) {
+                                        const cell = cells[c];
+                                        const dx = cell.x - r.x; const dy = cell.y - r.y;
+                                        if (dx*dx + dy*dy <= (r.aoeRadius) * (r.aoeRadius)) {
+                                            piece.hp -= r.damage;
+                                            piece.damageFlash = 12;
+                                            if (piece.hp <= 0) {
+                                                piece.startDeath(this.effects);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    this.rockets.length = write;
+                }
                 // In-place compaction for bullets
                 {
                     let write = 0;
@@ -3762,6 +3933,72 @@
                     const b = this.bullets[bi];
                     const r = b.radius;
                     bulletHash.insert(bi, b.x - r, b.y - r, b.x + r, b.y + r);
+                }
+                // Rockets collide by AoE when touching enemies or field bounds (handled above on removal).
+
+                // Check rocket direct collision: if rocket overlaps any enemy, explode immediately
+                outerRocket: for (let ri = this.rockets.length - 1; ri >= 0; ri--) {
+                    const r = this.rockets[ri];
+                    if (!r) continue;
+                    for (let ei = this.enemies.length - 1; ei >= 0; ei--) {
+                        const enemy = this.enemies[ei];
+                        if (!enemy) continue;
+                        const dx = r.x - enemy.x, dy = r.y - enemy.y;
+                        const rr = r.radius + enemy.radius;
+                        if (dx*dx + dy*dy <= rr*rr) {
+                            // Remove rocket
+                            const exploded = this.rockets.splice(ri, 1)[0];
+                            if (exploded && this.effects && this.effects.createRocketExplosionRing) {
+                                this.effects.createRocketExplosionRing(exploded.x, exploded.y, exploded.aoeRadius);
+                            }
+                            // AoE damage
+                            const ex = r.x, ey = r.y, aoe = exploded.aoeRadius;
+                            const minX = ex - aoe, maxX = ex + aoe, minY = ey - aoe, maxY = ey + aoe;
+                            for (let ej = this.enemies.length - 1; ej >= 0; ej--) {
+                                const en = this.enemies[ej];
+                                if (!en) continue;
+                                if (en.x < minX || en.x > maxX || en.y < minY || en.y > maxY) continue;
+                                const ddx = en.x - ex, ddy = en.y - ey;
+                                if (ddx*ddx + ddy*ddy <= aoe * aoe) {
+                                    if ((en.spawnShieldUntil && Date.now() < en.spawnShieldUntil) || ((en.type === 'rhombus' || en.type === 'rhombus_boss') && en.invulnerable)) continue;
+                                    if (!en.takeDamage(exploded.damage, this.effects, this.score, this.ctx, this.audio)) {
+                                        this.effects.createExplosion(en.x, en.y, en.type, en.radius);
+                                        { const config = ENEMY_TYPES[en.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(en.x, en.y, Math.max(8, en.radius * 0.25), xp); }
+                                        if (en.type === 'rhombus') {
+                                            this.spawnTrianglesAround(en.x, en.y);
+                                        }
+                                        // swap-remove enemy
+                                        const last = this.enemies.length - 1;
+                                        this.enemies[ej] = this.enemies[last];
+                                        this.enemies.pop();
+                                        if (this.inBossPhase && en.type && (ENEMY_TYPES[en.type]?.isBoss || ENEMY_TYPES[en.type]?.role === 'boss')) {
+                                            this.onBossDefeated();
+                                        }
+                                        this.score += en.points;
+                                        this.enemiesKilled++;
+                                        this.uiManager.showScoreAddition(en.points);
+                                    }
+                                }
+                            }
+                            // AoE onto Tetris Cross boss pieces
+                            if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+                                for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
+                                    const piece = this.tetrisManager.activePieces[p];
+                                    const cells = piece.getCells();
+                                    for (let c = 0; c < cells.length; c++) {
+                                        const cell = cells[c];
+                                        const ddx = cell.x - ex, ddy = cell.y - ey;
+                                        if (ddx*ddx + ddy*ddy <= aoe * aoe) {
+                                            piece.hp -= exploded.damage;
+                                            piece.damageFlash = 12;
+                                            if (piece.hp <= 0) { piece.startDeath(this.effects); break; }
+                                        }
+                                    }
+                                }
+                            }
+                            continue outerRocket;
+                        }
+                    }
                 }
 
                 // Build spatial hash for enemies this frame (kept for other broad-phase uses)
@@ -4075,6 +4312,15 @@
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
+                // draw rocket direction hint when middle is down
+                if (this.input.mouse.middleDown) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.player.x, this.player.y);
+                    this.ctx.lineTo(this.input.mouse.x, this.input.mouse.y);
+                    this.ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.stroke();
+                }
 				this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
 				// Draw boss above enemies for emphasis (works for any boss type)
 				if (this.inBossPhase && this.activeBoss && !(this.activeBoss instanceof TetrisCrossBoss)) {
@@ -4089,6 +4335,11 @@
 					}
 				}
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
+                // Draw rockets above effects but before player
+                for (let i = 0; i < this.rockets.length; i++) {
+                    const r = this.rockets[i];
+                    if (r) r.draw(this.ctx);
+                }
                 this.player.draw(this.ctx);
                 
                 // Draw custom crosshair
