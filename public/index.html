@@ -885,6 +885,7 @@
                 this.health = 100;
                 this.maxHealth = 100;
                 this.damageFlash = 0;
+				this.healFlash = 0;
                 this.invulnerable = false;
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
@@ -902,6 +903,7 @@
                 this.dashEndY = 0;
                 this.railgunCharging = false;
                 this.railgunMaxChargeSoundPlayed = false;
+				this._lastHealth = this.health;
             }
 
             startDash(keys, effects, audio) {
@@ -973,6 +975,7 @@
             update(input, effects, canvas, audio) {
                 const timeScale = getTimeScale();
                 if (this.damageFlash > 0) this.damageFlash -= timeScale;
+				if (this.healFlash > 0) this.healFlash -= timeScale;
                 if (this.invulnerable && this.invulnerabilityTime > 0 && !this.isDashing) {
                     this.invulnerabilityTime -= timeScale;
                     if (this.invulnerabilityTime <= 0) this.invulnerable = false;
@@ -988,7 +991,12 @@
                     if (this.dashProgress >= this.dashDuration) {
                         this.isDashing = false;
                         this.invulnerable = false;
-                    }
+				// Detect positive HP changes and trigger a single green blink
+				if (this.health > this._lastHealth) {
+					this.healFlash = 12;
+				}
+				this._lastHealth = this.health;
+			}
                 } else if (input.mouse.rightDown) {
                     if (!this.railgunCharging && audio) {
                         audio.startLoopingSound('railgunCharge');
@@ -1049,9 +1057,9 @@
                 }
             }
 
-            draw(ctx) {
-                let fillColor = this.damageFlash > 0 ? '#ff0000' : this.invulnerable ? '#f0f0ff' : '#ffffff';
-                let strokeColor = this.damageFlash > 0 ? '#cc0000' : this.invulnerable ? '#a0a0ff' : '#cccccc';
+			draw(ctx) {
+				let fillColor = this.damageFlash > 0 ? '#ff0000' : (this.healFlash > 0 ? '#00ff55' : (this.invulnerable ? '#f0f0ff' : '#ffffff'));
+				let strokeColor = this.damageFlash > 0 ? '#cc0000' : (this.healFlash > 0 ? '#00aa44' : (this.invulnerable ? '#a0a0ff' : '#cccccc'));
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = fillColor;
@@ -4337,11 +4345,14 @@
                 this.pauseTime = Date.now();
                 this.input.clear();
                 const options = this.upgradeManager.getRandomOptions(this.playerLevel, 3);
-                // If nothing to show, skip selection
-                if (!options || options.length === 0) {
-                    this.resumeAfterUpgrade();
-                    return;
-                }
+				// If nothing to show, grant +25 HP and skip selection
+				if (!options || options.length === 0) {
+					if (this.player && this.player.health > 0) {
+						this.player.health = Math.min(this.player.maxHealth, this.player.health + 25);
+					}
+					this.resumeAfterUpgrade();
+					return;
+				}
                 this.upgradeManager.renderOptions(options);
             }
             
