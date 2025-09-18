@@ -3810,7 +3810,7 @@
                             const dy = bullet.y - enemy.y;
                             const r = bullet.radius + enemy.radius;
                             if (dx*dx + dy*dy < r*r) {
-                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+							if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || ((enemy.type === 'rhombus' || enemy.type === 'rhombus_boss') && enemy.invulnerable)) continue;
                                 bullet._dead = true;
                                 if (!enemy.takeDamage(bullet.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
@@ -3841,7 +3841,7 @@
                                 const maxY = Math.max(effect.y, effect.endY) + enemy.radius;
                                 if (enemy.x < minX || enemy.x > maxX || enemy.y < minY || enemy.y > maxY) continue;
                                 if (!effect.intersectsEnemy(enemy)) continue;
-                                if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || (enemy.type === 'rhombus' && enemy.invulnerable)) continue;
+							if ((enemy.spawnShieldUntil && Date.now() < enemy.spawnShieldUntil) || ((enemy.type === 'rhombus' || enemy.type === 'rhombus_boss') && enemy.invulnerable)) continue;
                                 if (!enemy.takeDamage(effect.damage, this.effects, this.score, this.ctx, this.audio)) {
                                     this.effects.createExplosion(enemy.x, enemy.y, enemy.type, enemy.radius);
                                     { const config = ENEMY_TYPES[enemy.type] || {}; const xp = config.xp || 0; if (xp > 0) this.effects.createXPRing(enemy.x, enemy.y, Math.max(8, enemy.radius * 0.25), xp); }
@@ -4075,13 +4075,19 @@
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-                this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
-                this.enemies.forEach(enemy => enemy.draw(this.ctx));
-
-                // Draw Tetris Cross boss above enemies and bullets for emphasis
-                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
-                    this.activeBoss.draw(this.ctx);
-                }
+				this.enemyBullets.forEach(bullet => bullet.draw(this.ctx));
+				// Draw boss above enemies for emphasis (works for any boss type)
+				if (this.inBossPhase && this.activeBoss && !(this.activeBoss instanceof TetrisCrossBoss)) {
+					const bossRef = this.activeBoss;
+					this.enemies.forEach(enemy => { if (enemy !== bossRef) enemy.draw(this.ctx); });
+					bossRef.draw(this.ctx);
+				} else {
+					this.enemies.forEach(enemy => enemy.draw(this.ctx));
+					// Draw Tetris Cross boss above enemies and bullets for emphasis
+					if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
+						this.activeBoss.draw(this.ctx);
+					}
+				}
                 this.effects.draw(this.ctx, this.score, this.player.x, this.player.y, this.bullets);
                 this.player.draw(this.ctx);
                 
