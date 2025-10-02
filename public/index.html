@@ -4185,6 +4185,36 @@
                     }
                 }
 
+                // Player collisions with tetromino pieces and stack (boss phase)
+                if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss && !this.player.isDashing) {
+                    const cellHash = new SpatialHash(TETRIS_SETTINGS.cellSize || 40);
+                    for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
+                        const piece = this.tetrisManager.activePieces[p];
+                        const cells = piece.getCells();
+                        for (let c = 0; c < cells.length; c++) {
+                            const cell = cells[c];
+                            const r = cell.r;
+                            cellHash.insert({ piece, cell }, cell.x - r, cell.y - r, cell.x + r, cell.y + r);
+                        }
+                    }
+                    // Include stacked cells too
+                    for (let s = 0; s < this.tetrisManager.stack.length; s++) {
+                        const cell = this.tetrisManager.stack[s];
+                        const r = cell.r;
+                        cellHash.insert({ piece: null, cell }, cell.x - r, cell.y - r, cell.x + r, cell.y + r);
+                    }
+                    const px = this.player.x, py = this.player.y, pr = this.player.radius;
+                    const nearby = cellHash.queryAABB(px - pr, py - pr, px + pr, py + pr);
+                    for (let i = 0; i < nearby.length; i++) {
+                        const { cell } = nearby[i];
+                        const dx = px - cell.x, dy = py - cell.y;
+                        if (dx*dx + dy*dy <= (pr + cell.r) * (pr + cell.r)) {
+                            this.player.takeDamage(TETRIS_SETTINGS.playerCollisionDamage || 25, (px + cell.x) / 2, (py + cell.y) / 2, this.effects, this.audio);
+                            break;
+                        }
+                    }
+                }
+
                 // Railgun interaction with Tetris Cross boss (full charge only)
                 if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
 					// Player circle collision with Tetris boss should only damage player, not boss
