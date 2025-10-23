@@ -216,6 +216,59 @@
             transform: scale(0.98);
         }
         
+        /* Theme selector (lobby) */
+        .theme-selector {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .theme-label {
+            color: #ffffff;
+            font-size: 12px;
+            letter-spacing: 2px;
+            opacity: 0.9;
+        }
+        .theme-options {
+            display: flex;
+            gap: 22px;
+            align-items: center;
+            justify-content: center;
+        }
+        .theme-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .theme-option .circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 2px solid #cccccc;
+            box-sizing: border-box;
+        }
+        .theme-option .theme-name {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #cccccc;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .theme-option.selected {
+            transform: scale(1.25);
+            filter: drop-shadow(0 0 10px #00ffff) drop-shadow(0 0 16px rgba(0,255,255,0.5));
+        }
+        .theme-default { background: #ffffff; border-color: #cccccc; }
+        .theme-cyan { background: #00ffff; border-color: #00cccc; box-shadow: 0 0 10px rgba(0,255,255,0.8), 0 0 18px rgba(0,255,255,0.5); }
+        .theme-rainbow { background: conic-gradient(from 0deg, red, orange, yellow, green, cyan, blue, violet, red); border-color: #ffffff22; animation: rainbowHue 8s linear infinite; }
+        @keyframes rainbowHue {
+            from { filter: hue-rotate(0deg); }
+            to { filter: hue-rotate(360deg); }
+        }
+        
         .music-toggle {
             position: absolute;
             top: 18px;
@@ -390,6 +443,24 @@
             START
             <div class="button-rain" id="buttonRain"></div>
         </button>
+        <!-- Theme selector: centered by X under Start -->
+        <div class="theme-selector" id="themeSelector" aria-label="Select Ship Theme">
+            <div class="theme-label">SHIP THEME</div>
+            <div class="theme-options">
+                <div class="theme-option" data-theme="default" id="themeDefault">
+                    <div class="circle theme-default"></div>
+                    <div class="theme-name">Default</div>
+                </div>
+                <div class="theme-option" data-theme="cyan" id="themeCyan">
+                    <div class="circle theme-cyan"></div>
+                    <div class="theme-name">Glow Cyan</div>
+                </div>
+                <div class="theme-option" data-theme="rainbow" id="themeRainbow">
+                    <div class="circle theme-rainbow"></div>
+                    <div class="theme-name">Rainbow</div>
+                </div>
+            </div>
+        </div>
         <div class="lobby-best" id="bestStats">Best Score: 0 / Max Wave: 0</div>
     </div>
     
@@ -910,6 +981,8 @@
                 this.railgunCharging = false;
                 this.railgunMaxChargeSoundPlayed = false;
 				this._lastHealth = this.health;
+                // Visual theme for rendering: 'default' | 'cyan' | 'rainbow'
+                this.theme = 'default';
             }
 
             startDash(keys, effects, audio) {
@@ -1064,15 +1137,79 @@
             }
 
 			draw(ctx) {
-				let fillColor = this.damageFlash > 0 ? '#ff0000' : (this.healFlash > 0 ? '#00ff55' : (this.invulnerable ? '#f0f0ff' : '#ffffff'));
-				let strokeColor = this.damageFlash > 0 ? '#cc0000' : (this.healFlash > 0 ? '#00aa44' : (this.invulnerable ? '#a0a0ff' : '#cccccc'));
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = fillColor;
-                ctx.fill();
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 2;
-                ctx.stroke();
+                // Priority effects override theme
+                if (this.damageFlash > 0) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fill();
+                    ctx.strokeStyle = '#cc0000';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else if (this.healFlash > 0) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#00ff55';
+                    ctx.fill();
+                    ctx.strokeStyle = '#00aa44';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else if (this.invulnerable) {
+                    // Keep invulnerable visual as before
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#f0f0ff';
+                    ctx.fill();
+                    ctx.strokeStyle = '#a0a0ff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else {
+                    // Apply theme visuals
+                    let strokeStyle = '#cccccc';
+                    ctx.lineWidth = 2;
+                    if (this.theme === 'cyan') {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        ctx.shadowColor = '#00ffff';
+                        ctx.shadowBlur = 18;
+                        ctx.fillStyle = '#00ffff';
+                        ctx.fill();
+                        ctx.restore();
+                        strokeStyle = '#00cccc';
+                        ctx.strokeStyle = strokeStyle;
+                        ctx.stroke();
+                    } else if (this.theme === 'rainbow') {
+                        const r = this.radius;
+                        const grad = ctx.createLinearGradient(this.x - r, this.y - r, this.x + r, this.y + r);
+                        const t = (Date.now() % 12000) / 12000; // 12s slow cycle
+                        const addStop = (offset) => {
+                            const hue = Math.floor(((t + offset) % 1) * 360);
+                            grad.addColorStop(offset, `hsl(${hue}, 100%, 60%)`);
+                        };
+                        addStop(0.0);
+                        addStop(0.16);
+                        addStop(0.33);
+                        addStop(0.50);
+                        addStop(0.66);
+                        addStop(0.83);
+                        addStop(1.0);
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffffff88';
+                        ctx.stroke();
+                    } else {
+                        // default
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fill();
+                        ctx.strokeStyle = '#cccccc';
+                        ctx.stroke();
+                    }
+                }
 
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
@@ -3011,6 +3148,14 @@
                 // Expose && initialize scaling
                 if (typeof window !== 'undefined') { window.game = this; }
                 this.speedScale = 1; // fixed internal resolution; keep motion scale 1
+                // Theme state
+                this.playerTheme = 'default';
+                try {
+                    const savedTheme = localStorage.getItem('geometry_rush_theme');
+                    if (savedTheme === 'cyan' || savedTheme === 'rainbow' || savedTheme === 'default') {
+                        this.playerTheme = savedTheme;
+                    }
+                } catch (e) { /* ignore storage errors */ }
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
@@ -3212,6 +3357,8 @@
                 const lobbyTitle = document.getElementById('lobbyTitle');
                 const lobbyLogo = document.getElementById('lobbyLogo');
                 const bestStatsEl = document.getElementById('bestStats');
+                const themeSelector = document.getElementById('themeSelector');
+                const themeOptions = themeSelector ? Array.from(themeSelector.querySelectorAll('.theme-option')) : [];
                 
                 // Handle logo loading
                 lobbyLogo.addEventListener('load', () => {
@@ -3276,6 +3423,30 @@
                         // toggleMusic already pauses all music
                     }
                 });
+                // Theme option handlers
+                const applyThemeSelectionUI = () => {
+                    themeOptions.forEach(opt => {
+                        const t = opt.getAttribute('data-theme');
+                        if (t === this.playerTheme) opt.classList.add('selected');
+                        else opt.classList.remove('selected');
+                    });
+                };
+                const setTheme = (theme) => {
+                    if (!theme || (theme !== 'default' && theme !== 'cyan' && theme !== 'rainbow')) return;
+                    this.playerTheme = theme;
+                    try { localStorage.setItem('geometry_rush_theme', theme); } catch (e) {}
+                    applyThemeSelectionUI();
+                    if (this.player) this.player.theme = theme;
+                };
+                themeOptions.forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        const theme = opt.getAttribute('data-theme');
+                        this.audio.playSound('buttonClick');
+                        setTheme(theme);
+                    });
+                });
+                // Initialize theme UI from saved theme
+                applyThemeSelectionUI();
                 
                 // Auto-start audio on any interaction (only while in lobby)
                 const initAudio = async () => {
@@ -3450,6 +3621,8 @@
             reset() {
                 this.input.clear();
                 this.player = new Player(this.canvas);
+                // Apply selected theme to new player instance
+                this.player.theme = this.playerTheme || 'default';
                 this.bullets = [];
                 this.rockets = [];
                 this.enemyBullets = [];
