@@ -84,6 +84,14 @@
         .xp-level { top: 80px; left: calc(50% + 180px - 10px); font-size: 20px; }
         
         /* Lobby Screen Styles */
+        /* Theme spacing variables (editable via controls) */
+        :root {
+            --theme-gap: 22px;          /* space between theme items */
+            --theme-title-gap: 10px;    /* space between title and items */
+            --theme-name-gap: 6px;      /* space between circle and name */
+            --theme-option-width: 96px; /* fixed width per option to keep symmetry */
+        }
+
         .lobby {
             position: absolute;
             top: 0;
@@ -219,10 +227,13 @@
         /* Theme selector (lobby) */
         .theme-selector {
             margin-top: 44px;
+            margin-left: auto;
+            margin-right: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            text-align: center;
+            gap: var(--theme-title-gap, 10px);
         }
         .theme-label {
             color: #ffffff;
@@ -232,15 +243,16 @@
         }
         .theme-options {
             display: flex;
-            gap: 22px;
             align-items: center;
             justify-content: center;
+            gap: var(--theme-gap, 22px);
         }
         .theme-option {
             display: flex;
             flex-direction: column;
             align-items: center;
             cursor: pointer;
+            width: var(--theme-option-width, 96px);
             transition: transform 0.2s ease;
         }
         .theme-option .circle {
@@ -249,15 +261,21 @@
             border-radius: 50%;
             border: 2px solid #cccccc;
             box-sizing: border-box;
+            transform-origin: center center;
+            transition: transform 0.2s ease, filter 0.2s ease;
         }
         .theme-option .theme-name {
-            margin-top: 6px;
+            margin-top: var(--theme-name-gap, 6px);
             font-size: 11px;
             color: #cccccc;
             text-transform: none;
             letter-spacing: 1px;
+            white-space: nowrap;
+            width: 100%;
+            text-align: center;
         }
-        .theme-option.selected {
+        .theme-option.selected { /* visual emphasis handled on circle to avoid layout shift */ }
+        .theme-option.selected .circle {
             transform: scale(1.25);
             filter: drop-shadow(0 0 10px #00ffff) drop-shadow(0 0 16px rgba(0,255,255,0.5));
         }
@@ -280,6 +298,33 @@
         @keyframes rainbowHue {
             from { filter: hue-rotate(0deg); }
             to { filter: hue-rotate(360deg); }
+        }
+
+        /* Compact spacing controls (lobby only) */
+        .theme-spacing-controls {
+            margin-top: 8px;
+            color: #ffffff;
+            opacity: 0.9;
+            font-size: 12px;
+        }
+        .theme-spacing-controls summary {
+            cursor: pointer;
+            margin-bottom: 6px;
+            outline: none;
+        }
+        .theme-spacing-controls .controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+        .theme-spacing-controls label {
+            min-width: 150px;
+            text-align: right;
+        }
+        .theme-spacing-controls input[type="range"] {
+            width: 180px;
         }
         
         .music-toggle {
@@ -473,6 +518,25 @@
                     <div class="theme-name" id="themeRainbowName">Rainbow</div>
                 </div>
             </div>
+            <!-- Spacing controls for theme selector -->
+            <details class="theme-spacing-controls" id="themeSpacingControls">
+                <summary>Adjust theme panel spacing</summary>
+                <div class="controls-row">
+                    <label for="gapBetweenThemes">Between themes</label>
+                    <input type="range" id="gapBetweenThemes" min="0" max="80" step="1" value="22">
+                    <span id="gapBetweenThemesValue">22px</span>
+                </div>
+                <div class="controls-row">
+                    <label for="gapTitleToOptions">Title to themes</label>
+                    <input type="range" id="gapTitleToOptions" min="0" max="80" step="1" value="10">
+                    <span id="gapTitleToOptionsValue">10px</span>
+                </div>
+                <div class="controls-row">
+                    <label for="gapCircleToName">Circle to name</label>
+                    <input type="range" id="gapCircleToName" min="0" max="40" step="1" value="6">
+                    <span id="gapCircleToNameValue">6px</span>
+                </div>
+            </details>
         </div>
         <div class="lobby-best" id="bestStats">Best Score: 0 / Max Wave: 0</div>
     </div>
@@ -3375,6 +3439,61 @@
                 const themeOptions = themeSelector ? Array.from(themeSelector.querySelectorAll('.theme-option')) : [];
                 const themeCyanNameEl = document.getElementById('themeCyanName');
                 const themeRainbowNameEl = document.getElementById('themeRainbowName');
+                const spacingControls = {
+                    wrap: document.getElementById('themeSpacingControls'),
+                    themesGap: document.getElementById('gapBetweenThemes'),
+                    themesGapValue: document.getElementById('gapBetweenThemesValue'),
+                    titleGap: document.getElementById('gapTitleToOptions'),
+                    titleGapValue: document.getElementById('gapTitleToOptionsValue'),
+                    nameGap: document.getElementById('gapCircleToName'),
+                    nameGapValue: document.getElementById('gapCircleToNameValue'),
+                };
+
+                // Helpers to read/write CSS variables on :root
+                const setCssVar = (name, value) => {
+                    document.documentElement.style.setProperty(name, value);
+                };
+                const getCssVarPx = (name, fallback) => {
+                    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+                    const n = parseInt(v || `${fallback}`, 10);
+                    return Number.isFinite(n) ? n : fallback;
+                };
+
+                // Initialize control values from current CSS variables
+                const initSpacingControls = () => {
+                    if (!spacingControls.wrap) return;
+                    const themeGap = getCssVarPx('--theme-gap', 22);
+                    const titleGap = getCssVarPx('--theme-title-gap', 10);
+                    const nameGap = getCssVarPx('--theme-name-gap', 6);
+                    if (spacingControls.themesGap) spacingControls.themesGap.value = String(themeGap);
+                    if (spacingControls.themesGapValue) spacingControls.themesGapValue.textContent = `${themeGap}px`;
+                    if (spacingControls.titleGap) spacingControls.titleGap.value = String(titleGap);
+                    if (spacingControls.titleGapValue) spacingControls.titleGapValue.textContent = `${titleGap}px`;
+                    if (spacingControls.nameGap) spacingControls.nameGap.value = String(nameGap);
+                    if (spacingControls.nameGapValue) spacingControls.nameGapValue.textContent = `${nameGap}px`;
+                };
+
+                const bindSpacingControls = () => {
+                    if (!spacingControls.wrap) return;
+                    spacingControls.themesGap?.addEventListener('input', (e) => {
+                        const v = parseInt(e.target.value, 10) || 0;
+                        setCssVar('--theme-gap', `${v}px`);
+                        if (spacingControls.themesGapValue) spacingControls.themesGapValue.textContent = `${v}px`;
+                    });
+                    spacingControls.titleGap?.addEventListener('input', (e) => {
+                        const v = parseInt(e.target.value, 10) || 0;
+                        setCssVar('--theme-title-gap', `${v}px`);
+                        if (spacingControls.titleGapValue) spacingControls.titleGapValue.textContent = `${v}px`;
+                    });
+                    spacingControls.nameGap?.addEventListener('input', (e) => {
+                        const v = parseInt(e.target.value, 10) || 0;
+                        setCssVar('--theme-name-gap', `${v}px`);
+                        if (spacingControls.nameGapValue) spacingControls.nameGapValue.textContent = `${v}px`;
+                    });
+                };
+
+                initSpacingControls();
+                bindSpacingControls();
                 
                 // Handle logo loading
                 lobbyLogo.addEventListener('load', () => {
