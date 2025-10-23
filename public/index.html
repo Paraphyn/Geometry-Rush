@@ -218,7 +218,7 @@
         
         /* Theme selector (lobby) */
         .theme-selector {
-            margin-top: 14px;
+            margin-top: 44px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -261,6 +261,19 @@
             transform: scale(1.25);
             filter: drop-shadow(0 0 10px #00ffff) drop-shadow(0 0 16px rgba(0,255,255,0.5));
         }
+        /* Small shake feedback for locked click */
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-3px); }
+            50% { transform: translateX(3px); }
+            75% { transform: translateX(-2px); }
+            100% { transform: translateX(0); }
+        }
+        .theme-option.shake { animation: shake 0.3s; }
+        /* Locked theme state */
+        .theme-option.locked { cursor: not-allowed; opacity: 0.75; }
+        .theme-option.locked .circle { background: #000000 !important; border-color: #333333 !important; box-shadow: none !important; animation: none !important; }
+        .theme-option.locked .theme-name { color: #777777 !important; }
         .theme-default { background: #ffffff; border-color: #cccccc; }
         .theme-cyan { background: #00ffff; border-color: #00cccc; box-shadow: 0 0 10px rgba(0,255,255,0.8), 0 0 18px rgba(0,255,255,0.5); }
         .theme-rainbow { background: conic-gradient(from 0deg, red, orange, yellow, green, cyan, blue, violet, red); border-color: #ffffff22; animation: rainbowHue 8s linear infinite; }
@@ -444,20 +457,20 @@
             <div class="button-rain" id="buttonRain"></div>
         </button>
         <!-- Theme selector: centered by X under Start -->
-        <div class="theme-selector" id="themeSelector" aria-label="Select Ship Theme">
-            <div class="theme-label">SHIP THEME</div>
+        <div class="theme-selector" id="themeSelector" aria-label="Select Theme">
+            <div class="theme-label">Select Theme</div>
             <div class="theme-options">
                 <div class="theme-option" data-theme="default" id="themeDefault">
                     <div class="circle theme-default"></div>
-                    <div class="theme-name">Default</div>
+                    <div class="theme-name">White</div>
                 </div>
                 <div class="theme-option" data-theme="cyan" id="themeCyan">
                     <div class="circle theme-cyan"></div>
-                    <div class="theme-name">Glow Cyan</div>
+                    <div class="theme-name" id="themeCyanName">Glow</div>
                 </div>
                 <div class="theme-option" data-theme="rainbow" id="themeRainbow">
                     <div class="circle theme-rainbow"></div>
-                    <div class="theme-name">Rainbow</div>
+                    <div class="theme-name" id="themeRainbowName">Rainbow</div>
                 </div>
             </div>
         </div>
@@ -3359,6 +3372,8 @@
                 const bestStatsEl = document.getElementById('bestStats');
                 const themeSelector = document.getElementById('themeSelector');
                 const themeOptions = themeSelector ? Array.from(themeSelector.querySelectorAll('.theme-option')) : [];
+                const themeCyanNameEl = document.getElementById('themeCyanName');
+                const themeRainbowNameEl = document.getElementById('themeRainbowName');
                 
                 // Handle logo loading
                 lobbyLogo.addEventListener('load', () => {
@@ -3423,6 +3438,30 @@
                         // toggleMusic already pauses all music
                     }
                 });
+                // Theme unlock state based on best score
+                const THEME_UNLOCKS = {
+                    default: 0,
+                    cyan: 1000,
+                    rainbow: 2500
+                };
+                const isThemeUnlocked = (themeKey) => {
+                    const required = THEME_UNLOCKS[themeKey] || 0;
+                    return (this.bestScore || 0) >= required;
+                };
+                const updateThemeLocksUI = () => {
+                    themeOptions.forEach(opt => {
+                        const t = opt.getAttribute('data-theme');
+                        const unlocked = isThemeUnlocked(t);
+                        if (!unlocked) opt.classList.add('locked'); else opt.classList.remove('locked');
+                    });
+                    if (themeCyanNameEl) themeCyanNameEl.textContent = isThemeUnlocked('cyan') ? 'Glow' : '1000pts';
+                    if (themeRainbowNameEl) themeRainbowNameEl.textContent = isThemeUnlocked('rainbow') ? 'Rainbow' : '2500pts';
+                };
+                // Ensure currently selected theme is valid; fallback if locked
+                if (!isThemeUnlocked(this.playerTheme)) {
+                    this.playerTheme = 'default';
+                    try { localStorage.setItem('geometry_rush_theme', this.playerTheme); } catch (e) {}
+                }
                 // Theme option handlers
                 const applyThemeSelectionUI = () => {
                     themeOptions.forEach(opt => {
@@ -3433,6 +3472,7 @@
                 };
                 const setTheme = (theme) => {
                     if (!theme || (theme !== 'default' && theme !== 'cyan' && theme !== 'rainbow')) return;
+                    if (!isThemeUnlocked(theme)) return; // block selecting locked themes
                     this.playerTheme = theme;
                     try { localStorage.setItem('geometry_rush_theme', theme); } catch (e) {}
                     applyThemeSelectionUI();
@@ -3441,11 +3481,18 @@
                 themeOptions.forEach(opt => {
                     opt.addEventListener('click', () => {
                         const theme = opt.getAttribute('data-theme');
-                        this.audio.playSound('buttonClick');
-                        setTheme(theme);
+                        if (isThemeUnlocked(theme)) {
+                            this.audio.playSound('buttonClick');
+                            setTheme(theme);
+                        } else {
+                            // Optional: provide a subtle feedback without selecting
+                            opt.classList.add('shake');
+                            setTimeout(() => opt.classList.remove('shake'), 300);
+                        }
                     });
                 });
                 // Initialize theme UI from saved theme
+                updateThemeLocksUI();
                 applyThemeSelectionUI();
                 
                 // Auto-start audio on any interaction (only while in lobby)
@@ -3616,6 +3663,24 @@
                 this.updateBestStatsLabel();
                 // UI layout changed: refresh rect cache
                 this.refreshCanvasRectCache();
+                // Refresh theme locks in the lobby based on latest best score
+                try {
+                    const themeSelector = document.getElementById('themeSelector');
+                    if (themeSelector) {
+                        const themeOptions = Array.from(themeSelector.querySelectorAll('.theme-option'));
+                        const THEME_UNLOCKS = { default: 0, cyan: 1000, rainbow: 2500 };
+                        const best = this.bestScore || 0;
+                        themeOptions.forEach(opt => {
+                            const t = opt.getAttribute('data-theme');
+                            const required = THEME_UNLOCKS[t] || 0;
+                            if (best < required) opt.classList.add('locked'); else opt.classList.remove('locked');
+                        });
+                        const themeCyanNameEl = document.getElementById('themeCyanName');
+                        const themeRainbowNameEl = document.getElementById('themeRainbowName');
+                        if (themeCyanNameEl) themeCyanNameEl.textContent = (best >= 1000) ? 'Glow' : '1000pts';
+                        if (themeRainbowNameEl) themeRainbowNameEl.textContent = (best >= 2500) ? 'Rainbow' : '2500pts';
+                    }
+                } catch (e) {}
             }
 
             reset() {
