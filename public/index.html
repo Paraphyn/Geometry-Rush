@@ -495,7 +495,7 @@
 
     <script>
         // Global speed && scaling settings
-        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.9 };
+        const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
 
         function computeResolutionScale(width, height) {
             return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
@@ -530,17 +530,17 @@
                 // Layer-based properties for depth effect (5 layers total)
                 switch(layer) {
                     case 0: // Furthest background layer (smallest)
-                        this.speed = 0.3 + Math.random() * 0.5;
+                        this.speed = 0.4 + Math.random() * 0.5;
                         this.baseOpacity = 0.2 + Math.random() * 0.1;
                         this.size = 8 + Math.random() * 4;
                         break;
                     case 1: // Very far background layer
-                        this.speed = 0.4 + Math.random() * 0.7;
+                        this.speed = 0.6 + Math.random() * 0.7;
                         this.baseOpacity = 0.3 + Math.random() * 0.15;
                         this.size = 10 + Math.random() * 6;
                         break;
                     case 2: // Far background layer
-                        this.speed = 0.5 + Math.random() * 1;
+                        this.speed = 0.7 + Math.random() * 1;
                         this.baseOpacity = 0.4 + Math.random() * 0.2;
                         this.size = 12 + Math.random() * 8;
                         break;
@@ -559,7 +559,7 @@
                 this.opacity = 0;
                 this.life = 0;
                 // Extend lifetime to be 2x longer so numbers reach lower on screen
-                this.maxLife = (400 + Math.random() * 300) * 2;
+                this.maxLife = (450 + Math.random() * 300) * 2;
                 this.twinkle = Math.random() * Math.PI * 2;
             }
 
