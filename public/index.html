@@ -254,7 +254,7 @@
             margin-top: 6px;
             font-size: 11px;
             color: #cccccc;
-            text-transform: uppercase;
+            text-transform: none;
             letter-spacing: 1px;
         }
         .theme-option.selected {
@@ -3455,8 +3455,8 @@
                         const unlocked = isThemeUnlocked(t);
                         if (!unlocked) opt.classList.add('locked'); else opt.classList.remove('locked');
                     });
-                    if (themeCyanNameEl) themeCyanNameEl.textContent = isThemeUnlocked('cyan') ? 'Glow' : '1000pts';
-                    if (themeRainbowNameEl) themeRainbowNameEl.textContent = isThemeUnlocked('rainbow') ? 'Rainbow' : '2500pts';
+                    if (themeCyanNameEl) themeCyanNameEl.textContent = isThemeUnlocked('cyan') ? 'Glow' : '1000 Pts.';
+                    if (themeRainbowNameEl) themeRainbowNameEl.textContent = isThemeUnlocked('rainbow') ? 'Rainbow' : '2500 Pts.';
                 };
                 // Ensure currently selected theme is valid; fallback if locked
                 if (!isThemeUnlocked(this.playerTheme)) {
@@ -3678,8 +3678,8 @@
                         });
                         const themeCyanNameEl = document.getElementById('themeCyanName');
                         const themeRainbowNameEl = document.getElementById('themeRainbowName');
-                        if (themeCyanNameEl) themeCyanNameEl.textContent = (best >= 1000) ? 'Glow' : '1000pts';
-                        if (themeRainbowNameEl) themeRainbowNameEl.textContent = (best >= 2500) ? 'Rainbow' : '2500pts';
+                        if (themeCyanNameEl) themeCyanNameEl.textContent = (best >= 1000) ? 'Glow' : '1000 Pts.';
+                        if (themeRainbowNameEl) themeRainbowNameEl.textContent = (best >= 2500) ? 'Rainbow' : '2500 Pts.';
                     }
                 } catch (e) {}
             }
