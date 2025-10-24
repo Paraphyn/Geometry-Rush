@@ -689,6 +689,7 @@
                     gameOver: { file: 'game-over.wav', loop: false },
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
+                    boss_hit: { file: 'enemy-hit.wav', loop: false },
                     bossDefeated: { file: 'game-over.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
@@ -1067,6 +1068,9 @@
                 this.invulnerabilityTime = 5;
                 effects.createDamageLabel(sourceX || this.x, sourceY || this.y - this.radius - 15, actualDamage, true);
                 if (audio) audio.playSound('playerDamage');
+                if (typeof window !== 'undefined' && window.game && window.game.shakeCanvas) {
+                    window.game.shakeCanvas(5, 220);
+                }
                 return true;
             }
 
@@ -2478,7 +2482,10 @@
                     if (audio) audio.playSound('enemyDeath');
                     return false;
                 } else {
-                    if (audio) audio.playSound('enemyHit');
+                    if (audio) {
+                        if (this.isBoss) audio.playSound('boss_hit');
+                        else audio.playSound('enemyHit');
+                    }
                     return true;
                 }
             }
@@ -2882,6 +2889,9 @@
                 this.recentDamage = Math.max(0, damage);
                 this.recentDamageFade = 45;
                 this.hp -= damage;
+                if (this.game && this.game.audio && this.hp > 0) {
+                    this.game.audio.playSound('boss_hit');
+                }
                 if (this.hp <= 0) {
                     this.active = false;
                     // Clear all tetrominoes
@@ -3331,6 +3341,7 @@
                 this.defeatedBossCount = (this.defeatedBossCount || 0) + 1;
                 this.inBossPhase = false;
                 this.activeBoss = null;
+                if (this.shakeCanvas) this.shakeCanvas(8, 350);
                 // Start pause before next group like regular wave pause
                 this.inWavePause = true;
                 this.wavePauseEndTime = Date.now() + Math.round(3000 / Math.max(0.001, getTimeScale()));
@@ -3373,6 +3384,30 @@
                 this._cachedScaleX = this.canvas.width / (rect.width || 1);
                 this._cachedScaleY = this.canvas.height / (rect.height || 1);
                 this._cachedRectTime = Date.now();
+            }
+
+            // Subtle camera shake using CSS transform on the canvas element
+            shakeCanvas(intensity = 5, duration = 300) {
+                if (!this.canvas) return;
+                const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                this._shakeEnd = Math.max(this._shakeEnd || 0, now + duration);
+                this._shakeIntensity = Math.max(this._shakeIntensity || 0, intensity);
+                if (this._shakeRaf) return;
+                const animate = () => {
+                    const t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                    if (!this._shakeEnd || t >= this._shakeEnd) {
+                        this.canvas.style.transform = '';
+                        this._shakeRaf = null;
+                        this._shakeEnd = 0;
+                        this._shakeIntensity = 0;
+                        return;
+                    }
+                    const dx = (Math.random() - 0.5) * this._shakeIntensity;
+                    const dy = (Math.random() - 0.5) * this._shakeIntensity;
+                    this.canvas.style.transform = `translate(${dx}px, ${dy}px)`;
+                    this._shakeRaf = requestAnimationFrame(animate);
+                };
+                this._shakeRaf = requestAnimationFrame(animate);
             }
 
             async setupAudio() {
@@ -4134,6 +4169,7 @@
                             if (this.effects && this.effects.createRocketExplosionRing) {
                                 this.effects.createRocketExplosionRing(r.x, r.y, r.aoeRadius);
                                 this.audio.playSound('RocketExplotion');
+                        if (this.shakeCanvas) this.shakeCanvas(6, 250);
                             }
                             // Apply AoE damage to enemies
                             const radius = r.aoeRadius;
@@ -4225,6 +4261,7 @@
                             if (exploded && this.effects && this.effects.createRocketExplosionRing) {
                                 this.effects.createRocketExplosionRing(exploded.x, exploded.y, exploded.aoeRadius);
                                 this.audio.playSound('RocketExplotion');
+                                if (this.shakeCanvas) this.shakeCanvas(7, 260);
                             }
                             // AoE damage
                             const ex = r.x, ey = r.y, aoe = exploded.aoeRadius;
