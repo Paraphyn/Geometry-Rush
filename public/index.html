@@ -287,14 +287,14 @@
             75% { transform: translateX(-2px); }
             100% { transform: translateX(0); }
         }
-        .theme-option.shake { animation: shake 0.3s; }
+        .theme-option.shake { animation: shake 0.2s; }
         /* Locked theme state */
         .theme-option.locked { cursor: not-allowed; opacity: 0.75; }
         .theme-option.locked .circle { background: #000000 !important; border-color: #333333 !important; box-shadow: none !important; animation: none !important; }
         .theme-option.locked .theme-name { color: #777777 !important; }
-        .theme-default { background: #ffffff; border-color: #cccccc; }
-        .theme-cyan { background: #00ffff; border-color: #00cccc; box-shadow: 0 0 10px rgba(0,255,255,0.8), 0 0 18px rgba(0,255,255,0.5); }
-        .theme-rainbow { background: conic-gradient(from 0deg, red, orange, yellow, green, cyan, blue, violet, red); border-color: #ffffff22; animation: rainbowHue 8s linear infinite; }
+        .theme-default { background: #ffffff; border-color: #ffffff; }
+        .theme-cyan { background: #00ffff; border-color: #00ffff; box-shadow: 0 0 10px rgba(0,255,255,0.8), 0 0 18px rgba(0,255,255,0.5); }
+        .theme-rainbow { background: conic-gradient(from 0deg, red, orange, yellow, green, cyan, blue, violet, red); border-color: #ffffff; animation: rainbowHue 8s linear infinite; }
         @keyframes rainbowHue {
             from { filter: hue-rotate(0deg); }
             to { filter: hue-rotate(360deg); }
