@@ -717,13 +717,13 @@
                     gameOver: { file: 'game-over.wav', loop: false },
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
-                    boss_hit: { file: 'enemy-hit.wav', loop: false },
+                    boss_hit: { file: 'boss-hit.wav', loop: false },
                     bossDefeated: { file: 'game-over.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
                     UpgradeSelected: { file: 'level-up.wav', loop: false },
                     XP_collect: { file: 'xp-collect.wav', loop: false },
-                    'Level_UP': { file: 'level-up.wav', loop: false },
+                    Level_UP: { file: 'level-up.wav', loop: false },
                     RocketLaunch: { file: 'rocket-launch.wav', loop: false },
                     RocketExplotion: { file: 'rocket-explosion.wav', loop: false },
                     RocketReload: { file: 'rocket-reload.wav', loop: false },
@@ -4654,7 +4654,7 @@
                             while (this.playerXp >= this.playerXpRequired) {
                                 this.playerXp -= this.playerXpRequired;
                                 this.playerLevel += 1;
-                                if (this.audio) this.audio.playSound('Level_UP');
+                                if (this.audio) this.audio.playSound(Level_UP);
                                 this.playerXpRequired = getRequiredXpForLevel(this.playerLevel);
                                 this.triggerLevelUpSelection();
                             }
