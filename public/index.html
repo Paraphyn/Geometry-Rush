@@ -689,6 +689,7 @@
                     gameOver: { file: 'game-over.wav', loop: false },
                     enemyHit: { file: 'enemy-hit.wav', loop: false },
                     enemyDeath: { file: 'enemy-death.wav', loop: false },
+                    boss_hit: { file: 'enemy-hit.wav', loop: false },
                     bossDefeated: { file: 'game-over.wav', loop: false },
                     enemyShoot: { file: 'enemy-shoot.wav', loop: false },
                     buttonClick: { file: 'button-click.wav', loop: false },
@@ -2481,7 +2482,10 @@
                     if (audio) audio.playSound('enemyDeath');
                     return false;
                 } else {
-                    if (audio) audio.playSound('enemyHit');
+                    if (audio) {
+                        if (this.isBoss) audio.playSound('boss_hit');
+                        else audio.playSound('enemyHit');
+                    }
                     return true;
                 }
             }
@@ -2885,6 +2889,9 @@
                 this.recentDamage = Math.max(0, damage);
                 this.recentDamageFade = 45;
                 this.hp -= damage;
+                if (this.game && this.game.audio && this.hp > 0) {
+                    this.game.audio.playSound('boss_hit');
+                }
                 if (this.hp <= 0) {
                     this.active = false;
                     // Clear all tetrominoes
