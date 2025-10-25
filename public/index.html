@@ -1394,7 +1394,7 @@
             constructor(x, y, playerRadius, damage = 80) {
                 this.x = x;
                 this.y = y;
-                this.radius = Math.max(2, Math.floor((playerRadius || 20) * 0.25));
+                this.radius = Math.max(2, Math.floor((playerRadius || 20) * 0.25 * 1.15));
                 this.life = 180; // ~3s
                 this.damage = damage;
                 this.type = 'mine';
@@ -1417,9 +1417,9 @@
                 ctx.globalAlpha = blink;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = '#FFA500';
+                ctx.fillStyle = '#00FFFF';
                 ctx.fill();
-                ctx.strokeStyle = '#CC7700';
+                ctx.strokeStyle = '#00FFFF';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 ctx.restore();
@@ -4014,6 +4014,8 @@
                             if (this.audio.musicEnabled) {
                                 this.audio.playGameMusic();
                             }
+                            // Prevent the same SPACE keydown from placing a mine immediately after restart
+                            return;
                         }
                     }
                     // Place mine on SPACE during gameplay
