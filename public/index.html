@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Circle Shooter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -1281,7 +1284,7 @@
 
                 const healthColor = this.health > 60 ? '#00ff00' : this.health > 30 ? '#ffaa00' : '#ff0000';
                 ctx.fillStyle = healthColor;
-                ctx.font = 'bold 20px Arial';
+                ctx.font = 'bold 20px Roboto';
                 ctx.textAlign = 'center';
                 ctx.fillText(`HP: ${this.health}`, this.x, this.y + this.radius + 22);
 
@@ -1970,7 +1973,7 @@
                             ctx.save();
                             ctx.globalAlpha = this.opacity;
                             const fontSize = Math.floor(24 * this.scale);
-                            ctx.font = `bold ${fontSize}px Arial`;
+                            ctx.font = `bold ${fontSize}px Roboto`;
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 3;
@@ -4904,7 +4907,7 @@
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                     this.ctx.fillStyle = '#ffffff';
-                    this.ctx.font = '48px Arial';
+                    this.ctx.font = '48px Roboto';
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2 - 20);
                     
@@ -4923,7 +4926,7 @@
                     this.ctx.save();
                     this.ctx.globalAlpha = opacity;
                     this.ctx.fillStyle = '#ffffff';
-                    this.ctx.font = '20px Arial';
+                    this.ctx.font = '20px Roboto';
                     this.ctx.fillText('Press ESC to continue', this.canvas.width / 2, this.canvas.height / 2 + 30);
                     this.ctx.restore();
                 }
@@ -4931,11 +4934,11 @@
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                     this.ctx.fillStyle = '#ff4444';
-                    this.ctx.font = '48px Arial';
+                    this.ctx.font = '48px Roboto';
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 60);
                     this.ctx.fillStyle = '#ffffff';
-                    this.ctx.font = '28px Arial';
+                    this.ctx.font = '28px Roboto';
                                         // Center the stats block vertically with equal spacing
                     const centerX = this.canvas.width / 2;
                     const lineHeight = 40;
@@ -4961,7 +4964,7 @@
                         this.ctx.save();
                         this.ctx.textAlign = 'left';
                         this.ctx.fillStyle = '#00ff00';
-                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.font = 'bold 24px Roboto';
                         this.ctx.fillText('NEW!', centerX + w / 2 + 16, statsStartY + 3 * lineHeight);
                         this.ctx.restore();
                     }
@@ -4970,7 +4973,7 @@
                         this.ctx.save();
                         this.ctx.textAlign = 'left';
                         this.ctx.fillStyle = '#00ff00';
-                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.font = 'bold 24px Roboto';
                         this.ctx.fillText('NEW!', centerX + w2 / 2 + 16, statsStartY + 4 * lineHeight);
                         this.ctx.restore();
                     }
@@ -4991,7 +4994,7 @@
                     this.ctx.save();
                     this.ctx.globalAlpha = opacity;
                     this.ctx.fillStyle = '#ffffff';
-                    this.ctx.font = '20px Arial';
+                    this.ctx.font = '20px Roboto';
                     this.ctx.fillText('Press SPACE to restart', this.canvas.width / 2, this.canvas.height / 2 + 200);
                     this.ctx.fillText('Press ESC to return to lobby', this.canvas.width / 2, this.canvas.height / 2 + 230);
                     this.ctx.restore();
