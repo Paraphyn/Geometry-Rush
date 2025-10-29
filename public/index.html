@@ -79,6 +79,8 @@
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         /* DEV: FPS indicator */
         .fps { bottom: 20px; right: 20px; font-size: 18px; color: #00ff00; }
+
+        
         
         /* XP Bar */
         .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; position: relative; overflow: hidden; }
@@ -546,6 +548,8 @@
     <script>
         // Global speed && scaling settings
         const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
+
+        document.addEventListener('keydown', e => e.key === 'F8' && ['fps','wipeButton'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }));
 
         function computeResolutionScale(width, height) {
             return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
