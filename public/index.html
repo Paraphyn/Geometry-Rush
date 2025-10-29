@@ -79,6 +79,28 @@
         .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
         /* DEV: FPS indicator */
         .fps { bottom: 20px; right: 20px; font-size: 18px; color: #00ff00; }
+
+        /* DEV: Quick toggle button */
+        .dev-toggle {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #111;
+            background: #00ffcc;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 1000; /* Above game UI */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            opacity: 0.9;
+        }
+        .dev-toggle:hover { opacity: 1; }
+        .dev-toggle[aria-pressed="true"] {
+            background: #ffcc00;
+        }
         
         /* XP Bar */
         .xp-bar { top: 80px; left: 50%; transform: translateX(-50%); width: 300px; height: 16px; border: 2px solid #ffffff; position: relative; overflow: hidden; }
@@ -494,6 +516,8 @@
     <div class="ui controls">Controls >>> WASD: Move | L.Mouse: Bullets | Hold R.Mouse: Railgun | M.Mouse: Rockets | Space: Mines | Shift: Dash</div>
     <!-- DEV: FPS indicator -->
     <div class="ui fps" id="fps">FPS: 60</div>
+    <!-- DEV: UI toggle button -->
+    <button class="dev-toggle" id="devToggle" title="Toggle DEV UI" aria-pressed="false">DEV</button>
     
     <!-- Lobby Screen -->
     <div class="lobby" id="lobby">
@@ -546,6 +570,40 @@
     <script>
         // Global speed && scaling settings
         const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
+
+        // DEV UI quick toggle (shows/hides FPS and Wipe button)
+        (function initDevUIToggle() {
+            const devToggle = document.getElementById('devToggle');
+            const fpsEl = document.getElementById('fps');
+            const wipeButton = document.getElementById('wipeButton');
+
+            function setDevUI(enabled) {
+                const isEnabled = !!enabled;
+                try { localStorage.setItem('dev_ui', isEnabled ? '1' : '0'); } catch (_) {}
+                if (devToggle) devToggle.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
+                if (fpsEl) fpsEl.style.display = isEnabled ? '' : 'none';
+                if (wipeButton) wipeButton.style.display = isEnabled ? '' : 'none';
+                window.__devUIEnabled = isEnabled;
+            }
+
+            if (devToggle) {
+                devToggle.addEventListener('click', () => {
+                    setDevUI(!window.__devUIEnabled);
+                });
+            }
+
+            let saved = null;
+            try { saved = localStorage.getItem('dev_ui'); } catch (_) {}
+            setDevUI(saved === '1'); // default OFF if not set
+
+            // Optional keyboard shortcut: Ctrl+D to toggle DEV UI quickly
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+                    e.preventDefault();
+                    setDevUI(!window.__devUIEnabled);
+                }
+            });
+        })();
 
         function computeResolutionScale(width, height) {
             return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
