@@ -549,6 +549,14 @@
         // Global speed && scaling settings
         const SPEED_SETTINGS = { baseWidth: 1920, baseHeight: 1080, globalSpeed: 0.8 };
 
+        const PLAYER_WEAPON_BASE_DAMAGE = Object.freeze({
+            bullet: 50,
+            rocket: 100,
+            mine: 80,
+            railgunMin: 5,
+            railgunMax: 300
+        });
+
         document.addEventListener('keydown', e => e.key === 'F8' && ['fps','wipeButton'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }));
 
         function computeResolutionScale(width, height) {
@@ -1342,7 +1350,7 @@
 
         // Player bullet management
         class Bullet {
-            constructor(x, y, dx, dy, damage = 50) {
+            constructor(x, y, dx, dy, damage = PLAYER_WEAPON_BASE_DAMAGE.bullet) {
                 this.x = x;
                 this.y = y;
                 this.dx = dx;
@@ -1379,7 +1387,7 @@
 
         // Player rocket projectile
         class Rocket {
-            constructor(x, y, dirX, dirY, damage = 150) {
+            constructor(x, y, dirX, dirY, damage = PLAYER_WEAPON_BASE_DAMAGE.rocket) {
                 this.x = x;
                 this.y = y;
                 const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
@@ -1431,7 +1439,7 @@
 
         // Player mine (stationary explosive)
         class Mine {
-            constructor(x, y, playerRadius, damage = 100) {
+            constructor(x, y, playerRadius, damage = PLAYER_WEAPON_BASE_DAMAGE.mine) {
                 this.x = x;
                 this.y = y;
                 this.radius = Math.max(2, Math.floor((playerRadius || 20) * 0.25 * 1.15));
@@ -2142,12 +2150,21 @@
                 const dy = targetY - startY;
                 const invLen = 1 / (Math.sqrt(dx * dx + dy * dy) || 1);
                 const maxDist = Math.max(canvas.width, canvas.height) * 2;
+                const damageMultiplier = (typeof window !== 'undefined' && window.game && window.game.player)
+                    ? (window.game.player.bulletDamageMultiplier || 1)
+                    : 1;
+                const railgunMinDamage = PLAYER_WEAPON_BASE_DAMAGE.railgunMin;
+                const railgunMaxDamage = PLAYER_WEAPON_BASE_DAMAGE.railgunMax;
+                const chargeThreshold = 0.05;
+                const baseRailgunDamage = charge <= chargeThreshold
+                    ? railgunMinDamage
+                    : railgunMinDamage + (railgunMaxDamage - railgunMinDamage) * (charge - chargeThreshold) / (1 - chargeThreshold);
                 this.effects.push(new Effect('railgunBeam', startX, startY, {
                     endX: startX + (dx * invLen) * maxDist,
                     endY: startY + (dy * invLen) * maxDist,
                     charge: charge,
                     _isMaxCharge: charge >= 0.95,
-                    damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * (this.playerDamageMultiplier || 1),
+                    damage: baseRailgunDamage * damageMultiplier,
                     life: 60,
                     maxLife: 60,
                     opacity: 1.0,
@@ -4200,7 +4217,9 @@
                 const now = Date.now();
                 const t = Math.max(0.001, getTimeScale());
                 if (now - this.lastMinePlaced < this.mineCooldownMs / t) return;
-                const dmg = Math.floor(80 * (this.player.bulletDamageMultiplier || 1));
+                const dmgMul = this.player.bulletDamageMultiplier || 1;
+                const baseDamage = PLAYER_WEAPON_BASE_DAMAGE.mine;
+                const dmg = Math.floor(baseDamage * dmgMul);
                 this.mines.push(new Mine(this.player.x, this.player.y, this.player.radius, dmg));
                 this.lastMinePlaced = now;
                 if (this.audio) this.audio.playSound('mine_placed');
@@ -4212,7 +4231,7 @@
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-                const baseDamage = 50;
+                const baseDamage = PLAYER_WEAPON_BASE_DAMAGE.bullet;
                 const dmgMul = this.player.bulletDamageMultiplier || 1;
                 this.bullets.push(new Bullet(
                     this.player.x,
@@ -4234,7 +4253,8 @@
                 }
                 const dx = this.input.mouse.x - this.player.x;
                 const dy = this.input.mouse.y - this.player.y;
-                const dmg = Math.floor(100 * (this.player.bulletDamageMultiplier || 1));
+                const baseDamage = PLAYER_WEAPON_BASE_DAMAGE.rocket;
+                const dmg = Math.floor(baseDamage * (this.player.bulletDamageMultiplier || 1));
                 this.rockets.push(new Rocket(this.player.x, this.player.y, dx, dy, dmg));
                 this.lastRocketShot = now;
                 this.audio.playSound('RocketLaunch');
