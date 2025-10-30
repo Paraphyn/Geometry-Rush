@@ -575,11 +575,20 @@
 
         // Falling numbers background effect for lobby (simple, layered, cyan)
         class FallingNumbers {
-            constructor(x, y, layer = 0) {
+            constructor(x, y, layer = 0, options = {}) {
                 this.x = x;
                 this.y = y;
                 this.layer = layer;
-                this.digit = Math.floor(Math.random() * 10); // 0-9
+                this.options = options || {};
+                this.digits = Array.isArray(this.options.digits) && this.options.digits.length > 0
+                    ? this.options.digits.map(d => String(d))
+                    : ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+                this.digitChangeMode = this.options.digitChangeMode === 'random' ? 'random' : 'increment';
+                this.color = this.options.color || '#00ffff';
+                this.fontFamily = this.options.fontFamily || 'monospace';
+
+                this.digitIndex = Math.floor(Math.random() * this.digits.length);
+                this.digit = this.digits[this.digitIndex];
 
                 // Layer-based simple properties (back to front)
                 // Speeds are in px/frame scaled by global time scale; slowed to 50%
@@ -606,7 +615,7 @@
                 // Advance digit based on per-number cadence
                 this.digitTick += t;
                 if (this.digitTick >= this.digitTickMax) {
-                    this.digit = (this.digit + 1) % 10;
+                    this.advanceDigit();
                     this.digitTick = 0;
                 }
 
@@ -630,25 +639,44 @@
                 if (this.opacity <= 0.01) return;
                 ctx.save();
                 ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = '#00ffff';
-                ctx.font = `${this.size}px monospace`;
+                ctx.fillStyle = this.color;
+                ctx.font = `${this.size}px ${this.fontFamily}`;
                 ctx.textAlign = 'center';
                 ctx.fillText(String(this.digit), this.x, this.y);
                 ctx.restore();
+            }
+
+            advanceDigit() {
+                if (this.digits.length <= 1) return;
+                if (this.digitChangeMode === 'random') {
+                    let nextIndex = Math.floor(Math.random() * this.digits.length);
+                    if (nextIndex === this.digitIndex && this.digits.length > 1) {
+                        nextIndex = (nextIndex + 1) % this.digits.length;
+                    }
+                    this.digitIndex = nextIndex;
+                } else {
+                    this.digitIndex = (this.digitIndex + 1) % this.digits.length;
+                }
+                this.digit = this.digits[this.digitIndex];
             }
         }
 
         // Falling numbers manager for lobby
         class FallingNumbersManager {
-            constructor(canvas) {
+            constructor(canvas, options = {}) {
                 this.canvas = canvas;
+                this.options = options || {};
                 this.layers = [[], [], [], [], []]; // Five layers
                 this.spawnTimers = [0, 0, 0, 0, 0];
                 // Slower, steadier spawn per layer; more small digits in back
-                this.spawnDelays = [14, 12, 10, 8, 6];
-                this.maxNumbers = [70, 55, 40, 28, 18];
+                this.spawnDelays = Array.isArray(this.options.spawnDelays) && this.options.spawnDelays.length === 5
+                    ? this.options.spawnDelays
+                    : [14, 12, 10, 8, 6];
+                this.maxNumbers = Array.isArray(this.options.maxNumbers) && this.options.maxNumbers.length === 5
+                    ? this.options.maxNumbers
+                    : [70, 55, 40, 28, 18];
                 // Prewarm so the screen isn't empty at start
-                this._prewarm();
+                this.reset();
             }
 
             update() {
@@ -674,7 +702,7 @@
             spawnNumber(layer) {
                 const x = Math.random() * this.canvas.width;
                 const y = -50;
-                this.layers[layer].push(new FallingNumbers(x, y, layer));
+                this.layers[layer].push(new FallingNumbers(x, y, layer, this.options));
             }
 
             draw(ctx) {
@@ -691,9 +719,17 @@
                     for (let i = 0; i < count; i++) {
                         const x = Math.random() * this.canvas.width;
                         const y = Math.random() * this.canvas.height;
-                        this.layers[layer].push(new FallingNumbers(x, y, layer));
+                        this.layers[layer].push(new FallingNumbers(x, y, layer, this.options));
                     }
                 }
+            }
+
+            reset() {
+                for (let layer = 0; layer < 5; layer++) {
+                    this.layers[layer] = [];
+                    this.spawnTimers[layer] = 0;
+                }
+                this._prewarm();
             }
         }
 
@@ -3330,6 +3366,11 @@
                 this.setupAudio();
                 this.backgroundBinary = new BackgroundBinaryManager(this.canvas);
                 this.fallingNumbers = new FallingNumbersManager(this.canvas);
+                this.gameOverRain = new FallingNumbersManager(this.canvas, {
+                    color: '#ff3333',
+                    digits: ['0', '1'],
+                    digitChangeMode: 'random'
+                });
                 this.tetrisManager = new TetrisManager(this);
                 // Lobby radial lines config (precompute base directions)
                 this.lobbyRadial = { lineCount: 36, innerR: 80, baseDirs: [] };
@@ -4004,6 +4045,9 @@
                     this.refreshCanvasRectCache();
                     this.backgroundBinary.canvas = this.canvas;
                     this.fallingNumbers.canvas = this.canvas;
+                    if (this.gameOverRain) {
+                        this.gameOverRain.canvas = this.canvas;
+                    }
                     if (this.player.health === 100 && this.score === 0) {
                         this.player.x = this.canvas.width / 2;
                         this.player.y = this.canvas.height / 2;
@@ -4840,6 +4884,9 @@
                     this.input.clear();
                     this.audio.stopGameMusic();
                     this.audio.stopLobbyMusic();
+                    if (this.gameOverRain) {
+                        this.gameOverRain.reset();
+                    }
                     this.updateBestStatsIfNeeded(this.score, this.currentWave);
                     this.updateBestStatsLabel();
                     this.player.stopRailgunCharge(this.audio);
@@ -4993,6 +5040,9 @@
                 if (this.gameOver) {
                     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    if (this.gameOverRain) {
+                        this.gameOverRain.draw(this.ctx);
+                    }
                     this.ctx.fillStyle = '#ff4444';
                     this.ctx.font = '48px Roboto';
                     this.ctx.textAlign = 'center';
@@ -5117,6 +5167,9 @@
                     this.fallingNumbers.update();
                 } else {
                     this.backgroundBinary.update();
+                    if (this.gameOver && this.gameOverRain) {
+                        this.gameOverRain.update();
+                    }
                 }
                 
                 let gameTime;
