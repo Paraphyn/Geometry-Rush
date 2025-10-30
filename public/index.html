@@ -76,7 +76,16 @@
         .score { top: 50px; left: 20px; font-size: 20px; }
         .score-addition { color: #00ff00; }
         .wave { top: 80px; left: 20px; font-size: 20px; }
-        .controls { bottom: 20px; left: 20px; font-size: 18px; opacity: 0.5; }
+        .controls {
+            bottom: 20px;
+            left: 20px;
+            font-size: 18px;
+            opacity: 0.6;
+            transition: opacity 2s ease;
+        }
+        .controls.controls-hidden {
+            opacity: 0;
+        }
         /* DEV: FPS indicator */
         .fps { bottom: 20px; right: 20px; font-size: 18px; color: #00ff00; }
 
@@ -3247,6 +3256,18 @@
                 });
             }
             
+            showControlsInfo() {
+                if (this.controlsEl) {
+                    this.controlsEl.classList.remove('controls-hidden');
+                }
+            }
+
+            hideControlsInfo() {
+                if (this.controlsEl) {
+                    this.controlsEl.classList.add('controls-hidden');
+                }
+            }
+
             showNextWaveTimer(seconds) {
                 if (this.nextWaveElement) {
                     this.nextWaveElement.textContent = `Next Wave in ${seconds}...`;
@@ -3378,6 +3399,8 @@
                         this.playerTheme = savedTheme;
                     }
                 } catch (e) { /* ignore storage errors */ }
+                this.controlsInfoAutoHideDelay = 20000;
+                this.controlsInfoAutoHideTriggered = false;
                 this.reset();
                 this.setupEventListeners();
                 this.setupAudio();
@@ -4024,6 +4047,10 @@
                 this.player.stopRailgunCharge(this.audio);
                 this.wavePauseEndTime = 0;
                 this.inWavePause = false;
+                this.controlsInfoAutoHideTriggered = false;
+                if (this.uiManager && this.uiManager.showControlsInfo) {
+                    this.uiManager.showControlsInfo();
+                }
                 
                 // Reset grid position when game resets
                 this.gridOffsetX = 0;
@@ -4113,12 +4140,22 @@
                                 this.audio.playSound('pauseActivate');
                                 if (this.effects && this.effects.disableRailgunAura) this.effects.disableRailgunAura();
                                 quitButton.classList.add('visible');
+                                if (this.uiManager && this.uiManager.showControlsInfo) {
+                                    this.uiManager.showControlsInfo();
+                                }
                             } else {
                                 this.startTime += Date.now() - this.pauseTime;
                                 this.waveStartTime += Date.now() - this.pauseTime;
                                 this.audio.resumeMusic();
                                 this.audio.playSound('pauseDeactivate');
                                 quitButton.classList.remove('visible');
+                                if (this.uiManager && this.uiManager.hideControlsInfo) {
+                                    const elapsed = Date.now() - this.startTime;
+                                    if (this.controlsInfoAutoHideTriggered || elapsed >= this.controlsInfoAutoHideDelay) {
+                                        this.uiManager.hideControlsInfo();
+                                        this.controlsInfoAutoHideTriggered = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -4332,6 +4369,12 @@
                 if (this.upgradePause) return;
                 
                 const gameTime = Date.now() - this.startTime;
+                if (!this.controlsInfoAutoHideTriggered && gameTime >= this.controlsInfoAutoHideDelay) {
+                    if (this.uiManager && this.uiManager.hideControlsInfo) {
+                        this.uiManager.hideControlsInfo();
+                    }
+                    this.controlsInfoAutoHideTriggered = true;
+                }
                 
                 // Boss phase timing: after warning ends, spawn boss
                 if (this.inBossPhase) {
