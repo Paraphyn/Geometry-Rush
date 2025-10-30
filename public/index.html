@@ -495,7 +495,7 @@
     <div class="ui xp-level" id="xpLevel">Lv. 1</div>
     <div class="ui controls">Controls >>> WASD: Move | L.Mouse: Bullets | Hold R.Mouse: Railgun | M.Mouse: Rockets | Space: Mines | Shift: Dash</div>
     <!-- DEV: FPS indicator -->
-    <div class="ui fps" id="fps">FPS: 60</div>
+    <div class="ui fps" id="fps" style="display: none;">FPS: 60</div>
     
     <!-- Lobby Screen -->
     <div class="lobby" id="lobby">
@@ -526,7 +526,7 @@
         </div>
         <div class="lobby-best" id="bestStats">Best Score: 0 / Max Wave: 0</div>
         <!-- DEV: Wipe local saved data button (lobby only) -->
-        <button class="wipe-button" id="wipeButton" title="Erase local saved data">Wipe</button>
+        <button class="wipe-button" id="wipeButton" title="Erase local saved data" style="display: none;">Wipe</button>
     </div>
     
     <!-- Music Toggle Button -->
@@ -2863,9 +2863,16 @@
                 // Update pieces
                 for (let i = this.activePieces.length - 1; i >= 0; i--) {
                     const p = this.activePieces[i];
-                    // Move piece
                     const beforeY = p.y;
                     p.update(canvas);
+
+                    if (p.dying) {
+                        if (p.deathLife >= p.deathMaxLife) {
+                            this.activePieces.splice(i, 1);
+                        }
+                        continue;
+                    }
+
                     // Collision with stack: if any cell overlaps an existing stacked cell, land it and revert to before overlap
                     const cells = p.getCells();
                     let overlapsStack = false;
@@ -2891,8 +2898,8 @@
                     }
                     if (p.landed) {
                         // Project all cells to stack
-                        const cells = p.getCells();
-                        cells.forEach(c => this.stack.push({ x: c.x, y: c.y, r: c.r }));
+                        const landedCells = p.getCells();
+                        landedCells.forEach(c => this.stack.push({ x: c.x, y: c.y, r: c.r }));
                         this.activePieces.splice(i, 1);
                     }
                 }
@@ -4362,6 +4369,7 @@
                             if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
                                 for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
                                     const piece = this.tetrisManager.activePieces[p];
+                                    if (!piece || piece.dying) continue;
                                     const cells = piece.getCells();
                                     for (let c = 0; c < cells.length; c++) {
                                         const cell = cells[c];
@@ -4501,6 +4509,7 @@
                             if (this.inBossPhase && this.activeBoss && this.activeBoss instanceof TetrisCrossBoss) {
                                 for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
                                     const piece = this.tetrisManager.activePieces[p];
+                                    if (!piece || piece.dying) continue;
                                     const cells = piece.getCells();
                                     for (let c = 0; c < cells.length; c++) {
                                         const cell = cells[c];
@@ -4674,6 +4683,7 @@
                     const cellHash = new SpatialHash(TETRIS_SETTINGS.cellSize || 40);
                     for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
                         const piece = this.tetrisManager.activePieces[p];
+                        if (!piece || piece.dying) continue;
                         const cells = piece.getCells();
                         for (let c = 0; c < cells.length; c++) {
                             const cell = cells[c];
@@ -4713,6 +4723,7 @@
                         if (effect.type !== 'railgunBeam') continue;
                         for (let p = this.tetrisManager.activePieces.length - 1; p >= 0; p--) {
                             const piece = this.tetrisManager.activePieces[p];
+                            if (!piece || piece.dying) continue;
                             const cells = piece.getCells();
                             if (effect.intersectsCircle(piece.x, piece.y, 0, piece.id)) {
                                 piece.hp -= effect.damage;
@@ -4742,6 +4753,7 @@
                     const cellHash = new SpatialHash(TETRIS_SETTINGS.cellSize || 40);
                     for (let p = 0; p < this.tetrisManager.activePieces.length; p++) {
                         const piece = this.tetrisManager.activePieces[p];
+                        if (!piece || piece.dying) continue;
                         const cells = piece.getCells();
                         for (let c = 0; c < cells.length; c++) {
                             const cell = cells[c];
