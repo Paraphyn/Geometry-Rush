@@ -1141,7 +1141,7 @@
                     const t = this.dashProgress / this.dashDuration;
                     this.x = this.dashStartX + (this.dashEndX - this.dashStartX) * t;
                     this.y = this.dashStartY + (this.dashEndY - this.dashStartY) * t;
-                    effects.createDashTrail(this.x, this.y);
+                    effects.createDashTrail(this.x, this.y, this.theme);
                     if (this.dashProgress >= this.dashDuration) {
                         this.isDashing = false;
                         this.invulnerable = false;
@@ -2191,22 +2191,64 @@
                 }));
             }
 
-            createDashTrail(x, y) {
+            createDashTrail(x, y, theme = 'default') {
+                const maxLife = 48;
+                const baseSize = 26;
+                const endSize = 10;
+                const startHue = Math.random() * 360;
                 this.effects.push(new Effect('dashTrail', x, y, {
-                    color: '#ffffff',
-                    size: 20,
-                    opacity: 0.7,
-                    life: 20,
-                    maxLife: 20,
+                    theme,
+                    life: maxLife,
+                    maxLife,
+                    size: baseSize,
+                    baseSize,
+                    endSize,
+                    opacity: 1,
+                    startHue,
+                    currentHue: startHue,
                     typeSpecificUpdate: function() {
-                        this.life -= getTimeScale();
-                        this.opacity = 0.5 * (this.life / this.maxLife);
+                        const t = getTimeScale();
+                        this.life -= t;
+                        const normalized = Math.max(0, this.life / this.maxLife);
+                        this.opacity = Math.pow(normalized, 0.75);
+                        this.size = this.endSize + (this.baseSize - this.endSize) * normalized;
+                        if (this.theme === 'rainbow') {
+                            const paletteShift = (1 - normalized) * 240;
+                            this.currentHue = (this.startHue + paletteShift) % 360;
+                        }
                         return this.life > 0;
                     },
                     typeSpecificDraw: function(ctx) {
                         ctx.save();
-                        ctx.globalAlpha = this.opacity;
-                        ctx.fillStyle = this.color;
+                        let fillStyle;
+                        if (this.theme === 'cyan') {
+                            ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+                            ctx.shadowBlur = this.size * 0.8;
+                            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                            grad.addColorStop(0, 'rgba(0, 255, 255, 0.9)');
+                            grad.addColorStop(0.55, 'rgba(0, 200, 255, 0.45)');
+                            grad.addColorStop(1, 'rgba(0, 140, 255, 0)');
+                            fillStyle = grad;
+                        } else if (this.theme === 'rainbow') {
+                            const hue = this.currentHue || this.startHue || 0;
+                            ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+                            ctx.shadowBlur = this.size * 0.6;
+                            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                            grad.addColorStop(0, `hsla(${hue}, 100%, 68%, 0.9)`);
+                            grad.addColorStop(0.4, `hsla(${(hue + 60) % 360}, 100%, 60%, 0.7)`);
+                            grad.addColorStop(0.8, `hsla(${(hue + 140) % 360}, 100%, 55%, 0.5)`);
+                            grad.addColorStop(1, `hsla(${(hue + 180) % 360}, 100%, 50%, 0)`);
+                            fillStyle = grad;
+                        } else {
+                            ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+                            ctx.shadowBlur = this.size * 0.5;
+                            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                            grad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+                            grad.addColorStop(0.6, 'rgba(200, 200, 255, 0.35)');
+                            grad.addColorStop(1, 'rgba(140, 140, 200, 0)');
+                            fillStyle = grad;
+                        }
+                        ctx.fillStyle = fillStyle;
                         ctx.beginPath();
                         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                         ctx.fill();
@@ -2299,19 +2341,18 @@
                     if (ef.type === 'dashTrail') dashTrails.push(ef);
                 }
                 const dashCount = dashTrails.length;
-                const maxOpacity = 0.3;
-                const minOpacity = 0.05;
+                const maxOpacity = 0.45;
+                const minOpacity = 0.1;
                 for (let i = 0; i < this.effects.length; i++) {
                     const effect = this.effects[i];
                     if (effect.type === 'dashTrail') {
                         const index = dashTrails.indexOf(effect);
-                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * (index / Math.max(1, dashCount - 1));
+                        const normalizedIndex = dashCount <= 1 ? 1 : index / Math.max(1, dashCount - 1);
+                        const opacityScale = minOpacity + (maxOpacity - minOpacity) * normalizedIndex;
+                        if (effect.opacity <= 0) continue;
                         ctx.save();
                         ctx.globalAlpha = effect.opacity * opacityScale;
-                        ctx.fillStyle = effect.color;
-                        ctx.beginPath();
-                        ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
-                        ctx.fill();
+                        effect.draw(ctx);
                         ctx.restore();
                     } else {
                         effect.draw(ctx);
