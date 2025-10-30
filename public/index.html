@@ -3913,6 +3913,7 @@
                 this.waveStartTime = 0;
                 this.enemiesToSpawn = [];
                 this.spawnedEnemies = 0;
+                this.waveSpawnInterval = 0;
                 this.gameOver = false;
                 this.paused = false;
                 // Boss state
@@ -4255,19 +4256,9 @@
                 }
                 const totalEnemies = this.enemiesToSpawn.length;
                 if (totalEnemies > 0) {
-                    const spawnInterval = (waveConfig.spawnTime / totalEnemies) / Math.max(0.001, getTimeScale());
-                    let spawnIndex = 0;
-                    const spawnNext = () => {
-                        if (spawnIndex < this.enemiesToSpawn.length) {
-                            this.spawnEnemy(this.enemiesToSpawn[spawnIndex]);
-                            this.spawnedEnemies++;
-                            spawnIndex++;
-                            if (spawnIndex < this.enemiesToSpawn.length) {
-                                setTimeout(spawnNext, spawnInterval);
-                            }
-                        }
-                    };
-                    spawnNext();
+                    this.waveSpawnInterval = (waveConfig.spawnTime / totalEnemies) / Math.max(0.001, getTimeScale());
+                } else {
+                    this.waveSpawnInterval = 0;
                 }
             }
 
@@ -4309,10 +4300,20 @@
                         }
                     }
                 }
+                if (this.waveStarted && !this.inBossPhase && this.enemiesToSpawn.length > 0) {
+                    const waveElapsed = this.waveStartTime ? (Date.now() - this.waveStartTime) : 0;
+                    while (this.spawnedEnemies < this.enemiesToSpawn.length) {
+                        const nextSpawnOffset = this.waveSpawnInterval * this.spawnedEnemies;
+                        if (waveElapsed + 1e-6 < nextSpawnOffset) break;
+                        this.spawnEnemy(this.enemiesToSpawn[this.spawnedEnemies]);
+                        this.spawnedEnemies++;
+                    }
+                }
                 
                 if (!this.inBossPhase && this.waveStarted && this.spawnedEnemies === this.enemiesToSpawn.length && this.enemies.length === 0) {
                     // Wave completed, start pause before next wave
                     this.waveStarted = false;
+                    this.waveSpawnInterval = 0;
                     this.inWavePause = true;
                     this.wavePauseEndTime = Date.now() + Math.round(3000 / Math.max(0.001, getTimeScale())); // 3 second pause
                 }
