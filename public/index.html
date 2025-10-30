@@ -551,10 +551,10 @@
 
         const PLAYER_WEAPON_BASE_DAMAGE = Object.freeze({
             bullet: 50,
-            rocket: 100,
-            mine: 80,
+            rocket: 150,
+            mine: 100,
             railgunMin: 5,
-            railgunMax: 300
+            railgunMax: 250
         });
 
         document.addEventListener('keydown', e => e.key === 'F8' && ['fps','wipeButton'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }));
