@@ -552,7 +552,9 @@
         const PLAYER_WEAPON_BASE_DAMAGE = Object.freeze({
             bullet: 50,
             rocket: 100,
-            mine: 80
+            mine: 80,
+            railgunMin: 5,
+            railgunMax: 300
         });
 
         document.addEventListener('keydown', e => e.key === 'F8' && ['fps','wipeButton'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }));
@@ -2151,12 +2153,18 @@
                 const damageMultiplier = (typeof window !== 'undefined' && window.game && window.game.player)
                     ? (window.game.player.bulletDamageMultiplier || 1)
                     : 1;
+                const railgunMinDamage = PLAYER_WEAPON_BASE_DAMAGE.railgunMin;
+                const railgunMaxDamage = PLAYER_WEAPON_BASE_DAMAGE.railgunMax;
+                const chargeThreshold = 0.05;
+                const baseRailgunDamage = charge <= chargeThreshold
+                    ? railgunMinDamage
+                    : railgunMinDamage + (railgunMaxDamage - railgunMinDamage) * (charge - chargeThreshold) / (1 - chargeThreshold);
                 this.effects.push(new Effect('railgunBeam', startX, startY, {
                     endX: startX + (dx * invLen) * maxDist,
                     endY: startY + (dy * invLen) * maxDist,
                     charge: charge,
                     _isMaxCharge: charge >= 0.95,
-                    damage: (charge <= 0.05 ? 5 : 5 + (300 - 5) * (charge - 0.05) / (1 - 0.05)) * damageMultiplier,
+                    damage: baseRailgunDamage * damageMultiplier,
                     life: 60,
                     maxLife: 60,
                     opacity: 1.0,
