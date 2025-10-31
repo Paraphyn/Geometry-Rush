@@ -568,10 +568,6 @@
 
         document.addEventListener('keydown', e => e.key === 'F8' && ['fps','wipeButton'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }));
 
-        function computeResolutionScale(width, height) {
-            return Math.hypot(width, height) / Math.hypot(SPEED_SETTINGS.baseWidth, SPEED_SETTINGS.baseHeight);
-        }
-
         function getMotionScale() {
             try {
                 return (typeof window !== 'undefined' && window.game && window.game.speedScale) ? window.game.speedScale : 1;
@@ -582,12 +578,6 @@
 
         function getTimeScale() {
             return SPEED_SETTINGS.globalSpeed || 1;
-        }
-
-        // Optional helper to change global speed at runtime
-        function setGlobalSpeed(value) {
-            const v = Number(value);
-            SPEED_SETTINGS.globalSpeed = Number.isFinite(v) ? v : 1;
         }
 
         // Falling numbers background effect for lobby (simple, layered, cyan)
@@ -1047,35 +1037,6 @@
             }
         }
 
-        // Dash trail effect
-        class DashTrail {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.color = '#ffffff';
-                this.size = 20;
-                this.opacity = 0.8;
-                this.life = 20;
-                this.maxLife = 20;
-            }
-
-            update() {
-                this.life -= getTimeScale();
-                this.opacity = 0.5 * (this.life / this.maxLife);
-                return this.life > 0;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
         // Player management
         class Player {
             constructor(canvas) {
@@ -1092,7 +1053,6 @@
                 this.invulnerabilityTime = 0;
                 this.railgunCharge = 0;
                 this.railgunMaxChargeTime = 3000;
-                this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
                 this.isDashing = false;
@@ -1170,7 +1130,6 @@
                     this.railgunCharging = false;
                 }
                 this.railgunCharge = 0;
-                this.railgunParticles = [];
                 this.blinkState = true;
                 this.blinkFrame = 0;
                 this.railgunMaxChargeSoundPlayed = false;
@@ -1253,7 +1212,6 @@
                     }
                     if (effects && effects.disableRailgunAura) { effects.disableRailgunAura(); }
                     this.railgunCharge = 0;
-                    this.railgunParticles = [];
                     this.blinkState = true;
                     this.blinkFrame = 0;
                     this.railgunMaxChargeSoundPlayed = false;
@@ -2110,47 +2068,6 @@
                 }));
             }
 
-            createScoreLabel(points, x, y, score, ctx) {
-                // No longer create visual effects - just trigger UI update
-                // The UI manager will handle showing the score addition
-            }
-
-            createRailgunParticle(playerX, playerY) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 150;
-                this.effects.push(new Effect('railgunParticle', playerX + Math.cos(angle) * distance, playerY + Math.sin(angle) * distance, {
-                    size: 2 + Math.random() * 2,
-                    opacity: 0,
-                    maxOpacity: 0.7,
-                    life: 60,
-                    maxLife: 60,
-                    speed: 1.3 + Math.random() * 1.3,
-                    typeSpecificUpdate: function(playerX, playerY) {
-                        const t = getTimeScale();
-                        const motion = getMotionScale();
-                        this.life -= t;
-                        this.opacity = this.maxOpacity * (1 - this.life / this.maxLife);
-                        const dx = playerX - this.x;
-                        const dy = playerY - this.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist > 0.1) {
-                            this.x += (dx / dist) * this.speed * motion;
-                            this.y += (dy / dist) * this.speed * motion;
-                        }
-                        return this.life > 0;
-                    },
-                    typeSpecificDraw: function(ctx) {
-                        ctx.save();
-                        ctx.globalAlpha = this.opacity;
-                        ctx.fillStyle = '#00ffff';
-                        ctx.beginPath();
-                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.restore();
-                    }
-                }));
-            }
-
             createRailgunBeam(startX, startY, targetX, targetY, canvas, charge) {
                 if (!isFinite(startX) || !isFinite(startY) || !isFinite(targetX) || !isFinite(targetY)) {
                     return;
@@ -2655,7 +2572,6 @@
                 effects.createHitEffect(this.x, this.y);
                 effects.createDamageLabel(this.x, this.y - this.radius - 30, damage, false);
                 if (this.health <= 0) {
-                    effects.createScoreLabel(this.points, this.x, this.y, score, ctx);
                     if (audio) audio.playSound('enemyDeath');
                     return false;
                 } else {
